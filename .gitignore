@@ -2,8 +2,8 @@
 .godot/
 /android/
 *.tmp
-export_presets.cfg
 *.translation
 # OS
 .DS_Store
 Thumbs.db
+build/
