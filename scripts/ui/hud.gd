@@ -7,6 +7,7 @@ var player: Player
 var _money_label: Label
 var _carry_label: Label
 var _panel: PanelContainer
+var _upgrade_button: Button
 var _rows: Dictionary = {}
 
 
@@ -49,8 +50,10 @@ func _ready() -> void:
 	upgrade_button.add_theme_font_size_override("font_size", 40)
 	upgrade_button.pressed.connect(func() -> void: _panel.visible = not _panel.visible)
 	root.add_child(upgrade_button)
+	_upgrade_button = upgrade_button
 
 	_build_upgrade_panel(root)
+	joystick.is_blocked = _is_over_ui
 
 	GameState.money_changed.connect(func(_m: int) -> void: _refresh())
 	GameState.upgrade_changed.connect(func(_id: String, _l: int) -> void: _refresh())
@@ -62,6 +65,13 @@ func bind_player(p: Player) -> void:
 	player.carry_changed.connect(func(count: int, cap: int) -> void:
 		_carry_label.text = "積荷 %d/%d" % [count, cap]
 		_carry_label.modulate = Color("#ff8a7a") if count >= cap else Color.WHITE)
+
+
+## スティックを出さない場所（ボタン・開いている強化パネルの上）
+func _is_over_ui(pos: Vector2) -> bool:
+	if _upgrade_button.get_global_rect().has_point(pos):
+		return true
+	return _panel.visible and _panel.get_global_rect().has_point(pos)
 
 
 func _make_theme() -> Theme:

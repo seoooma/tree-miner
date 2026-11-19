@@ -47,6 +47,17 @@
 2. Godot のプロジェクトマネージャーで「インポート」から、このフォルダの `project.godot` を選ぶ
 3. F5 で実行
 
+### スマホのブラウザで遊ぶ
+
+`main` に push すると GitHub Actions が Web 版を書き出して GitHub Pages に公開します（`.github/workflows/web.yml`）。
+公開先は `https://seoooma.github.io/tree-miner/` です。
+
+初回だけ、GitHub のリポジトリの Settings → Pages → Build and deployment の Source を **GitHub Actions** にしてください。
+非公開リポジトリで Pages を使うには GitHub の有料プランが必要です。
+
+手元で Web 版を書き出す場合は、Godot の「プロジェクト → エクスポート」で「Web」プリセットを選びます（Web 用のエクスポートテンプレートが必要）。
+書き出した `build/web` を `python3 -m http.server` などで配信すればブラウザで動きます（ファイルを直接開くだけでは動きません）。
+
 ### 操作
 
 - スマホ: 画面のどこかを触ってドラッグ（触った場所にスティックが出ます）
@@ -81,6 +92,9 @@ scripts/
   world/           プレイヤー、木、伐採員、製材所、出荷場、エリアの柵
   ui/              HUD（所持金・積荷・強化パネル）とバーチャルスティック
 tests/smoke_test   ヘッドレスで一連のループが動くかを確認するテスト
+fonts/             日本語フォント（Noto Sans JP を使用文字に絞ったもの、OFL）
+tools/subset_font.py  フォントを作り直すスクリプト（UI に新しい漢字を足して表示されないとき）
+export_presets.cfg Web 書き出し設定
 ```
 
 見た目は全てプリミティブ（箱・円柱・球）のプレースホルダです。モデルを差し替えるときは、各スクリプトの `_build...` / `setup` で作っているメッシュを置き換えてください。
@@ -98,5 +112,4 @@ godot --headless --fixed-fps 60 --path . res://tests/smoke_test.tscn
 - 木の再生速度の強化
 - ステージ制（一定量売るとクリアして次のステージ）
 - 板を出荷場まで運ぶ運搬員
-- 日本語フォントの同梱（現状は OS のフォントにフォールバック）
 - 3D モデル・効果音・BGM
