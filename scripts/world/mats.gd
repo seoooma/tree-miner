@@ -1,10 +1,21 @@
 class_name Mats
-## 質感付きマテリアル（地面・木・建物・人物・トラック）。テクスチャは tools/make_textures.py で生成したもの。
+## 質感付きマテリアル（地面・木・建物・人物・トラック）。
+## 地面・樹皮・板材は Poly Haven（CC0）の写真素材（tools/import_polyhaven.py で 512px に縮小）、
+## 金属・塗装・葉のノイズは tools/make_textures.py で生成したもの。
 ## 同じ設定のマテリアルはキャッシュして使い回す。
 
 const TEX := "res://assets/textures/"
 
 static var _cache: Dictionary = {}
+
+## 写真素材の色を、ゲームの明るい色調に合わせるための掛け率（1 より大きいと明るくなる）。
+## leafy_grass は枯れ草寄りなので緑を強め、土は少し明るくする。
+const GROUND_GAIN := {
+	"grass": Color(0.6, 0.93, 0.6),
+	"forest": Color(0.62, 0.86, 0.56),
+	"yard": Color(1.12, 1.05, 0.95),
+	"road": Color(1.4, 1.34, 1.28),
+}
 
 
 static func tex(name: String) -> Texture2D:
@@ -18,20 +29,77 @@ static func _cached_mat(key: String, make: Callable) -> Material:
 
 
 ## 地面（草地 grass / 作業場 yard / 道 road）。ワールド座標でタイルする。tile は 1 枚が何 m か。
-static func ground(kind: String, tint := Color.WHITE, tile := 4.0) -> StandardMaterial3D:
+## 写真素材は同じ模様の繰り返しが目立つので、向きと大きさを変えた2回のサンプルを大きなノイズで混ぜ、
+## 草地にはさらに林床（落ち葉と土）のパッチを混ぜて、広い面でも単調にならないようにする。
+static func ground(kind: String, tint := Color.WHITE, tile := -1.0) -> ShaderMaterial:
+	if tile <= 0.0:
+		tile = GROUND_TILE.get(kind, 4.0)
 	return _cached_mat("ground/%s/%s/%.1f" % [kind, tint.to_html(), tile], func() -> Material:
-		var m := StandardMaterial3D.new()
-		m.albedo_texture = tex(kind + "_albedo.png")
-		m.albedo_color = tint
-		m.normal_enabled = true
-		m.normal_texture = tex(kind + "_normal.png")
-		m.normal_scale = 0.9
-		m.roughness = 0.95
-		m.uv1_triplanar = true
-		m.uv1_world_triplanar = true
-		m.uv1_scale = Vector3.ONE / tile
-		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		var sh := Shader.new()
+		sh.code = GROUND_SHADER
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		var second := "forest" if kind == "grass" else kind
+		m.set_shader_parameter("albedo_a", tex(kind + "_albedo.png"))
+		m.set_shader_parameter("normal_a", tex(kind + "_normal.png"))
+		m.set_shader_parameter("albedo_b", tex(second + "_albedo.png"))
+		m.set_shader_parameter("normal_b", tex(second + "_normal.png"))
+		m.set_shader_parameter("macro_noise", tex("leaf_noise.png"))
+		m.set_shader_parameter("tint", tint)
+		m.set_shader_parameter("gain_a", _gain(kind))
+		m.set_shader_parameter("gain_b", _gain(second))
+		m.set_shader_parameter("tile", tile)
+		m.set_shader_parameter("patch_amount", 0.55 if kind == "grass" else 0.0)
 		return m)
+
+
+## 地面のテクスチャ 1 枚が何 m 四方か（小石の大きさが人物に対して自然に見えるように）
+const GROUND_TILE := {"grass": 4.0, "yard": 2.6, "road": 3.0}
+
+
+static func _gain(kind: String) -> Vector3:
+	var c: Color = GROUND_GAIN.get(kind, Color.WHITE)
+	return Vector3(c.r, c.g, c.b)
+
+
+const GROUND_SHADER := """
+shader_type spatial;
+render_mode cull_back;
+uniform sampler2D albedo_a : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D normal_a : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D albedo_b : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D normal_b : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D macro_noise : filter_linear_mipmap, repeat_enable;
+uniform vec4 tint : source_color = vec4(1.0);
+uniform vec3 gain_a = vec3(1.0);
+uniform vec3 gain_b = vec3(1.0);
+uniform float tile = 4.0;
+uniform float patch_amount = 0.0;
+varying vec3 wpos;
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 uv = wpos.xz / tile;
+	// 回転・拡大した2回目のサンプル（繰り返し模様を崩す）
+	vec2 uv2 = mat2(vec2(0.80, 0.60), vec2(-0.60, 0.80)) * uv * 0.73 + vec2(0.37, 0.11);
+	float n1 = texture(macro_noise, wpos.xz * 0.021).r;
+	float n2 = texture(macro_noise, wpos.xz * 0.053 + vec2(0.3, 0.7)).r;
+	float w = smoothstep(0.35, 0.65, n1);
+	vec3 ca = mix(texture(albedo_a, uv).rgb, texture(albedo_a, uv2).rgb, w) * gain_a;
+	vec3 na = mix(texture(normal_a, uv).rgb, texture(normal_a, uv2).rgb, w);
+	// 林床のパッチ（草地のみ）
+	float p = smoothstep(0.58, 0.78, n2 * 0.7 + n1 * 0.3) * patch_amount;
+	vec3 cb = texture(albedo_b, uv * 1.1).rgb * gain_b;
+	vec3 nb = texture(normal_b, uv * 1.1).rgb;
+	vec3 col = mix(ca, cb, p);
+	// 大きな明暗のムラ
+	col *= 0.86 + 0.28 * n2;
+	ALBEDO = col * tint.rgb;
+	NORMAL_MAP = mix(na, nb, p);
+	NORMAL_MAP_DEPTH = 1.0;
+	ROUGHNESS = 0.95;
+	SPECULAR = 0.25;
+}
+"""
 
 
 ## 道や境目の帯。端が地面になじむように透明度でぼかす。
@@ -47,17 +115,20 @@ uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, re
 uniform float tile = 3.0;
 uniform float edge = 0.32;
 uniform int mode = 0;
+uniform vec3 gain = vec3(1.0);
 varying vec3 wpos;
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec2 uv = wpos.xz / tile;
-	ALBEDO = texture(albedo_tex, uv).rgb;
+	ALBEDO = texture(albedo_tex, uv).rgb * gain;
 	NORMAL_MAP = texture(normal_tex, uv).rgb;
 	ROUGHNESS = 0.95;
 	float n = texture(albedo_tex, uv * 0.37).g;
 	float d = mode == 0 ? min(UV.x, 1.0 - UV.x) : UV.y;
 	float e = d / edge + (n - 0.5) * 0.9;
-	ALPHA = clamp(e, 0.0, 1.0);
+	// 道は拠点（z > 0 の作業場）に入るところで、地面になじむように消す
+	float fade = mode == 0 ? 1.0 - smoothstep(-1.0, 1.8, wpos.z + (n - 0.5) * 1.2) : 1.0;
+	ALPHA = clamp(e, 0.0, 1.0) * fade;
 }
 """
 		var m := ShaderMaterial.new()
@@ -65,6 +136,7 @@ void fragment() {
 		m.set_shader_parameter("albedo_tex", tex(kind + "_albedo.png"))
 		m.set_shader_parameter("normal_tex", tex(kind + "_normal.png"))
 		m.set_shader_parameter("mode", mode)
+		m.set_shader_parameter("gain", _gain(kind))
 		m.set_shader_parameter("edge", 0.32 if mode == 0 else 0.9)
 		m.set_shader_parameter("tile", 3.0 if kind == "road" else 4.0)
 		return m)
@@ -118,7 +190,7 @@ void fragment() {
 		return m)
 
 
-## 建物・小物用。kind: "paint"（塗装・プラスチック）/ "wood"（木目）/ "metal"（塗装金属）
+## 建物・小物用。kind: "paint"（塗装・プラスチック）/ "wood"（板材）/ "metal"（塗装金属）/ "roof"（波板）
 static func surface(color: Color, kind := "paint", roughness := 0.8) -> StandardMaterial3D:
 	return _cached_mat("surf/%s/%s/%.2f" % [color.to_html(), kind, roughness], func() -> Material:
 		var m := StandardMaterial3D.new()
@@ -129,8 +201,19 @@ static func surface(color: Color, kind := "paint", roughness := 0.8) -> Standard
 		match kind:
 			"wood":
 				m.albedo_texture = tex("wood_albedo.png")
-				m.uv1_scale = Vector3.ONE * 0.9
+				m.normal_enabled = true
+				m.normal_texture = tex("wood_normal.png")
+				m.normal_scale = 0.8
+				m.uv1_scale = Vector3.ONE * 0.6
 				m.roughness = 0.85
+			"roof":
+				# 塗装した波板（Poly Haven の corrugated_iron）。波は U 方向（X）に並ぶので、切妻屋根の斜面を流れる向きになる。
+				# 屋根はまとめたメッシュで接線が無く法線マップが乱れるため、凹凸の陰影はカラーに焼き込んである
+				m.albedo_texture = tex("roof_albedo.png")
+				m.uv1_triplanar_sharpness = 12.0
+				m.metallic = 0.4
+				m.metallic_specular = 0.6
+				m.uv1_scale = Vector3.ONE * 0.28
 			"metal":
 				m.albedo_texture = tex("paint_detail.png")
 				m.roughness_texture = tex("metal_detail.png")
@@ -145,48 +228,38 @@ static func surface(color: Color, kind := "paint", roughness := 0.8) -> Standard
 		return m)
 
 
-## Kenney のキャラクター（紫のロボット風）を作業着の配色に塗り替えるシェーダー。
-## part: 0 = 胴体（上は白シャツ、下はデニムのオーバーオール）, 1 = 腕（白シャツ）, 2 = 脚（デニム＋茶色のブーツ）
-static func worker(texture: Texture2D, part: int) -> ShaderMaterial:
-	return _cached_mat("worker/%d" % part, func() -> Material:
+## 作業員の肌。ひざ下（モデルの足元）は茶色の革のブーツにする。
+static func worker_skin() -> ShaderMaterial:
+	return _cached_mat("worker_skin", func() -> Material:
 		var sh := Shader.new()
 		sh.code = """
 shader_type spatial;
-uniform sampler2D tex : source_color, filter_linear;
-uniform int part = 0;
-varying vec3 lpos;
-void vertex() { lpos = VERTEX; }
+uniform vec3 skin : source_color = vec3(0.86, 0.64, 0.5);
+uniform vec3 boots : source_color = vec3(0.36, 0.22, 0.12);
+varying float h;
+void vertex() { h = VERTEX.y; }
 void fragment() {
-	vec3 c = texture(tex, UV).rgb;
-	float lum = dot(c, vec3(0.3, 0.55, 0.15));
-	bool purple = c.b > c.g + 0.15 && c.r > c.g + 0.05;
-	bool yellow = c.r > 0.8 && c.g > 0.5 && c.b < 0.45;
-	vec3 shirt = vec3(0.93, 0.93, 0.9);
-	vec3 denim = vec3(0.16, 0.27, 0.5);
-	vec3 boots = vec3(0.32, 0.2, 0.11);
-	vec3 skin = vec3(0.93, 0.72, 0.55);
-	vec3 col = c;
-	float shade = clamp(lum / 0.55, 0.6, 1.15);
-	if (yellow) {
-		col = skin * clamp(lum / 0.75, 0.7, 1.1);
-	} else if (part == 0) {
-		bool low = lpos.y < 0.27;
-		if (purple || low) col = denim * shade;
-		else if (lum > 0.6) col = shirt * clamp(lum, 0.8, 1.0);
-	} else if (part == 1) {
-		if (purple) col = shirt * clamp(lum * 1.6, 0.7, 1.0);
-		else if (lum > 0.6) col = shirt * clamp(lum, 0.8, 1.0);
-	} else {
-		col = lpos.y < -0.11 ? boots * shade : denim * shade;
-	}
-	ALBEDO = col;
-	ROUGHNESS = part == 2 && lpos.y < -0.11 ? 0.55 : 0.85;
+	float b = 1.0 - smoothstep(0.42, 0.5, h);
+	ALBEDO = mix(skin, boots, b);
+	ROUGHNESS = mix(0.7, 0.5, b);
+	SPECULAR = mix(0.35, 0.5, b);
 }
 """
 		var m := ShaderMaterial.new()
 		m.shader = sh
-		m.set_shader_parameter("tex", texture)
-		m.set_shader_parameter("part", part)
+		return m)
+
+
+## 服（布地）。denim を true にすると少し青みのツヤを抑えた厚手の生地にする。
+static func cloth(color: Color, roughness := 0.85, denim := false) -> StandardMaterial3D:
+	return _cached_mat("cloth/%s/%.2f/%s" % [color.to_html(), roughness, denim], func() -> Material:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = color
+		m.roughness = roughness
+		m.metallic_specular = 0.3 if denim else 0.4
+		m.rim_enabled = true
+		m.rim = 0.25
+		m.rim_tint = 0.6
 		return m)
 
 
