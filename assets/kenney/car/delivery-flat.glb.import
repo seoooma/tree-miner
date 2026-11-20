@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://247nwut3yywv"
-path="res://.godot/imported/vehicle-truck-purple.glb-f69dc1d4363927ebea39a9d1ae7c55aa.scn"
+uid="uid://5jg6assty5u"
+path="res://.godot/imported/delivery-flat.glb-9dde44ca28a1598f78bc71be3a4f0bff.scn"
 
 [deps]
 
-source_file="res://assets/kenney/racing/vehicle-truck-purple.glb"
-dest_files=["res://.godot/imported/vehicle-truck-purple.glb-f69dc1d4363927ebea39a9d1ae7c55aa.scn"]
+source_file="res://assets/kenney/car/delivery-flat.glb"
+dest_files=["res://.godot/imported/delivery-flat.glb-9dde44ca28a1598f78bc71be3a4f0bff.scn"]
 
 [params]
 

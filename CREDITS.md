@@ -13,9 +13,20 @@
 | `assets/kenney/platformer/coin.glb` | 同上 | 売却時に飛び出すコイン |
 | `assets/kenney/platformer/grass-small.glb` | 同上 | 地面の草 |
 | `assets/audio/coin.ogg`, `land.ogg`, `walking.ogg` | 同上 | 売却音・丸太を置く音・足音 |
-| `assets/kenney/racing/vehicle-truck-*.glb` | [Starter-Kit-Racing](https://github.com/KenneyNL/Starter-Kit-Racing) | 伐採機・運搬車 |
-| `assets/audio/engine.ogg`, `impact.ogg` | 同上 | エンジン音・乗車音 |
+| `assets/audio/engine.ogg`, `impact.ogg` | [Starter-Kit-Racing](https://github.com/KenneyNL/Starter-Kit-Racing) | エンジン音・乗車音 |
 | `assets/audio/placement-a/b/c.ogg`, `toggle.ogg` | [Starter-Kit-City-Builder](https://github.com/KenneyNL/Starter-Kit-City-Builder) | 拾う・開放・購入・ボタン・給油の音 |
+
+### OpenGameArt で Kenney が配布しているキット（CC0）
+
+kenney.nl はこの開発環境からの自動ダウンロードを受け付けないため、Kenney 本人のアカウントが
+[OpenGameArt](https://opengameart.org/users/kenney) で配布している同じキットから取得しています。各 zip の License.txt に CC0 と明記されています。
+
+| 素材 | 出典 | 使っている場所 |
+|---|---|---|
+| `assets/kenney/car/tractor.glb`, `tractor-shovel.glb` | [Car Kit 3.1](https://opengameart.org/content/car-kit) | 伐採機（Mk1 / Mk2・Mk3。ショベルは隠してノコギリを付けている） |
+| `assets/kenney/car/truck.glb`, `truck-flat.glb`, `delivery-flat.glb` | 同上 | 運搬車（Mk1 / Mk2 / Mk3） |
+| `assets/kenney/survival/tool-axe.glb` | [Survival Kit](https://opengameart.org/content/survival-kit) | 人物が持つ斧・強化画面の斧 |
+| `assets/kenney/survival/rock-a.glb`, `rock-c.glb` | 同上 | 地面の岩 |
 
 ## 人物モデル（Quaternius / CC0）
 

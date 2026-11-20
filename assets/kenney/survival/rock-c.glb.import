@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://d1cs066f6pk8m"
-path="res://.godot/imported/vehicle-truck-red.glb-7951fd6c0b20aa90558381b312ade4a3.scn"
+uid="uid://xadsxetsn865"
+path="res://.godot/imported/rock-c.glb-07b0b8086bf387dca7ae300c6c2ab3f3.scn"
 
 [deps]
 
-source_file="res://assets/kenney/racing/vehicle-truck-red.glb"
-dest_files=["res://.godot/imported/vehicle-truck-red.glb-7951fd6c0b20aa90558381b312ade4a3.scn"]
+source_file="res://assets/kenney/survival/rock-c.glb"
+dest_files=["res://.godot/imported/rock-c.glb-07b0b8086bf387dca7ae300c6c2ab3f3.scn"]
 
 [params]
 

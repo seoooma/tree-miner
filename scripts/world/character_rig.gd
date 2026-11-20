@@ -75,12 +75,16 @@ func _apply_workwear(mi: MeshInstance3D) -> void:
 			mi.set_surface_override_material(i, mat)
 
 
-## 斧の見た目（柄が +Z 方向）。強化画面のサムネイルでも使う。
+## 斧の見た目（Kenney Survival Kit の斧。柄が +Z 方向、刃が +Y 側）。強化画面のサムネイルでも使う。
+const AXE_MODEL := "res://assets/kenney/survival/tool-axe.glb"
+
+
 static func make_axe() -> Node3D:
 	var root := Node3D.new()
-	root.add_child(_part(Fx.box(Vector3(0.06, 0.06, 0.62), Color.WHITE, Vector3(0, 0, 0.25)), Mats.surface(Color("#8a5a33"), "wood")))
-	root.add_child(_part(Fx.box(Vector3(0.04, 0.24, 0.18), Color.WHITE, Vector3(0, 0.08, 0.52)), Mats.surface(Color("#9aa0a6"), "metal")))
-	root.add_child(_part(Fx.box(Vector3(0.045, 0.06, 0.08), Color.WHITE, Vector3(0, 0.2, 0.52)), Mats.surface(Color("#d8dce0"), "metal")))
+	var axe := Fx.model(AXE_MODEL)
+	# 元のモデルは柄が +Y（長さ約 0.26）、刃が -X 側。柄を +Z・刃を +Y に向け、約 0.62 の長さにする
+	axe.transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)).scaled(Vector3.ONE * 2.4), Vector3.ZERO)
+	root.add_child(axe)
 	return root
 
 

@@ -2,6 +2,7 @@ class_name Decor
 ## 地面の飾り（草・花・石・道・マップ外の森）。当たり判定は無く、MultiMesh でまとめて描画する。
 
 const GRASS_MODEL := "res://assets/kenney/platformer/grass-small.glb"
+const ROCK_MODELS := ["res://assets/kenney/survival/rock-a.glb", "res://assets/kenney/survival/rock-c.glb"]
 
 
 static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, base_depth: float, seed_value: int) -> void:
@@ -73,19 +74,24 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
 		_multimesh(parent, head, xf, null, false)
 
-	# 石
-	var rock := Fx.merged("rock", [
-		[_sph(0.35, 6, 3), Transform3D(Basis().scaled(Vector3(1.2, 0.6, 1.0)), Vector3(0, 0.1, 0)), Color("#9a9a92")],
-		[_sph(0.2, 5, 3), Transform3D(Basis().scaled(Vector3(1.0, 0.7, 1.1)), Vector3(0.3, 0.05, 0.15)), Color("#86867e")],
-	])
-	var rock_xf: Array[Transform3D] = []
+	# 石（Kenney Survival Kit の岩を2種類）
+	var rocks: Array[Mesh] = []
+	for path in ROCK_MODELS:
+		var m := _first_mesh(Fx.model(path))
+		if m:
+			rocks.append(m)
+	var rock_xf: Array = []
+	for r in rocks:
+		var arr: Array[Transform3D] = []
+		rock_xf.append(arr)
 	for i in 70:
 		var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
 		# 拠点の施設まわりと道は避ける
-		if absf(p.x) < 2.0 or (p.z > 0.0 and absf(p.x) < 15.0):
+		if absf(p.x) < 2.0 or (p.z > 0.0 and absf(p.x) < 15.0) or rocks.is_empty():
 			continue
-		rock_xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.6, 1.4)), p))
-	_multimesh(parent, rock, rock_xf, Mats.surface(Color("#a49e92"), "paint", 0.9))
+		(rock_xf[i % rocks.size()] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.5)), p))
+	for k in rocks.size():
+		_multimesh(parent, rocks[k], rock_xf[k], Mats.surface(Color("#a8a296"), "paint", 0.9))
 
 	# マップの外側の森（飾り）。左右の外側には生やさず、奥と手前の帯だけ
 	var border: Dictionary = {}
