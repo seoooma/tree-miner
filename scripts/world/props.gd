@@ -18,13 +18,14 @@ static func gable_roof(width: float, depth: float, height: float, color: Color) 
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	mi.material_override = Mats.surface(color, "metal", 0.6)
 	return mi
 
 
 ## 縦板張りの壁（前面に目地の線が入る）。
 static func plank_wall(size: Vector3, color: Color) -> Node3D:
 	var root := Node3D.new()
-	root.add_child(Fx.box(size, color, Vector3(0, size.y * 0.5, 0)))
+	root.add_child(Fx.box(size, color, Vector3(0, size.y * 0.5, 0), "wood"))
 	var n := int(size.x / 0.32)
 	for i in range(1, n):
 		var x := -size.x * 0.5 + i * size.x / n
@@ -49,7 +50,7 @@ static func log_pile(rows := 3, tree_id := "pine") -> Node3D:
 
 static func crate(size := 0.7, color := Color("#c99a5b")) -> Node3D:
 	var root := Node3D.new()
-	root.add_child(Fx.box(Vector3.ONE * size, color, Vector3(0, size * 0.5, 0)))
+	root.add_child(Fx.box(Vector3.ONE * size, color, Vector3(0, size * 0.5, 0), "wood"))
 	var edge := color.darkened(0.3)
 	for y in [0.06, size - 0.06]:
 		root.add_child(Fx.box(Vector3(size + 0.02, 0.08, size + 0.02), edge, Vector3(0, y, 0)))
@@ -59,10 +60,10 @@ static func crate(size := 0.7, color := Color("#c99a5b")) -> Node3D:
 
 static func pallet_of_planks(color := Color("#e8c99a")) -> Node3D:
 	var root := Node3D.new()
-	root.add_child(Fx.box(Vector3(1.2, 0.12, 1.0), Color("#a8834f"), Vector3(0, 0.06, 0)))
+	root.add_child(Fx.box(Vector3(1.2, 0.12, 1.0), Color("#a8834f"), Vector3(0, 0.06, 0), "wood"))
 	for layer in 4:
 		for i in 3:
-			root.add_child(Fx.box(Vector3(1.1, 0.1, 0.28), color.darkened(0.04 * ((i + layer) % 2)), Vector3(0, 0.17 + layer * 0.11, (i - 1) * 0.31)))
+			root.add_child(Fx.box(Vector3(1.1, 0.1, 0.28), color.darkened(0.04 * ((i + layer) % 2)), Vector3(0, 0.17 + layer * 0.11, (i - 1) * 0.31), "wood"))
 	return root
 
 
@@ -70,8 +71,8 @@ static func pallet_of_planks(color := Color("#e8c99a")) -> Node3D:
 static func signboard(text: String, color := Color("#7a4a2a")) -> Node3D:
 	var root := Node3D.new()
 	for x in [-0.7, 0.7]:
-		root.add_child(Fx.cylinder(0.06, 1.6, color.darkened(0.2), Vector3(x, 0.8, 0), -1.0, 6))
-	root.add_child(Fx.box(Vector3(1.8, 0.6, 0.08), color, Vector3(0, 1.45, 0)))
+		root.add_child(Fx.cylinder(0.06, 1.6, color.darkened(0.2), Vector3(x, 0.8, 0), -1.0, 6, false, "wood"))
+	root.add_child(Fx.box(Vector3(1.8, 0.6, 0.08), color, Vector3(0, 1.45, 0), "wood"))
 	var label := Label3D.new()
 	label.text = text
 	label.font_size = 64

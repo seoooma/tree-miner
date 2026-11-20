@@ -1,7 +1,8 @@
 class_name ChoppableTree
 extends StaticBody3D
 ## 切れる木。硬さ(hardness)ぶんダメージを受けると倒れて丸太を数本落とし、一定時間で再生する。
-## 見た目はローポリのフラットシェーディング（幹と葉を1メッシュにまとめて描画を軽くしている）。
+## 見た目は幹（樹皮テクスチャ）と葉を1メッシュにまとめ、描画は TreeField が MultiMesh でまとめて行う。
+## このノードは見た目の Transform（揺れ・倒れる・生え直す）を計算して TreeField に書き込む。
 
 signal felled(tree: ChoppableTree)
 
@@ -29,6 +30,13 @@ var _bar_root: Node3D
 var _bar_fill: MeshInstance3D
 var _bar_timer := 0.0
 var _shake_tween: Tween
+## 描画をまとめる TreeField（main が設定する）
+var field: TreeField
+var _variant := 0
+var _mm: MultiMesh
+var _mm_index := -1
+## 見た目が動いている残り時間（この間だけ MultiMesh を更新する）
+var _anim_left := 0.0
 
 
 func setup(def: Dictionary, p_area_index: int, variant := 0) -> void:
@@ -50,13 +58,10 @@ func setup(def: Dictionary, p_area_index: int, variant := 0) -> void:
 	_stump.visible = false
 	add_child(_stump)
 
+	_stump.material_override = Mats.tree(false)
+	_variant = variant
 	_visual = Node3D.new()
 	add_child(_visual)
-	var mi := MeshInstance3D.new()
-	mi.mesh = _build_mesh(def, variant)
-	# 画面外の遠い木は描かない（スマホのブラウザで描画数が多すぎると何も映らなくなるため）
-	mi.visibility_range_end = 40.0
-	_visual.add_child(mi)
 
 	_shape = CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
@@ -69,10 +74,34 @@ func setup(def: Dictionary, p_area_index: int, variant := 0) -> void:
 	_build_hp_bar()
 
 
+func _ready() -> void:
+	if field:
+		field.register(self, _build_mesh(_def, _variant), "%s/%d" % [tree_id, _variant])
+
+
+## TreeField が MultiMesh を作ったときに呼ぶ。
+func bind_instance(mm: MultiMesh, index: int) -> void:
+	_mm = mm
+	_mm_index = index
+	_push_visual()
+
+
+func _push_visual() -> void:
+	if _mm == null:
+		return
+	var xf := global_transform * _visual.transform
+	if not _visual.visible:
+		xf = Transform3D(Basis().scaled(Vector3.ZERO), global_position)
+	_mm.set_instance_transform(_mm_index, xf)
+
+
+func _animate(sec: float) -> void:
+	_anim_left = maxf(_anim_left, sec + 0.05)
+
+
 ## 切り株と切り口。種類とバリエーションごとにキャッシュする。
 static func _build_stump(def: Dictionary, variant: int) -> Mesh:
 	var r := 0.28 * float(def.get("scale", 1.0)) * (0.9 + 0.1 * variant)
-	var trunk_color := Color(def.get("trunk_color", "#8a5a33"))
 	var base := CylinderMesh.new()
 	base.bottom_radius = r * 1.15
 	base.top_radius = r
@@ -86,8 +115,8 @@ static func _build_stump(def: Dictionary, variant: int) -> Mesh:
 	face.radial_segments = 7
 	face.rings = 1
 	return Fx.merged("stump/%s/%d" % [def["id"], variant], [
-		[base, Transform3D(Basis(), Vector3(0, 0.11, 0)), trunk_color.darkened(0.15)],
-		[face, Transform3D(Basis(), Vector3(0, 0.225, 0)), Color("#e8c99a")],
+		[base, Transform3D(Basis(), Vector3(0, 0.11, 0)), bark_color(def).darkened(0.1)],
+		[face, Transform3D(Basis(), Vector3(0, 0.225, 0)), Color(0.85, 0.72, 0.52, 0.5)],
 	])
 
 
@@ -95,9 +124,9 @@ static func _build_stump(def: Dictionary, variant: int) -> Mesh:
 static func _build_mesh(def: Dictionary, variant: int) -> Mesh:
 	var id := str(def["id"])
 	var s := float(def.get("scale", 1.0)) * (0.9 + 0.1 * variant)
-	var trunk_color := Color(def.get("trunk_color", "#8a5a33"))
-	var leaf := Color(def.get("leaf_color", "#4f9f4f"))
-	leaf = leaf.lightened(0.06 * (variant - 1)) if variant != 1 else leaf
+	var trunk_color := bark_color(def)
+	var leaf := leaf_color(def)
+	leaf = leaf.lightened(0.05 * (variant - 1)) if variant != 1 else leaf
 	var parts := []
 	var trunk_h := 1.2 * s
 	var trunk := CylinderMesh.new()
@@ -142,6 +171,21 @@ static func _build_mesh(def: Dictionary, variant: int) -> Mesh:
 	return Fx.merged("tree/%s/%d" % [id, variant], parts)
 
 
+## 樹皮の色（頂点カラーの a = 0 は「樹皮テクスチャを貼る」の印）。元の色より少し彩度を落とす。
+static func bark_color(def: Dictionary) -> Color:
+	var c := Color(def.get("trunk_color", "#8a5a33"))
+	c.s *= 0.8
+	return Color(c.r, c.g, c.b, 0.0)
+
+
+## 葉の色（a = 1 は「葉」の印）。おもちゃっぽく見えないよう、彩度と明るさを落とした自然な色にする。
+static func leaf_color(def: Dictionary) -> Color:
+	var c := Color(def.get("leaf_color", "#4f9f4f"))
+	c.s *= 0.78
+	c.v *= 0.8
+	return Color(c.r, c.g, c.b, 1.0)
+
+
 func _build_hp_bar() -> void:
 	_bar_root = Node3D.new()
 	_bar_root.position = Vector3(0, 2.6 * _scale + 0.4, 0)
@@ -173,6 +217,9 @@ static func _bar_quad(size: Vector2, color: Color) -> Mesh:
 
 
 func _process(delta: float) -> void:
+	if _anim_left > 0.0:
+		_anim_left -= delta
+		_push_visual()
 	if _bar_timer > 0.0:
 		_bar_timer -= delta
 		if _bar_timer <= 0.0:
@@ -186,7 +233,8 @@ func hit(damage: float, from := Vector3.INF) -> bool:
 	hp -= damage
 	_shake()
 	var trunk_color := Color(_def.get("trunk_color", "#8a5a33"))
-	Fx.burst(self, global_position + Vector3(0, 0.7, 0), [trunk_color.lightened(0.35), Color("#e8c99a")], 6, 2.5, 0.07, 0.45)
+	# 木くず（明るい木口の色と樹皮の色）
+	Fx.burst(self, global_position + Vector3(0, 0.7, 0), [trunk_color.lightened(0.35), Color("#e8c99a"), trunk_color.darkened(0.2)], 12, 3.2, 0.07, 0.55)
 	Audio.play("chop", -4.0)
 	if hp <= 0.0:
 		_fell(from)
@@ -205,6 +253,7 @@ func _shake() -> void:
 	tween.tween_property(_visual, "rotation_degrees:z", 5.0, 0.05)
 	tween.tween_property(_visual, "rotation_degrees:z", -3.0, 0.07)
 	tween.tween_property(_visual, "rotation_degrees:z", 0.0, 0.06)
+	_animate(0.2)
 
 
 func _fell(from: Vector3) -> void:
@@ -231,7 +280,10 @@ func _fell(from: Vector3) -> void:
 		_visual.transform = Transform3D(Basis(axis, t * PI * 0.5), Vector3.ZERO) * start, 0.0, 1.0, FALL_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_callback(func() -> void: _on_landed(dir))
 	tween.tween_property(_visual, "scale", Vector3.ONE * 0.01, 0.3).set_delay(0.15)
-	tween.tween_callback(func() -> void: _visual.visible = false)
+	tween.tween_callback(func() -> void:
+		_visual.visible = false
+		_push_visual())
+	_animate(FALL_SEC + 0.5)
 	Audio.play("tree_fall", -3.0)
 
 
@@ -254,3 +306,4 @@ func _respawn() -> void:
 	_visual.scale = Vector3.ONE * 0.05
 	_shape.set_deferred("disabled", false)
 	create_tween().tween_property(_visual, "scale", Vector3.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_animate(0.5)

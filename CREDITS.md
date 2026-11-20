@@ -25,12 +25,20 @@
 | `assets/audio/bgm_forest.ogg`（BGM） | `tools/make_bgm.py` で合成（numpy + ffmpeg）。このリポジトリのライセンスに従う |
 | `assets/audio/chop.ogg`, `tree_fall.ogg` | 同上 |
 | 木・施設・丸太・看板などのモデル | コード内でプリミティブを組み合わせて生成（`scripts/world/`） |
+| `assets/textures/*.png`（草地・作業場・道・樹皮・木目・金属のテクスチャと法線マップ） | `tools/make_textures.py` でノイズから生成（numpy + Pillow） |
+| `assets/ui/*.png`（アイコン・ボタン・カード・見出しの下地） | 同上 |
+| 作業着の配色（キャラクターの塗り替え） | `scripts/world/mats.gd` のシェーダーで Kenney のモデルの色を置き換え |
+
+Poly Haven / ambientCG / Quaternius の素材は、この開発環境からダウンロードできなかったため使っていません（すべて手続き生成で代替）。
 
 ## フォント
 
 | 素材 | ライセンス |
 |---|---|
-| `fonts/NotoSansJP-Bold-subset.ttf`（Noto Sans JP のサブセット） | [SIL Open Font License 1.1](fonts/OFL.txt) |
+| `fonts/DelaGothicOne-subset.ttf`（[Dela Gothic One](https://fonts.google.com/specimen/Dela+Gothic+One) のサブセット。見出し・数字） | [SIL Open Font License 1.1](fonts/OFL-DelaGothicOne.txt) |
+| `fonts/MPLUSRounded1c-Black-subset.ttf`（[M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c) Black のサブセット。本文） | [SIL Open Font License 1.1](fonts/OFL-MPLUSRounded1c.txt) |
+
+フォントは [google/fonts](https://github.com/google/fonts) から取得し、`tools/subset_font.py` でゲームに出てくる文字だけに絞っています。
 
 ## エンジン
 

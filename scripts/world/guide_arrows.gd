@@ -1,0 +1,143 @@
+class_name GuideArrows
+extends Node3D
+## 次に向かう場所へ、地面に緑の三角（シェブロン）を点線のように並べて案内する。ゆっくり流れる。
+## - 積荷が満杯: 製材所の投入口（板を持っていれば出荷場）
+## - それ以外: いちばん近い木
+## 案内先は HUD の画面端インジケーター（goal / goal_kind）でも使う。表示だけでゲームの処理には影響しない。
+
+const COLOR := Color("#6BD13A")
+const SPACING := 1.0
+const MAX_ARROWS := 14
+const SCROLL_SPEED := 0.7
+
+var player: Player
+var sawmill: Sawmill
+var dock: Node3D
+
+## 案内先（無ければ Vector3.INF）と種類（"home" = 届け先 / "tree" = 木）
+var goal := Vector3.INF
+var goal_kind := "tree"
+
+var _mm: MultiMesh
+var _search_timer := 0.0
+var _scroll := 0.0
+var _tree_goal: ChoppableTree
+
+
+func _ready() -> void:
+	_mm = MultiMesh.new()
+	_mm.transform_format = MultiMesh.TRANSFORM_3D
+	_mm.mesh = _chevron_mesh()
+	_mm.instance_count = MAX_ARROWS
+	_mm.visible_instance_count = 0
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = _mm
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.material_override = _material()
+	# MultiMesh の範囲は最初の配置で決まるので、マップ全体を覆う大きさにしておく
+	mmi.custom_aabb = AABB(Vector3(-200, -1, -200), Vector3(400, 2, 400))
+	add_child(mmi)
+
+
+func _process(delta: float) -> void:
+	if player == null or player.vehicle != null:
+		goal = Vector3.INF
+		_mm.visible_instance_count = 0
+		return
+	_search_timer -= delta
+	if _search_timer <= 0.0:
+		_search_timer = 0.25
+		_pick_goal()
+	if _tree_goal and goal_kind == "tree":
+		if not _tree_goal.alive:
+			_search_timer = 0.0
+		goal = _tree_goal.global_position
+	_scroll = fmod(_scroll + delta * SCROLL_SPEED, SPACING)
+	_layout()
+
+
+func _pick_goal() -> void:
+	var stack := player.stack
+	_tree_goal = null
+	if stack.count("plank") > 0 and dock and GameState.level("sawmill") > 0:
+		goal = dock.global_position
+		goal_kind = "home"
+	elif stack.is_full() and sawmill:
+		goal = sawmill.input_position()
+		goal_kind = "home"
+	else:
+		_tree_goal = _nearest_tree()
+		goal = _tree_goal.global_position if _tree_goal else Vector3.INF
+		goal_kind = "tree"
+
+
+func _nearest_tree() -> ChoppableTree:
+	var best: ChoppableTree = null
+	var best_d := INF
+	for node in get_tree().get_nodes_in_group("trees"):
+		var t := node as ChoppableTree
+		if not t.alive or not GameState.is_area_unlocked(t.area_index):
+			continue
+		var d := Fx.xz_distance(t.global_position, player.global_position)
+		if d < best_d:
+			best_d = d
+			best = t
+	return best
+
+
+func _layout() -> void:
+	if goal == Vector3.INF:
+		_mm.visible_instance_count = 0
+		return
+	var from := player.global_position
+	var to_goal := Vector3(goal.x - from.x, 0, goal.z - from.z)
+	var dist := to_goal.length()
+	var start := 1.0
+	var end := dist - (1.2 if goal_kind == "tree" else 1.6)
+	if end <= start:
+		_mm.visible_instance_count = 0
+		return
+	var dir := to_goal / dist
+	var basis := Basis.looking_at(-dir, Vector3.UP)
+	var count := 0
+	var d := start + _scroll
+	while d < end and count < MAX_ARROWS:
+		# 両端は小さくしてふわっと出入りさせる
+		var fade := clampf(minf(d - start, end - d) / 0.8, 0.0, 1.0)
+		var s := 0.35 + 0.65 * fade
+		_mm.set_instance_transform(count, Transform3D(basis.scaled(Vector3.ONE * s), Vector3(from.x, 0.05, from.z) + dir * d))
+		count += 1
+		d += SPACING
+	_mm.visible_instance_count = count
+
+
+## 進行方向（-Z → ローカル +Z を前とする）を向いた三角。濃い縁取り付き。
+static func _chevron_mesh() -> Mesh:
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	var dark := Color(0.08, 0.2, 0.05)
+	for layer in 2:
+		var grow := 0.07 if layer == 0 else 0.0
+		var y := 0.0 if layer == 0 else 0.004
+		var c := dark if layer == 0 else COLOR
+		var tip := Vector3(0, y, 0.32 + grow * 1.6)
+		var left := Vector3(-0.3 - grow, y, -0.2 - grow)
+		var right := Vector3(0.3 + grow, y, -0.2 - grow)
+		for v in [tip, right, left]:
+			verts.append(v)
+			colors.append(c)
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_COLOR] = colors
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+
+static func _material() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m

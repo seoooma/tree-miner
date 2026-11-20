@@ -18,6 +18,8 @@ const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 11), "hauler": Vector3(12, 
 var player: Player
 var camera: FollowCamera
 var sawmill: Sawmill
+var dock: ShipDock
+var guide: GuideArrows
 var hud: Hud
 var lumberjacks: Array[Lumberjack] = []
 var machines: Dictionary = {}  # kind -> Machine
@@ -36,7 +38,13 @@ func _ready() -> void:
 	_spawn_trees()
 	_spawn_player()
 	_build_camera()
+	guide = GuideArrows.new()
+	guide.player = player
+	guide.sawmill = sawmill
+	guide.dock = dock
+	add_child(guide)
 	hud = Hud.new()
+	hud.guide = guide
 	add_child(hud)
 	hud.bind_player(player)
 	_sync_lumberjacks()
@@ -83,48 +91,58 @@ func _build_environment() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#5aa7e6")
-	sky_mat.sky_horizon_color = Color("#d6ecf7")
-	sky_mat.ground_horizon_color = Color("#9cc47a")
-	sky_mat.ground_bottom_color = Color("#5f9443")
+	# 環境光は「上が涼しい青、下が土色」の半球ライトとして効かせる
+	sky_mat.sky_top_color = Color("#7aa6d6")
+	sky_mat.sky_horizon_color = Color("#c9d8e2")
+	sky_mat.ground_horizon_color = Color("#8c7a5e")
+	sky_mat.ground_bottom_color = Color("#4a3f30")
+	sky_mat.sun_angle_max = 20.0
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#c9d6e8")
-	env.ambient_light_energy = 0.48
-	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	env.tonemap_exposure = 0.92
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.42
+	env.ambient_light_sky_contribution = 1.0
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 0.88
+	env.tonemap_white = 6.0
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
+	# 暖色の太陽を画面の左上から。少し低めにして影を長く
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52, -35, 0)
-	sun.light_color = Color("#fff3dc")
-	sun.light_energy = 0.92
+	sun.rotation_degrees = Vector3(-44, -140, 0)
+	sun.light_color = Color("#ffe2b8")
+	sun.light_energy = 1.05
+	sun.light_angular_distance = 1.2
 	sun.shadow_enabled = true
-	sun.shadow_opacity = 0.75
-	sun.shadow_blur = 1.5
+	sun.shadow_opacity = 0.85
+	sun.shadow_blur = 1.6
+	sun.shadow_bias = 0.04
+	sun.shadow_normal_bias = 1.2
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sun.directional_shadow_max_distance = 28.0
+	# 影の範囲をカメラに映る範囲にぴったり合わせて、2048px の影マップをくっきり使う
+	sun.directional_shadow_max_distance = 18.0
 	add_child(sun)
 
 
 func _build_ground() -> void:
 	var width := _width()
 	var base_depth := float(GameData.world.get("base_depth", 18))
-	_add_ground_tile(width, base_depth, base_depth * 0.5, Color("#c9a66c"))
+	# 拠点は踏み固められた土、森は草地（奥のエリアほど少し暗く、落ち着いた緑に）
+	_add_ground_tile(width, base_depth, base_depth * 0.5, "yard", Color.WHITE)
 	for i in GameData.areas.size():
 		var r := _area_ranges[i]
-		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, Color(GameData.areas[i].get("ground_color", "#7fbf5a")))
+		var tint := Color("#e6e2d4").lerp(Color("#c4ccb0"), minf(1.0, i * 0.22)).darkened(0.04 * i)
+		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, "grass", tint)
 
 
-func _add_ground_tile(width: float, depth: float, center_z: float, color: Color) -> void:
-	color = color.darkened(0.08)
+func _add_ground_tile(width: float, depth: float, center_z: float, kind: String, tint: Color) -> void:
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(width, depth)
-	mesh.material = Fx.material(color)
+	mesh.material = Mats.ground(kind, tint)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.position = Vector3(0, 0, center_z)
@@ -160,7 +178,7 @@ func _build_facilities() -> void:
 	sawmill = Sawmill.new()
 	sawmill.position = SAWMILL_POS
 	add_child(sawmill)
-	var dock := ShipDock.new()
+	dock = ShipDock.new()
 	dock.position = DOCK_POS
 	add_child(dock)
 	var fuel := FuelStation.new()
@@ -190,6 +208,9 @@ func _spawn_trees() -> void:
 	var spacing := float(GameData.world.get("tree_min_spacing", 2.3))
 	var half := _width() * 0.5 - 2.0
 	var placed: Array[Vector3] = []
+	var field := TreeField.new()
+	field.name = "TreeField"
+	add_child(field)
 	for i in GameData.areas.size():
 		var area: Dictionary = GameData.areas[i]
 		var r := _area_ranges[i]
@@ -202,12 +223,14 @@ func _spawn_trees() -> void:
 			if not _is_free_spot(pos, placed, spacing):
 				continue
 			var tree := ChoppableTree.new()
+			tree.field = field
 			tree.setup(GameData.tree_def(GameData.pick_tree_for_area(i, rng)), i, rng.randi() % ChoppableTree.VARIANTS)
 			tree.position = pos
 			tree.rotation.y = rng.randf() * TAU
 			add_child(tree)
 			placed.append(pos)
 			spawned += 1
+	field.build()
 
 
 func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool:

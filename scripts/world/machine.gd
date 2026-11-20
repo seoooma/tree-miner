@@ -37,7 +37,9 @@ func _ready() -> void:
 
 	_visual = Node3D.new()
 	add_child(_visual)
+	# 燃料・積荷は HUD がバーで表示する（この文字は非表示）
 	_fuel_label = Fx.label3d("", Vector3(0, 2.4, 0), 36)
+	_fuel_label.visible = false
 	add_child(_fuel_label)
 
 	if kind == "hauler":
@@ -100,15 +102,20 @@ func _build_visual() -> void:
 	_visual.add_child(truck)
 	for n in truck.find_children("wheel-*", "", true, false):
 		_wheels.append(n)
+	# 塗装金属のツヤとムラ
+	for mi in truck.find_children("*", "MeshInstance3D", true, false):
+		var src := (mi as MeshInstance3D).mesh.surface_get_material(0) as BaseMaterial3D
+		if src and src.albedo_texture:
+			(mi as MeshInstance3D).material_override = Mats.truck(src.albedo_texture)
 	if kind == "harvester":
 		# 前方に伸びるアームと回転ノコギリ
 		_visual.add_child(Fx.box(Vector3(0.18, 0.18, 1.1), color.darkened(0.35), Vector3(0.0, 0.85, 1.55)))
-		_visual.add_child(Fx.box(Vector3(1.3, 0.12, 0.18), Color("#555b61"), Vector3(0.0, 0.62, 2.05)))
+		_visual.add_child(Fx.box(Vector3(1.3, 0.12, 0.18), Color("#555b61"), Vector3(0.0, 0.62, 2.05), "metal"))
 		_saw = Node3D.new()
 		_saw.position = Vector3(0.0, 0.62, 2.15)
 		_visual.add_child(_saw)
 		for x in [-0.42, 0.42]:
-			var blade := Fx.cylinder(0.32, 0.05, Color("#d6dadf"), Vector3(x, 0, 0), -1.0, 14)
+			var blade := Fx.cylinder(0.32, 0.05, Color("#c9ced3"), Vector3(x, 0, 0), -1.0, 14, false, "metal")
 			blade.rotation_degrees.z = 90.0
 			_saw.add_child(blade)
 			var hub := Fx.cylinder(0.08, 0.07, Color("#3a3f44"), Vector3(x, 0, 0), -1.0, 8)

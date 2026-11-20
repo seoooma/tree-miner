@@ -11,7 +11,7 @@ var area_index := 1
 var width := 40.0
 
 var _pad_root: Node3D
-var _label: Label3D
+var _zone: Zone
 
 
 func _ready() -> void:
@@ -24,11 +24,11 @@ func _ready() -> void:
 	shape.position.y = 1.0
 	fence.add_child(shape)
 	add_child(fence)
-	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#d9b27c"), Vector3(0, 0.5, 0)))
-	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#d9b27c"), Vector3(0, 0.95, 0)))
+	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#b8946a"), Vector3(0, 0.5, 0), "wood"))
+	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#b8946a"), Vector3(0, 0.95, 0), "wood"))
 	var x := -width * 0.5
 	while x <= width * 0.5 + 0.01:
-		fence.add_child(Fx.cylinder(0.09, 1.25, Color("#9c7348"), Vector3(x, 0.62, 0), 0.07, 6, true))
+		fence.add_child(Fx.cylinder(0.09, 1.25, Color("#8a6a4a"), Vector3(x, 0.62, 0), 0.07, 6, true, "wood"))
 		x += 1.6
 	# 鎖と南京錠（開放待ちの目印）
 	fence.add_child(Fx.box(Vector3(0.3, 0.36, 0.14), Color("#e0b030"), Vector3(0, 0.72, 0.1)))
@@ -37,9 +37,8 @@ func _ready() -> void:
 	_pad_root = Node3D.new()
 	_pad_root.position = PAD_OFFSET
 	add_child(_pad_root)
-	_pad_root.add_child(Fx.pad(PAD_RADIUS, Color("#f0a84b")))
-	_label = Fx.label3d("", Vector3(0, 1.6, 0), 48)
-	_pad_root.add_child(_label)
+	_zone = Zone.new(Vector2(PAD_RADIUS * 2.4, PAD_RADIUS * 2.0), Color(0.95, 0.65, 0.3, 0.18))
+	_pad_root.add_child(_zone)
 
 	GameState.area_unlocked.connect(func(_i: int) -> void: _refresh())
 	_refresh()
@@ -59,7 +58,7 @@ func _refresh() -> void:
 
 func _update_label() -> void:
 	var area_name := str(GameData.areas[area_index].get("name", ""))
-	_label.text = "%s を開放\n¥%d" % [area_name, GameState.gate_remaining(area_index)]
+	_zone.set_text("%s を開放" % area_name, "¥%d" % GameState.gate_remaining(area_index))
 
 
 func _process(delta: float) -> void:

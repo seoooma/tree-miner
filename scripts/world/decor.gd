@@ -13,38 +13,56 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	# マップの外側まで続く地面
 	var outer := PlaneMesh.new()
 	outer.size = Vector2(width + 60, base_depth - far + 60)
-	outer.material = Fx.material(Color("#5f9443"))
+	outer.material = Mats.ground("grass", Color("#b8c8a0"))
 	var outer_mi := MeshInstance3D.new()
 	outer_mi.mesh = outer
 	outer_mi.position = Vector3(0, -0.02, (base_depth + far) * 0.5)
 	parent.add_child(outer_mi)
 
-	# 中央の道（拠点から奥のエリアへ）
+	# 中央の道（拠点から奥のエリアへ）。端は草地になじませる
 	var road := PlaneMesh.new()
-	road.size = Vector2(2.6, base_depth - far)
-	road.material = Fx.material(Color("#c9a874"))
+	road.size = Vector2(3.4, -far + 2.0)
+	road.material = Mats.strip("road", 0)
 	var road_mi := MeshInstance3D.new()
 	road_mi.mesh = road
-	road_mi.position = Vector3(0, 0.006, (base_depth + far) * 0.5)
+	road_mi.position = Vector3(0, 0.008, far * 0.5 + 1.0)
+	road_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(road_mi)
+	# 作業場（土）と草地の境目をぼかす帯
+	var seam := PlaneMesh.new()
+	seam.size = Vector2(width, 2.4)
+	seam.material = Mats.strip("yard", 1)
+	var seam_mi := MeshInstance3D.new()
+	seam_mi.mesh = seam
+	seam_mi.position = Vector3(0, 0.004, -1.2 + 0.001)
+	seam_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(seam_mi)
 
 	# 草
 	var grass_mesh := _first_mesh(Fx.model(GRASS_MODEL))
 	if grass_mesh:
-		var xforms: Array[Transform3D] = []
+		var chunks: Dictionary = {}
 		for i in 900:
 			var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, 0.0))
 			if absf(p.x) < 1.5:
 				continue
 			var s := rng.randf_range(0.7, 1.3)
-			xforms.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), p))
-		_multimesh(parent, grass_mesh, xforms)
+			var c := floori(p.z / 20.0)
+			if not chunks.has(c):
+				var arr: Array[Transform3D] = []
+				chunks[c] = arr
+			(chunks[c] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), p))
+		var grass_mat := StandardMaterial3D.new()
+		grass_mat.albedo_color = Color("#5d8a3c")
+		grass_mat.roughness = 0.9
+		for c in chunks:
+			_multimesh(parent, grass_mesh, chunks[c], grass_mat, false)
 
 	# 花
-	var flower_colors := [Color("#ffffff"), Color("#ffd84a"), Color("#ff8fb1"), Color("#b58cff")]
+	var flower_colors := [Color("#e8e4d8"), Color("#e0c050"), Color("#d88a9c"), Color("#9c86c8")]
 	for c in flower_colors:
 		var head := Fx.merged("flower/" + c.to_html(), [
-			[_cyl(0.015, 0.22, 4), Transform3D(Basis(), Vector3(0, 0.11, 0)), Color("#3f8a3a")],
+			[_cyl(0.015, 0.22, 4), Transform3D(Basis(), Vector3(0, 0.11, 0)), Color("#4a6e34")],
 			[_sph(0.07, 5, 3), Transform3D(Basis(), Vector3(0, 0.24, 0)), c],
 		])
 		var xf: Array[Transform3D] = []
@@ -53,7 +71,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			if absf(p.x) < 1.5:
 				continue
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
-		_multimesh(parent, head, xf)
+		_multimesh(parent, head, xf, null, false)
 
 	# 石
 	var rock := Fx.merged("rock", [
@@ -67,7 +85,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 		if absf(p.x) < 2.0 or (p.z > 0.0 and absf(p.x) < 15.0):
 			continue
 		rock_xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.6, 1.4)), p))
-	_multimesh(parent, rock, rock_xf)
+	_multimesh(parent, rock, rock_xf, Mats.surface(Color("#a49e92"), "paint", 0.9))
 
 	# マップの外側の森（飾り）
 	var border: Dictionary = {}
@@ -85,7 +103,15 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, far - 1.2 - k * 1.8))
 		x2 += 1.7
 	for key in border:
-		_multimesh(parent, border[key][0], border[key][1])
+		var mmi := _multimesh(parent, border[key][0], border[key][1], Mats.tree(true), false)
+		var mm := mmi.multimesh
+		var xfs: Array[Transform3D] = border[key][1]
+		mm.instance_count = 0
+		mm.use_colors = true
+		mm.instance_count = xfs.size()
+		for i in xfs.size():
+			mm.set_instance_transform(i, xfs[i])
+			mm.set_instance_color(i, TreeField.random_tint(rng))
 
 
 static func _add_border_tree(border: Dictionary, rng: RandomNumberGenerator, pos: Vector3) -> void:
@@ -94,14 +120,15 @@ static func _add_border_tree(border: Dictionary, rng: RandomNumberGenerator, pos
 	if def.is_empty():
 		return
 	var variant := rng.randi() % ChoppableTree.VARIANTS
-	var key := "%s/%d" % [def["id"], variant]
+	# 20m ごとに分けて、画面外の塊は描かないようにする（視錐台カリング）
+	var key := "%s/%d/%d" % [def["id"], variant, floori(pos.z / 20.0)]
 	if not border.has(key):
 		var xforms: Array[Transform3D] = []
 		border[key] = [ChoppableTree._build_mesh(def, variant), xforms]
 	(border[key][1] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), pos))
 
 
-static func _multimesh(parent: Node3D, mesh: Mesh, xforms: Array[Transform3D]) -> void:
+static func _multimesh(parent: Node3D, mesh: Mesh, xforms: Array[Transform3D], mat: Material = null, shadows := true) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -110,7 +137,11 @@ static func _multimesh(parent: Node3D, mesh: Mesh, xforms: Array[Transform3D]) -
 		mm.set_instance_transform(i, xforms[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
+	mmi.material_override = mat
+	if not shadows:
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mmi)
+	return mmi
 
 
 static func _first_mesh(node: Node) -> Mesh:

@@ -64,9 +64,9 @@
 
 	"camera": {
 		"_comment": "カメラ位置（プレイヤーからの高さ・手前への距離）と画角。乗車中は drive_zoom 倍だけ引く",
-		"height": 6.8,
-		"back": 4.6,
-		"fov": 50,
+		"height": 7.4,
+		"back": 4.5,
+		"fov": 40,
 		"drive_zoom": 1.35
 	},
 
