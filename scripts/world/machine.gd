@@ -89,6 +89,11 @@ func exit_position() -> Vector3:
 
 ## トラックモデルの向き補正（モデルの正面を +Z に合わせる）
 const MODEL_YAW := 0.0
+## ランクごとの車体（Kenney Car Kit）。伐採機はトラクター、運搬車は荷台付きのトラック。
+const MODELS := {
+	"harvester": ["tractor", "tractor-shovel", "tractor-shovel"],
+	"hauler": ["truck", "truck-flat", "delivery-flat"],
+}
 
 
 func _build_visual() -> void:
@@ -96,9 +101,14 @@ func _build_visual() -> void:
 		child.queue_free()
 	_wheels.clear()
 	var color := Color(spec().get("color", "#e8b030"))
-	var truck := Fx.model("res://assets/kenney/racing/vehicle-truck-%s.glb" % spec().get("model", "yellow"))
+	var names: Array = MODELS.get(kind, MODELS["hauler"])
+	var truck := Fx.model("res://assets/kenney/car/%s.glb" % names[clampi(rank - 1, 0, names.size() - 1)])
 	truck.rotation.y = MODEL_YAW
 	truck.scale = Vector3.ONE * 0.95
+	# ショベルの代わりに伐採用のノコギリを付けるので、元のショベルは隠す
+	var shovel := truck.find_child("shovel", true, false) as Node3D
+	if shovel:
+		shovel.visible = false
 	_visual.add_child(truck)
 	for n in truck.find_children("wheel-*", "", true, false):
 		_wheels.append(n)
@@ -109,10 +119,10 @@ func _build_visual() -> void:
 			(mi as MeshInstance3D).material_override = Mats.truck(src.albedo_texture)
 	if kind == "harvester":
 		# 前方に伸びるアームと回転ノコギリ
-		_visual.add_child(Fx.box(Vector3(0.18, 0.18, 1.1), color.darkened(0.35), Vector3(0.0, 0.85, 1.55)))
-		_visual.add_child(Fx.box(Vector3(1.3, 0.12, 0.18), Color("#555b61"), Vector3(0.0, 0.62, 2.05), "metal"))
+		_visual.add_child(Fx.box(Vector3(0.18, 0.18, 0.9), color.darkened(0.35), Vector3(0.0, 0.8, 1.2)))
+		_visual.add_child(Fx.box(Vector3(1.3, 0.12, 0.18), Color("#555b61"), Vector3(0.0, 0.62, 1.6), "metal"))
 		_saw = Node3D.new()
-		_saw.position = Vector3(0.0, 0.62, 2.15)
+		_saw.position = Vector3(0.0, 0.62, 1.7)
 		_visual.add_child(_saw)
 		for x in [-0.42, 0.42]:
 			var blade := Fx.cylinder(0.32, 0.05, Color("#c9ced3"), Vector3(x, 0, 0), -1.0, 14, false, "metal")
@@ -121,9 +131,13 @@ func _build_visual() -> void:
 			var hub := Fx.cylinder(0.08, 0.07, Color("#3a3f44"), Vector3(x, 0, 0), -1.0, 8)
 			hub.rotation_degrees.z = 90.0
 			_saw.add_child(hub)
-	# ランク表示（屋根の上の星）
+	# ランク表示（屋根の上の星）。車体の高さに合わせる
+	var top := 1.5
+	for mi in truck.find_children("*", "MeshInstance3D", true, false):
+		var box := (mi as MeshInstance3D).get_aabb()
+		top = maxf(top, (box.position.y + box.size.y) * truck.scale.y)
 	for i in rank:
-		_visual.add_child(Fx.sphere(0.09, Color("#ffd84a"), Vector3(-0.25 + i * 0.25, 1.62, -0.1), 6, 3, true))
+		_visual.add_child(Fx.sphere(0.09, Color("#ffd84a"), Vector3(-0.25 + i * 0.25, top + 0.12, -0.1), 6, 3, true))
 
 
 func _physics_process(delta: float) -> void:

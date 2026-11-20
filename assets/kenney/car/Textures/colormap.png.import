@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dreb5huivi6yg"
-path="res://.godot/imported/colormap.png-ccdac55518c70c528a3c8cbaaeedbf7f.ctex"
+uid="uid://d4hd3rmpe4iu1"
+path="res://.godot/imported/colormap.png-e643eed3031dd81e491d501e98a51869.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/kenney/racing/Textures/colormap.png"
-dest_files=["res://.godot/imported/colormap.png-ccdac55518c70c528a3c8cbaaeedbf7f.ctex"]
+source_file="res://assets/kenney/car/Textures/colormap.png"
+dest_files=["res://.godot/imported/colormap.png-e643eed3031dd81e491d501e98a51869.ctex"]
 
 [params]
 
