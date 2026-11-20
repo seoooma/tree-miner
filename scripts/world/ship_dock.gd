@@ -4,13 +4,12 @@ extends Station
 
 const PAD_RADIUS := 1.8
 
-var _label: Label3D
-var _pad: Node3D
+var _zone: Zone
 
 
 func _ready() -> void:
-	_pad = Fx.pad(PAD_RADIUS, Color("#7fd18a"))
-	add_child(_pad)
+	_zone = Zone.new(Vector2.ONE * PAD_RADIUS * 2.0, Color(0.5, 0.85, 0.55, 0.16))
+	add_child(_zone)
 	# 木の桟橋風の床と、出荷待ちの荷物
 	add_child(Fx.box(Vector3(3.2, 0.14, 1.6), Color("#a8834f"), Vector3(0, 0.07, -2.6)))
 	for i in 7:
@@ -29,16 +28,14 @@ func _ready() -> void:
 	sign.position = Vector3(1.9, 0, -1.6)
 	sign.rotation_degrees.y = -20.0
 	add_child(sign)
-	_label = Fx.label3d("", Vector3(0, 2.6, -2.2), 44)
-	add_child(_label)
 	GameState.upgrade_changed.connect(func(_id: String, _level: int) -> void: _refresh())
 	_refresh()
 
 
 func _refresh() -> void:
 	var unlocked := GameState.level("sawmill") > 0
-	_label.text = "出荷場\n板を売る" if unlocked else "出荷場\n（製材ラインで開放）"
-	_pad.scale = Vector3.ONE if unlocked else Vector3(0.7, 1, 0.7)
+	_zone.set_text("出荷場", "板を売る" if unlocked else "（製材ラインで開放）")
+	_zone.set_fill(Color(0.5, 0.85, 0.55, 0.16) if unlocked else Color(0.3, 0.3, 0.3, 0.2))
 
 
 func _process(delta: float) -> void:

@@ -34,15 +34,9 @@ static func popup(context: Node, world_pos: Vector3, text: String, color := Colo
 
 # ---- マテリアル・メッシュ ----
 
-static func material(color: Color, roughness := 0.85) -> StandardMaterial3D:
-	var key := "%s/%.2f" % [color.to_html(), roughness]
-	if _materials.has(key):
-		return _materials[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = roughness
-	_materials[key] = m
-	return m
+## 単色＋細かいムラのマテリアル。kind: "paint" / "wood"（木目）/ "metal"（塗装金属）
+static func material(color: Color, roughness := 0.85, kind := "paint") -> StandardMaterial3D:
+	return Mats.surface(color, kind, roughness)
 
 
 ## メッシュを面ごとの法線（フラットシェーディング）に変換する。ローポリ感を出すため。
@@ -114,18 +108,18 @@ static func _instance(mesh: Mesh, pos: Vector3) -> MeshInstance3D:
 	return mi
 
 
-static func box(size: Vector3, color: Color, pos := Vector3.ZERO) -> MeshInstance3D:
-	var mesh := _cached("box%s%s" % [size, color.to_html()], func() -> Mesh:
+static func box(size: Vector3, color: Color, pos := Vector3.ZERO, kind := "paint") -> MeshInstance3D:
+	var mesh := _cached("box%s%s%s" % [size, color.to_html(), kind], func() -> Mesh:
 		var m := BoxMesh.new()
 		m.size = size
-		m.material = material(color)
+		m.material = material(color, 0.85, kind)
 		return m)
 	return _instance(mesh, pos)
 
 
-static func cylinder(radius: float, height: float, color: Color, pos := Vector3.ZERO, top_radius := -1.0, segments := 12, is_flat := false) -> MeshInstance3D:
+static func cylinder(radius: float, height: float, color: Color, pos := Vector3.ZERO, top_radius := -1.0, segments := 12, is_flat := false, kind := "paint") -> MeshInstance3D:
 	var top := radius if top_radius < 0.0 else top_radius
-	var key := "cyl%.3f/%.3f/%.3f/%d/%s/%s" % [radius, height, top, segments, color.to_html(), is_flat]
+	var key := "cyl%.3f/%.3f/%.3f/%d/%s/%s/%s" % [radius, height, top, segments, color.to_html(), is_flat, kind]
 	var mesh := _cached(key, func() -> Mesh:
 		var m := CylinderMesh.new()
 		m.bottom_radius = radius
@@ -133,7 +127,7 @@ static func cylinder(radius: float, height: float, color: Color, pos := Vector3.
 		m.height = height
 		m.radial_segments = segments
 		m.rings = 1
-		m.material = material(color)
+		m.material = material(color, 0.85, kind)
 		return flat(m) if is_flat else m)
 	return _instance(mesh, pos)
 

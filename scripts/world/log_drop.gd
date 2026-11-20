@@ -66,13 +66,14 @@ func _ready() -> void:
 ## 丸太の見た目（樹皮の円柱＋両端の木口）。積荷の表示でも使う。
 static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
 	var def := GameData.tree_def(p_tree_id)
-	var bark := Color(def.get("trunk_color", "#8a5a33"))
+	var bark := ChoppableTree.bark_color(def) if not def.is_empty() else Color(0.55, 0.36, 0.2, 0.0)
 	var mesh := Fx.merged("log/" + p_tree_id, [
-		[_cyl(0.11, 0.7, 7), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), bark],
-		[_cyl(0.085, 0.72, 7), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), Color("#e8c99a")],
+		[_cyl(0.11, 0.7, 8), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), bark],
+		[_cyl(0.085, 0.72, 8), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), Color(0.88, 0.75, 0.55, 0.5)],
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	mi.material_override = Mats.tree(false)
 	mi.rotation_degrees.y = yaw_deg
 	return mi
 
@@ -95,9 +96,16 @@ func _land(target: Vector3) -> void:
 	var tween := create_tween().set_parallel()
 	tween.tween_property(self, "global_position:x", target.x, SPAWN_SEC)
 	tween.tween_property(self, "global_position:z", target.z, SPAWN_SEC)
+	# ポンと飛び出して、地面で2回小さく跳ねる
 	var up := create_tween()
 	up.tween_property(self, "global_position:y", 1.6, SPAWN_SEC * 0.4).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	up.tween_property(self, "global_position:y", target.y, SPAWN_SEC * 0.6).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	up.tween_property(self, "global_position:y", target.y + 0.35, 0.12).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	up.tween_property(self, "global_position:y", target.y, 0.12).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	up.tween_property(self, "global_position:y", target.y + 0.1, 0.07).set_ease(Tween.EASE_OUT)
+	up.tween_property(self, "global_position:y", target.y, 0.07).set_ease(Tween.EASE_IN)
+	var spin := create_tween()
+	spin.tween_property(self, "rotation:y", rotation.y + randf_range(-2.5, 2.5), SPAWN_SEC + 0.3).set_ease(Tween.EASE_OUT)
 
 
 func _fly_to(carrier: Node3D) -> void:

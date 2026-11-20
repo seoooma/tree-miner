@@ -1,104 +1,84 @@
 class_name Hud
 extends CanvasLayer
-## 画面UI: 所持金・積荷数・燃料・乗り降りボタン・強化パネル（伐採員の役割切り替えを含む）・バーチャルスティック。
+## 画面UI。
+## - 左上: 設定（ギア）。BGM / 効果音のオン・オフはここから開く
+## - 右上: 所持金のピル
+## - 下: 乗る／降りる・強化のタイルボタン
+## - 強化画面: 下からせり上がるシート（カード・サムネイル・おすすめ・伐採員の役割チップ）
+## - ワールド表示: プレイヤー頭上の積荷バー、機械の燃料・積荷バー、案内先が画面外のときの端のインジケーター
+## 表示だけを担当し、ゲームの数値や処理は GameState / 各ノードが持つ。
+
+const SHEET_RATIO := 0.65
+const STAT_NAMES := {
+	"axe_power": "伐採力",
+	"capacity": "積載量",
+	"move_speed": "移動速度",
+	"sawmill": "加工速度",
+	"lumberjack": "人数",
+}
+## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
+const BADGES := {
+	"axe_power": "badge_power",
+	"capacity": "badge_capacity",
+	"move_speed": "badge_speed",
+	"sawmill": "badge_speed",
+	"lumberjack": "badge_capacity",
+}
 
 var player: Player
+var guide: GuideArrows
 
+var _root: Control
 var _money_label: Label
-var _carry_label: Label
-var _panel: PanelContainer
-var _upgrade_button: Button
+var _money_pill: Control
 var _board_button: Button
-var _fuel_chip: Control
-var _fuel_label: Label
-var _roles_box: HFlowContainer
+var _upgrade_button: Button
+var _gear: TextureButton
+var _settings: Control
 var _music_button: Button
 var _sfx_button: Button
-var _shown_money := 0
+var _dim: ColorRect
+var _sheet: Control
+var _sheet_open := false
+var _sheet_tween: Tween
+var _roles_box: HFlowContainer
+var _roles_title: Label
 var _rows: Dictionary = {}
+var _shown_money := 0
+var _thumbs: Thumbnails
+
+# ワールド表示
+var _carry_root: Control
+var _carry_bar: UiKit.Bar
+var _carry_text: Label
+var _machine_bars: Dictionary = {}  # Machine -> {root, fuel, cargo, warn}
+var _edge: Control
+var _edge_icon: TextureRect
+var _edge_text: Label
+var _edge_arrow: TextureRect
 
 
 func _ready() -> void:
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.theme = _make_theme()
-	add_child(root)
+	_root = Control.new()
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.theme = _make_theme()
+	add_child(_root)
+	_thumbs = Thumbnails.new()
+	add_child(_thumbs)
 
 	# スティックは一番下に置き、ボタン類がタッチを優先して受け取れるようにする
 	var joystick := VirtualJoystick.new()
-	root.add_child(joystick)
+	_root.add_child(joystick)
 	joystick.vector_changed.connect(func(v: Vector2) -> void:
 		if player:
 			player.joystick_vector = v)
 
-	var top := HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = 24
-	top.offset_right = -24
-	top.offset_top = 24
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(top)
-	_money_label = _chip_label(top, "¥0")
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top.add_child(spacer)
-	_carry_label = _chip_label(top, "積荷 0/0")
-
-	var second := HBoxContainer.new()
-	second.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	second.offset_left = 24
-	second.offset_right = -24
-	second.offset_top = 100
-	second.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	second.add_theme_constant_override("separation", 10)
-	root.add_child(second)
-	_music_button = _small_button(second, "", func() -> void:
-		Audio.toggle_music()
-		_update_sound_buttons())
-	_sfx_button = _small_button(second, "", func() -> void:
-		Audio.toggle_sfx()
-		_update_sound_buttons())
-	_update_sound_buttons()
-	var spacer2 := Control.new()
-	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spacer2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	second.add_child(spacer2)
-	_fuel_label = _chip_label(second, "")
-	_fuel_chip = _fuel_label.get_parent()
-	_fuel_chip.visible = false
-
-	_board_button = Button.new()
-	_board_button.custom_minimum_size = Vector2(200, 110)
-	_board_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_board_button.offset_left = 24
-	_board_button.offset_top = -134
-	_board_button.offset_right = 224
-	_board_button.offset_bottom = -24
-	_board_button.add_theme_font_size_override("font_size", 40)
-	_style_button(_board_button, Color("#f08a2c"))
-	_board_button.visible = false
-	_board_button.pressed.connect(_toggle_board)
-	root.add_child(_board_button)
-
-	var upgrade_button := Button.new()
-	upgrade_button.text = "強化"
-	upgrade_button.custom_minimum_size = Vector2(200, 110)
-	upgrade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	upgrade_button.offset_left = -224
-	upgrade_button.offset_top = -134
-	upgrade_button.offset_right = -24
-	upgrade_button.offset_bottom = -24
-	upgrade_button.add_theme_font_size_override("font_size", 40)
-	_style_button(upgrade_button, Color("#3fa34d"))
-	upgrade_button.pressed.connect(func() -> void:
-		Audio.play("ui", -4.0)
-		_panel.visible = not _panel.visible)
-	root.add_child(upgrade_button)
-	_upgrade_button = upgrade_button
-
-	_build_upgrade_panel(root)
+	_build_world_overlay()
+	_build_top_bar()
+	_build_bottom_tiles()
+	_build_settings()
+	_build_sheet()
 	joystick.is_blocked = _is_over_ui
 
 	GameState.money_changed.connect(func(_m: int) -> void: _refresh())
@@ -110,20 +90,133 @@ func _ready() -> void:
 	_rebuild_roles()
 
 
+func bind_player(p: Player) -> void:
+	player = p
+	player.carry_changed.connect(_on_carry_changed)
+
+
+# ================================================================ 上部
+
+func _build_top_bar() -> void:
+	_gear = UiKit.icon_button("icon_gear", 88)
+	_gear.position = Vector2(20, 20)
+	_gear.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		_settings.visible = not _settings.visible)
+	_root.add_child(_gear)
+
+	# 通貨ピル（暗い角丸＋左にアイコン、右に数字）
+	var pill := PanelContainer.new()
+	var style := UiKit.flat_box(Color(0.08, 0.08, 0.08, 0.75), 22)
+	style.content_margin_left = 10
+	style.content_margin_right = 22
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	pill.add_theme_stylebox_override("panel", style)
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	pill.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	pill.offset_right = -20
+	pill.offset_top = 30
+	pill.custom_minimum_size = Vector2(220, 68)
+	_root.add_child(pill)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.add_child(row)
+	var ic := TextureRect.new()
+	ic.texture = UiKit.icon("icon_money")
+	ic.custom_minimum_size = Vector2(58, 58)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(ic)
+	_money_label = UiKit.label("¥0", 38, true)
+	_money_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_money_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_money_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(_money_label)
+	_money_pill = pill
+
+
+func _build_settings() -> void:
+	# ギアの下に開く小さなメニュー（BGM / 効果音）
+	var panel := PanelContainer.new()
+	var style := UiKit.flat_box(Color(0.12, 0.12, 0.13, 0.94), 20, 3, Color(1, 1, 1, 0.25))
+	style.set_content_margin_all(18)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(20, 122)
+	panel.visible = false
+	_root.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(UiKit.label("設定", 30, true))
+	_music_button = _toggle_button(box, func() -> void:
+		Audio.toggle_music()
+		_update_sound_buttons())
+	_sfx_button = _toggle_button(box, func() -> void:
+		Audio.toggle_sfx()
+		_update_sound_buttons())
+	_settings = panel
+	_update_sound_buttons()
+
+
+func _toggle_button(parent: Control, on_press: Callable) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(230, 84)
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", UiKit.font())
+	b.add_theme_font_size_override("font_size", 30)
+	b.add_theme_constant_override("outline_size", 8)
+	b.add_theme_color_override("font_outline_color", UiKit.OUTLINE_DARK)
+	b.pressed.connect(on_press)
+	parent.add_child(b)
+	return b
+
+
+func _update_sound_buttons() -> void:
+	_music_button.text = "♪ BGM ON" if Audio.music_enabled else "♪ BGM OFF"
+	_sfx_button.text = "SE ON" if Audio.sfx_enabled else "SE OFF"
+	UiKit.skin_button(_music_button, "btn_green" if Audio.music_enabled else "btn_gray", "", 18, 12)
+	UiKit.skin_button(_sfx_button, "btn_green" if Audio.sfx_enabled else "btn_gray", "", 18, 12)
+
+
+# ================================================================ 下部のタイルボタン
+
+func _build_bottom_tiles() -> void:
+	_board_button = UiKit.tile_button("icon_truck", "乗る")
+	_board_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_board_button.offset_left = 24
+	_board_button.offset_top = -164
+	_board_button.offset_right = 164
+	_board_button.offset_bottom = -24
+	_board_button.visible = false
+	_board_button.pressed.connect(_toggle_board)
+	_root.add_child(_board_button)
+
+	_upgrade_button = UiKit.tile_button("icon_upgrade", "強化")
+	_upgrade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_upgrade_button.offset_left = -164
+	_upgrade_button.offset_top = -164
+	_upgrade_button.offset_right = -24
+	_upgrade_button.offset_bottom = -24
+	_upgrade_button.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		_set_sheet(not _sheet_open))
+	_root.add_child(_upgrade_button)
+
+
 func _process(_delta: float) -> void:
 	if player == null:
 		return
 	if player.vehicle:
 		_board_button.visible = true
-		_board_button.text = "降りる"
-		var m := player.vehicle
-		_fuel_chip.visible = true
-		_fuel_label.text = "燃料 %d/%d" % [ceili(m.fuel), roundi(m.fuel_max())]
-		_fuel_label.modulate = Color("#ff8a7a") if m.fuel <= 0.0 else Color.WHITE
+		UiKit.set_tile_text(_board_button, "降りる")
 	else:
-		_fuel_chip.visible = false
 		_board_button.visible = player.nearby_machine() != null
-		_board_button.text = "乗る"
+		UiKit.set_tile_text(_board_button, "乗る")
+	_update_world_overlay()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -140,195 +233,327 @@ func _toggle_board() -> void:
 		player.board(player.nearby_machine())
 
 
-func bind_player(p: Player) -> void:
-	player = p
-	player.carry_changed.connect(func(count: int, cap: int) -> void:
-		_carry_label.text = "積荷 %d/%d" % [count, cap]
-		_carry_label.modulate = Color("#ff8a7a") if count >= cap else Color.WHITE)
-
-
-## スティックを出さない場所（ボタン・開いている強化パネルの上）
+## スティックを出さない場所（ボタン・開いているシートやメニューの上）
 func _is_over_ui(pos: Vector2) -> bool:
-	if _upgrade_button.get_global_rect().has_point(pos):
+	if _sheet_open:
 		return true
-	for b in [_board_button, _music_button, _sfx_button]:
-		if (b as Control).visible and (b as Control).get_global_rect().has_point(pos):
+	for c in [_upgrade_button, _board_button, _gear, _settings]:
+		var ctl := c as Control
+		if ctl.visible and ctl.get_global_rect().has_point(pos):
 			return true
-	return _panel.visible and _panel.get_global_rect().has_point(pos)
+	return false
 
 
 func _make_theme() -> Theme:
 	var theme := Theme.new()
+	theme.default_font = UiKit.font()
 	theme.default_font_size = 30
-	theme.set_stylebox("normal", "Button", _box(Color("#4a5a48")))
-	theme.set_stylebox("hover", "Button", _box(Color("#566a54")))
-	theme.set_stylebox("pressed", "Button", _box(Color("#3a4838"), true))
-	theme.set_stylebox("disabled", "Button", _box(Color(0.3, 0.32, 0.3, 0.7)))
-	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	theme.set_color("font_disabled_color", "Button", Color(1, 1, 1, 0.45))
-	theme.set_color("font_outline_color", "Label", Color(0.1, 0.07, 0.03, 0.6))
-	theme.set_constant("outline_size", "Label", 6)
+	theme.set_color("font_outline_color", "Label", UiKit.OUTLINE_DARK)
+	theme.set_constant("outline_size", "Label", 8)
+	theme.set_color("font_color", "Button", Color.WHITE)
+	theme.set_color("font_pressed_color", "Button", Color.WHITE)
+	theme.set_color("font_hover_color", "Button", Color.WHITE)
+	theme.set_color("font_disabled_color", "Button", Color.WHITE)
 	return theme
 
 
-static func _box(color: Color, pressed := false) -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = color
-	b.set_corner_radius_all(20)
-	b.border_width_bottom = 2 if pressed else 7
-	b.border_color = color.darkened(0.35)
-	b.content_margin_left = 16
-	b.content_margin_right = 16
-	b.content_margin_top = 8
-	b.content_margin_bottom = 8 if pressed else 12
-	b.shadow_color = Color(0, 0, 0, 0.25)
-	b.shadow_size = 4
-	b.shadow_offset = Vector2(0, 3)
-	return b
+# ================================================================ 強化シート
 
+func _build_sheet() -> void:
+	_dim = ColorRect.new()
+	_dim.color = Color(0, 0, 0, 0.5)
+	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.visible = false
+	_dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_set_sheet(false))
+	_root.add_child(_dim)
 
-func _style_button(b: Button, color: Color) -> void:
-	b.add_theme_stylebox_override("normal", _box(color))
-	b.add_theme_stylebox_override("hover", _box(color.lightened(0.08)))
-	b.add_theme_stylebox_override("pressed", _box(color.darkened(0.12), true))
+	_sheet = Control.new()
+	_sheet.anchor_left = 0.0
+	_sheet.anchor_right = 1.0
+	_sheet.anchor_top = 1.0
+	_sheet.anchor_bottom = 1.0
+	_sheet.visible = false
+	_root.add_child(_sheet)
 
+	var bg := Panel.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var bg_style := UiKit.flat_box(Color("#3b3e42"), 0)
+	bg.add_theme_stylebox_override("panel", bg_style)
+	_sheet.add_child(bg)
 
-func _small_button(parent: Control, text: String, on_press: Callable) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(96, 64)
-	b.add_theme_font_size_override("font_size", 26)
-	b.pressed.connect(on_press)
-	parent.add_child(b)
-	return b
-
-
-func _update_sound_buttons() -> void:
-	_music_button.text = "♪ ON" if Audio.music_enabled else "♪ OFF"
-	_sfx_button.text = "SE ON" if Audio.sfx_enabled else "SE OFF"
-	_music_button.modulate = Color.WHITE if Audio.music_enabled else Color(1, 1, 1, 0.6)
-	_sfx_button.modulate = Color.WHITE if Audio.sfx_enabled else Color(1, 1, 1, 0.6)
-
-
-func _chip_label(parent: Control, text: String) -> Label:
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.1, 0.06, 0.55)
-	style.set_corner_radius_all(18)
-	style.content_margin_left = 20
-	style.content_margin_right = 20
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
-	panel.add_theme_stylebox_override("panel", style)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(panel)
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 38)
-	panel.add_child(label)
-	return label
-
-
-func _build_upgrade_panel(root: Control) -> void:
-	_panel = PanelContainer.new()
-	_panel.visible = false
-	_panel.anchor_left = 0.0
-	_panel.anchor_right = 1.0
-	_panel.anchor_top = 0.5
-	_panel.anchor_bottom = 0.5
-	_panel.offset_left = 24
-	_panel.offset_right = -24
-	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.13, 0.16, 0.12, 0.95)
-	style.border_width_top = 4
-	style.border_color = Color("#3fa34d")
-	style.set_corner_radius_all(24)
-	style.set_content_margin_all(24)
-	_panel.add_theme_stylebox_override("panel", style)
-	root.add_child(_panel)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	_panel.add_child(vbox)
-	var title := Label.new()
-	title.text = "強化"
+	# 見出しの帯（黄〜オレンジのグラデーション、傷のある金属っぽい質感）
+	var header := Panel.new()
+	header.add_theme_stylebox_override("panel", UiKit.tex_box("header_bar", 14, 0))
+	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header.offset_bottom = 112
+	header.offset_top = -8
+	_sheet.add_child(header)
+	var bolt := Panel.new()
+	bolt.add_theme_stylebox_override("panel", UiKit.flat_box(Color("#3a3a3a"), 14, 4, Color("#9a9a9a")))
+	bolt.position = Vector2(30, 46)
+	bolt.size = Vector2(28, 28)
+	header.add_child(bolt)
+	var title := UiKit.label("強化", 52, true, Color.WHITE, 14)
+	title.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
-	vbox.add_child(title)
-
-	for def in GameData.upgrades:
-		var id := str(def["id"])
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-		vbox.add_child(row)
-		var info := VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(info)
-		var name_label := Label.new()
-		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(name_label)
-		var desc := Label.new()
-		desc.text = str(def.get("desc", ""))
-		desc.add_theme_font_size_override("font_size", 22)
-		desc.modulate = Color(1, 1, 1, 0.7)
-		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(desc)
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(180, 80)
-		_style_button(button, Color("#e0a92c"))
-		button.pressed.connect(func() -> void:
-			if GameState.buy_upgrade(id):
-				Audio.play("buy", -2.0)
-				if player:
-					Fx.burst(player, player.global_position + Vector3(0, 1.2, 0), [Color("#ffd84a"), Color("#8fe07a"), Color("#6bc4ff")], 24, 5.0, 0.09, 1.0))
-		row.add_child(button)
-		_rows[id] = {"name": name_label, "button": button}
-
-	var roles_title := Label.new()
-	roles_title.text = "伐採員の役割（タップで切り替え）"
-	roles_title.add_theme_font_size_override("font_size", 26)
-	vbox.add_child(roles_title)
-	_roles_box = HFlowContainer.new()
-	_roles_box.add_theme_constant_override("h_separation", 10)
-	_roles_box.add_theme_constant_override("v_separation", 10)
-	vbox.add_child(_roles_box)
-
-	var close := Button.new()
-	close.text = "閉じる"
-	close.custom_minimum_size = Vector2(0, 80)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header.add_child(title)
+	var close := UiKit.icon_button("icon_close", 92)
+	close.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	close.offset_left = -112
+	close.offset_right = -20
+	close.offset_top = -46
+	close.offset_bottom = 46
 	close.pressed.connect(func() -> void:
 		Audio.play("ui", -4.0)
-		_panel.visible = false)
-	vbox.add_child(close)
+		_set_sheet(false))
+	header.add_child(close)
+
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_top = 124
+	scroll.offset_left = 4
+	scroll.offset_right = -12
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_sheet.add_child(scroll)
+	# 左にバッジがはみ出す分の余白
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_right", 8)
+	scroll.add_child(margin)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 26)
+	margin.add_child(list)
+	var top_pad := Control.new()
+	top_pad.custom_minimum_size = Vector2(0, 4)
+	list.add_child(top_pad)
+
+	for def in GameData.upgrades:
+		_build_card(list, def)
+
+	_roles_title = UiKit.label("伐採員の役割（タップで切り替え）", 26)
+	list.add_child(_roles_title)
+	_roles_box = HFlowContainer.new()
+	_roles_box.add_theme_constant_override("h_separation", 12)
+	_roles_box.add_theme_constant_override("v_separation", 12)
+	list.add_child(_roles_box)
+	var bottom_pad := Control.new()
+	bottom_pad.custom_minimum_size = Vector2(0, 30)
+	list.add_child(bottom_pad)
+
+
+func _build_card(list: Control, def: Dictionary) -> void:
+	var id := str(def["id"])
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UiKit.tex_box("card_metal", 14, 10))
+	card.custom_minimum_size = Vector2(0, 176)
+	list.add_child(card)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	card.add_child(row)
+
+	# 左: サムネイル（暗めの画像パネル）と、角に重なる丸いバッジ
+	var img_panel := PanelContainer.new()
+	img_panel.add_theme_stylebox_override("panel", UiKit.flat_box(Color("#9fa2a6"), 8))
+	img_panel.custom_minimum_size = Vector2(150, 150)
+	row.add_child(img_panel)
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(150, 150)
+	img_panel.add_child(holder)
+	var thumb := TextureRect.new()
+	thumb.texture = _thumbs.texture_for(id)
+	thumb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	holder.add_child(thumb)
+	var badge := TextureRect.new()
+	badge.texture = UiKit.icon(BADGES.get(id, "badge_capacity"))
+	badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	badge.size = Vector2(56, 56)
+	badge.position = Vector2(-30, -30)
+	holder.add_child(badge)
+
+	# 中: 名前・ステータス名・Lv と値（現在 → 次）・説明
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.custom_minimum_size = Vector2(10, 0)
+	info.add_theme_constant_override("separation", 0)
+	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(info)
+	var name_label := UiKit.label(str(def.get("name", id)), 30, false, Color("#1f1f1f"), 0, UiKit.OUTLINE_DARK, false)
+	name_label.clip_text = true
+	name_label.custom_minimum_size = Vector2(10, 0)
+	info.add_child(name_label)
+	var stat := UiKit.label(STAT_NAMES.get(id, ""), 22, false, Color("#7a7a7a"), 0, UiKit.OUTLINE_DARK, false)
+	info.add_child(stat)
+	# 「Lv.5 ▶ Lv.6」「6 ▶ 7」の2行。現在の値は濃い色、次の値は黄色＋縁取り
+	var cells := []
+	for r in 2:
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 6)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		info.add_child(line)
+		var cur := UiKit.label("", 23, true, Color("#222222"), 0, UiKit.OUTLINE_DARK, false)
+		cur.custom_minimum_size = Vector2(112, 0)
+		cur.clip_text = true
+		line.add_child(cur)
+		var arrow := UiKit.label("▶", 18, false, Color("#333333"), 0, UiKit.OUTLINE_DARK, false)
+		line.add_child(arrow)
+		var nxt := UiKit.label("", 23, true, UiKit.NEXT_YELLOW, 9, UiKit.NEXT_OUTLINE, false)
+		nxt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nxt.custom_minimum_size = Vector2(10, 0)
+		nxt.clip_text = true
+		line.add_child(nxt)
+		cells.append_array([cur, arrow, nxt])
+	var desc := UiKit.label(str(def.get("desc", "")), 18, false, Color("#6e6e6e"), 0, UiKit.OUTLINE_DARK, false)
+	desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	desc.clip_text = true
+	desc.custom_minimum_size = Vector2(10, 0)
+	info.add_child(desc)
+
+	# 右: 価格ボタン（買えるなら緑、買えないなら灰色で価格が赤）
+	var price_col := VBoxContainer.new()
+	price_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(price_col)
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(196, 96)
+	button.focus_mode = Control.FOCUS_NONE
+	button.icon = UiKit.icon("icon_money")
+	button.expand_icon = false
+	button.add_theme_constant_override("icon_max_width", 52)
+	button.add_theme_constant_override("h_separation", 8)
+	button.add_theme_font_override("font", UiKit.font(true))
+	button.add_theme_font_size_override("font_size", 34)
+	button.add_theme_constant_override("outline_size", 10)
+	button.pressed.connect(func() -> void:
+		if GameState.buy_upgrade(id):
+			Audio.play("buy", -2.0)
+			if player:
+				Fx.burst(player, player.global_position + Vector3(0, 1.2, 0), [Color("#ffd84a"), Color("#8fe07a"), Color("#6bc4ff")], 24, 5.0, 0.09, 1.0))
+	price_col.add_child(button)
+	# おすすめのリボン（ボタンの上に重ねる）
+	var ribbon := Label.new()
+	ribbon.text = "おすすめ"
+	UiKit.style_label(ribbon, 20, false, Color.WHITE, 6, Color("#6a0d0a"), false)
+	var rs := UiKit.flat_box(Color("#E03A30"), 4)
+	rs.corner_radius_bottom_left = 14
+	rs.content_margin_left = 14
+	rs.content_margin_right = 10
+	ribbon.add_theme_stylebox_override("normal", rs)
+	ribbon.position = Vector2(64, -40)
+	ribbon.visible = false
+	button.add_child(ribbon)
+
+	_rows[id] = {"cells": cells, "button": button, "ribbon": ribbon}
+
+
+func _set_sheet(open: bool) -> void:
+	if open == _sheet_open:
+		return
+	_sheet_open = open
+	_settings.visible = false
+	if _sheet_tween:
+		_sheet_tween.kill()
+	var h := _root.get_viewport_rect().size.y * SHEET_RATIO
+	_sheet_tween = create_tween().set_parallel()
+	if open:
+		_refresh()
+		_dim.visible = true
+		_sheet.visible = true
+		_dim.modulate.a = 0.0
+		_sheet.offset_top = 0
+		_sheet.offset_bottom = h
+		_sheet_tween.tween_property(_dim, "modulate:a", 1.0, 0.18)
+		_sheet_tween.tween_property(_sheet, "offset_top", -h, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_sheet_tween.tween_property(_sheet, "offset_bottom", 0.0, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	else:
+		_sheet_tween.tween_property(_dim, "modulate:a", 0.0, 0.16)
+		_sheet_tween.tween_property(_sheet, "offset_top", 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_sheet_tween.tween_property(_sheet, "offset_bottom", h, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_sheet_tween.chain().tween_callback(func() -> void:
+			_dim.visible = false
+			_sheet.visible = false)
 
 
 func _refresh() -> void:
-	if GameState.money > _shown_money and _money_label.is_inside_tree():
-		var chip := _money_label.get_parent() as Control
-		chip.pivot_offset = chip.size * 0.5
-		var tw := chip.create_tween()
-		tw.tween_property(chip, "scale", Vector2.ONE * 1.12, 0.06)
-		tw.tween_property(chip, "scale", Vector2.ONE, 0.12)
+	if GameState.money > _shown_money and _money_pill.is_inside_tree():
+		_money_pill.pivot_offset = _money_pill.size * 0.5
+		var tw := _money_pill.create_tween()
+		tw.tween_property(_money_pill, "scale", Vector2.ONE * 1.1, 0.06)
+		tw.tween_property(_money_pill, "scale", Vector2.ONE, 0.12)
 	_shown_money = GameState.money
 	_money_label.text = "¥%d" % GameState.money
+
+	var best_id := _recommended()
 	for id in _rows:
 		var row: Dictionary = _rows[id]
 		var lv := GameState.level(id)
-		var def := GameData.upgrade_def(id)
-		var now := GameData.format_upgrade_value(id, lv)
-		var name_label: Label = row["name"]
+		var cells: Array = row["cells"]
 		var button: Button = row["button"]
+		(cells[0] as Label).text = "Lv.%d" % lv
+		(cells[3] as Label).text = GameData.format_upgrade_value(id, lv)
 		if GameState.is_maxed(id):
-			name_label.text = "%s  Lv%d  (%s)" % [def.get("name", id), lv, now]
+			(cells[1] as Label).visible = false
+			(cells[2] as Label).text = ""
+			(cells[4] as Label).visible = false
+			(cells[5] as Label).text = ""
 			button.text = "MAX"
+			button.icon = null
 			button.disabled = true
+			UiKit.skin_button(button, "btn_gray", "", 18, 10)
+			_price_color(button, Color.WHITE, Color("#555555"))
 		else:
-			var next := GameData.format_upgrade_value(id, lv + 1)
-			name_label.text = "%s  Lv%d  %s → %s" % [def.get("name", id), lv, now, next]
+			(cells[1] as Label).visible = true
+			(cells[4] as Label).visible = true
+			(cells[2] as Label).text = "Lv.%d" % (lv + 1)
+			(cells[5] as Label).text = GameData.format_upgrade_value(id, lv + 1)
 			var cost := GameState.next_cost(id)
-			button.text = "¥%d" % cost
-			button.disabled = GameState.money < cost
+			var affordable := GameState.money >= cost
+			button.text = "%d" % cost
+			button.icon = UiKit.icon("icon_money")
+			button.disabled = false
+			if affordable:
+				UiKit.skin_button(button, "btn_green", "btn_green_pressed", 18, 10)
+				_price_color(button, Color.WHITE, Color("#1d4a12"))
+			else:
+				UiKit.skin_button(button, "btn_gray", "", 18, 10)
+				_price_color(button, UiKit.PRICE_RED, Color(1, 1, 1, 0.9))
+		(row["ribbon"] as Label).visible = id == best_id
+
+
+static func _price_color(b: Button, color: Color, outline: Color) -> void:
+	for key in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color", "font_disabled_color", "font_focus_color"]:
+		b.add_theme_color_override(key, color)
+	b.add_theme_color_override("font_outline_color", outline)
+
+
+## 「おすすめ」: 今買える強化のうち、値段あたりの伸び（相対的な上がり幅）がいちばん大きいもの。表示だけ。
+func _recommended() -> String:
+	var best := ""
+	var best_score := 0.0
+	for def in GameData.upgrades:
+		var id := str(def["id"])
+		if GameState.is_maxed(id):
+			continue
+		var cost := GameState.next_cost(id)
+		if cost <= 0 or GameState.money < cost:
+			continue
+		var lv := GameState.level(id)
+		var now := GameData.upgrade_value(id, lv)
+		var next := GameData.upgrade_value(id, lv + 1)
+		var gain := (next - now) / maxf(absf(now), absf(next - now))
+		if def.get("locked_at_zero", false) and lv == 0:
+			gain = 1.0
+		var score := gain / float(cost)
+		if score > best_score:
+			best_score = score
+			best = id
+	return best
 
 
 func _rebuild_roles() -> void:
@@ -337,15 +562,180 @@ func _rebuild_roles() -> void:
 	for child in _roles_box.get_children():
 		child.queue_free()
 	var count := roundi(GameState.value("lumberjack"))
-	_roles_box.get_parent().get_child(_roles_box.get_index() - 1).visible = count > 0
+	_roles_title.visible = count > 0
 	for i in count:
 		var role := GameState.lumberjack_role(i)
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(190, 64)
-		button.text = "%d: %s" % [i + 1, "伐採" if role == "chop" else "運搬"]
-		button.modulate = Color("#9fe0a8") if role == "chop" else Color("#9fc4ff")
+		var chip := Button.new()
+		chip.custom_minimum_size = Vector2(150, 84)
+		chip.focus_mode = Control.FOCUS_NONE
+		chip.text = "%d: %s" % [i + 1, "伐採" if role == "chop" else "運搬"]
+		var color := Color("#4e9e34") if role == "chop" else Color("#3a6fc8")
+		var normal := UiKit.flat_box(color, 42, 3, color.lightened(0.35))
+		normal.border_width_bottom = 7
+		normal.border_color = color.darkened(0.35)
+		normal.content_margin_left = 18
+		normal.content_margin_right = 18
+		var pressed := normal.duplicate() as StyleBoxFlat
+		pressed.border_width_bottom = 2
+		pressed.content_margin_top = 6
+		chip.add_theme_stylebox_override("normal", normal)
+		chip.add_theme_stylebox_override("hover", normal)
+		chip.add_theme_stylebox_override("pressed", pressed)
+		chip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		chip.add_theme_constant_override("outline_size", 8)
+		chip.add_theme_color_override("font_outline_color", UiKit.OUTLINE_DARK)
+		chip.add_theme_font_size_override("font_size", 28)
 		var idx := i
-		button.pressed.connect(func() -> void:
+		chip.pressed.connect(func() -> void:
 			Audio.play("ui", -4.0)
 			GameState.set_lumberjack_role(idx, "haul" if GameState.lumberjack_role(idx) == "chop" else "chop"))
-		_roles_box.add_child(button)
+		_roles_box.add_child(chip)
+
+
+# ================================================================ ワールド表示（頭上のバー・画面端の案内）
+
+func _build_world_overlay() -> void:
+	# プレイヤー頭上の積荷バー「積荷 (5/19)」。満杯で赤くなり「最大」
+	_carry_root = Control.new()
+	_carry_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_carry_root.size = Vector2(210, 34)
+	_root.add_child(_carry_root)
+	_carry_bar = UiKit.Bar.new(Color("#F2C230"), Vector2(210, 34))
+	_carry_root.add_child(_carry_bar)
+	_carry_text = UiKit.label("", 22, false, Color.WHITE, 8)
+	_carry_text.position = Vector2.ZERO
+	_carry_text.size = Vector2(210, 34)
+	_carry_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_carry_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_carry_root.add_child(_carry_text)
+
+	# 案内先が画面外のときの端のインジケーター（アイコン・距離・矢印）
+	_edge = Control.new()
+	_edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_edge.size = Vector2(110, 130)
+	_edge.visible = false
+	_root.add_child(_edge)
+	_edge_icon = TextureRect.new()
+	_edge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_edge_icon.size = Vector2(58, 58)
+	_edge_icon.position = Vector2(26, 0)
+	_edge.add_child(_edge_icon)
+	_edge_text = UiKit.label("", 26, true, Color.WHITE, 8)
+	_edge_text.size = Vector2(110, 34)
+	_edge_text.position = Vector2(0, 56)
+	_edge_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_edge.add_child(_edge_text)
+	_edge_arrow = TextureRect.new()
+	_edge_arrow.texture = UiKit.icon("icon_arrow")
+	_edge_arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_edge_arrow.size = Vector2(44, 44)
+	_edge_arrow.pivot_offset = Vector2(22, 22)
+	_edge_arrow.position = Vector2(33, 92)
+	_edge.add_child(_edge_arrow)
+
+
+func _on_carry_changed(count: int, cap: int) -> void:
+	_carry_bar.fill = float(count) / maxf(1.0, float(cap))
+	var full := count >= cap
+	_carry_bar.color = Color("#E04040") if full else Color("#F2C230")
+	_carry_text.text = "最大" if full else "積荷 (%d/%d)" % [count, cap]
+
+
+func _update_world_overlay() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	# 積荷バー
+	var head := player.global_position + Vector3(0, 2.35, 0)
+	_carry_root.visible = player.vehicle == null and not cam.is_position_behind(head)
+	if _carry_root.visible:
+		_carry_root.position = (cam.unproject_position(head) - Vector2(_carry_root.size.x * 0.5, 0)).round()
+
+	# 機械の燃料（オレンジ）・積荷（黄色）のバー
+	for node in get_tree().get_nodes_in_group("machines"):
+		var m := node as Machine
+		if not _machine_bars.has(m):
+			_machine_bars[m] = _make_machine_bars(m)
+		var bars: Dictionary = _machine_bars[m]
+		var top := m.global_position + Vector3(0, 2.2, 0)
+		var root: Control = bars["root"]
+		root.visible = not cam.is_position_behind(top)
+		root.position = (cam.unproject_position(top) - Vector2(root.size.x * 0.5, root.size.y)).round()
+		(bars["fuel"] as UiKit.Bar).fill = m.fuel / maxf(1.0, m.fuel_max())
+		(bars["warn"] as Label).visible = m.fuel <= 0.0
+		if m.stack:
+			(bars["cargo"] as UiKit.Bar).fill = float(m.stack.size()) / maxf(1.0, float(m.stack.capacity()))
+	for m in _machine_bars.keys():
+		if not is_instance_valid(m):
+			(_machine_bars[m]["root"] as Control).queue_free()
+			_machine_bars.erase(m)
+
+	_update_edge_indicator(cam)
+
+
+func _make_machine_bars(m: Machine) -> Dictionary:
+	var root := VBoxContainer.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_theme_constant_override("separation", 4)
+	_root.add_child(root)
+	_root.move_child(root, _carry_root.get_index())
+	var warn := UiKit.label("燃料切れ", 22, false, Color("#ff8a7a"), 8)
+	warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(warn)
+	var fuel := _mini_bar(root, "燃料", Color("#F08A2C"))
+	var cargo: UiKit.Bar = null
+	if m.stack:
+		cargo = _mini_bar(root, "積荷", Color("#F2C230"))
+	root.size = Vector2(190, 0)
+	root.reset_size()
+	return {"root": root, "fuel": fuel, "cargo": cargo, "warn": warn}
+
+
+func _mini_bar(parent: Control, text: String, color: Color) -> UiKit.Bar:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(row)
+	var l := UiKit.label(text, 18, false, Color.WHITE, 6)
+	l.custom_minimum_size = Vector2(44, 0)
+	row.add_child(l)
+	var bar := UiKit.Bar.new(color, Vector2(140, 18))
+	bar.radius = 6
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(bar)
+	return bar
+
+
+func _update_edge_indicator(cam: Camera3D) -> void:
+	if guide == null or guide.goal == Vector3.INF or player.vehicle != null:
+		_edge.visible = false
+		return
+	var goal := guide.goal + Vector3(0, 0.5, 0)
+	var view := _root.get_viewport_rect().size
+	var margin := Vector2(70, 150)
+	var screen := cam.unproject_position(goal)
+	var behind := cam.is_position_behind(goal)
+	var inside := Rect2(margin, view - margin * 2.0).has_point(screen)
+	if inside and not behind:
+		_edge.visible = false
+		return
+	_edge.visible = true
+	_edge_icon.texture = UiKit.icon("icon_home" if guide.goal_kind == "home" else "icon_tree")
+	_edge_text.text = "%dm" % roundi(Fx.xz_distance(guide.goal, player.global_position))
+	# プレイヤーの画面位置から案内先へ向かう方向で、画面の端に貼り付ける
+	var center := cam.unproject_position(player.global_position + Vector3(0, 1, 0))
+	var dir := (screen - center)
+	if behind:
+		dir = -dir
+	if dir.length() < 1.0:
+		dir = Vector2.UP
+	dir = dir.normalized()
+	var half := view * 0.5 - margin
+	var t := INF
+	if absf(dir.x) > 0.001:
+		t = minf(t, half.x / absf(dir.x))
+	if absf(dir.y) > 0.001:
+		t = minf(t, half.y / absf(dir.y))
+	var pos := view * 0.5 + dir * t
+	_edge.position = (pos - _edge.size * 0.5).round()
+	_edge_arrow.rotation = dir.angle()

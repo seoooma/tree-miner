@@ -47,7 +47,7 @@ func _ready() -> void:
 
 func _build_body() -> void:
 	_rig = CharacterRig.new(1.15)
-	_rig.set_hat(Color("#f2b632"))
+	_rig.set_hat(Color("#f2c230"))
 	_visual.add_child(_rig)
 
 

@@ -12,8 +12,8 @@ var output: Array[String] = []
 var _progress := 0.0
 
 var _title: Label3D
-var _input_label: Label3D
-var _output_label: Label3D
+var _input_zone: Zone
+var _output_zone: Zone
 var _output_root: Node3D
 var _output_pile: Node3D
 var _blade: MeshInstance3D
@@ -51,49 +51,52 @@ func _build() -> void:
 	shape.position.y = 1.2
 	body.add_child(shape)
 	add_child(body)
-	# 土台・板壁・切妻屋根
-	add_child(Fx.box(Vector3(3.9, 0.16, 3.3), Color("#9b9a92"), Vector3(0, 0.08, 0)))
-	var wall := Props.plank_wall(Vector3(3.5, 1.7, 2.9), Color("#b9784a"))
-	wall.position.y = 0.16
-	add_child(wall)
-	var roof := Props.gable_roof(3.9, 3.4, 1.1, Color("#b8452f"))
-	roof.position.y = 1.86
-	add_child(roof)
-	add_child(Fx.box(Vector3(3.95, 0.1, 0.12), Color("#7a2f22"), Vector3(0, 2.95, 0)))
-	# 正面（森側）の作業口とノコギリ、ベルトコンベア
-	add_child(Fx.box(Vector3(1.6, 1.1, 0.05), Color("#3a2618"), Vector3(0, 0.75, -1.47)))
-	add_child(Fx.box(Vector3(1.8, 0.12, 0.12), Color("#7a4a2a"), Vector3(0, 1.36, -1.5)))
-	_blade = Fx.cylinder(0.5, 0.05, Color("#d6dadf"), Vector3(0, 0.75, -1.52), -1.0, 16)
-	_blade.rotation_degrees.z = 90.0
-	_blade.rotation_degrees.y = 90.0
-	add_child(_blade)
-	add_child(Fx.box(Vector3(0.9, 0.12, 1.4), Color("#3d4247"), Vector3(0, 0.45, -2.15)))
-	for i in 4:
-		add_child(Fx.box(Vector3(0.95, 0.05, 0.08), Color("#8c939a"), Vector3(0, 0.53, -1.6 - i * 0.33)))
-	add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(-0.4, 0.2, -2.7)))
-	add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(0.4, 0.2, -2.7)))
-	# 煙突と丸太の山
-	add_child(Fx.cylinder(0.14, 1.0, Color("#5b5f63"), Vector3(1.1, 2.7, 0.6), -1.0, 8))
-	var pile := Props.log_pile(3, "pine")
-	pile.position = Vector3(-2.4, 0, 0.4)
-	add_child(pile)
+	_blade = build_house(self)
 	_title = Fx.label3d("製材所", Vector3(0, 3.6, 0), 56)
 	add_child(_title)
 
-	var input_pad := Fx.pad(_pad_radius(), Color("#f2d16b"))
-	input_pad.position += INPUT_OFFSET
-	add_child(input_pad)
-	_input_label = Fx.label3d("", INPUT_OFFSET + Vector3(0, 0.6, 0.8), 40)
-	add_child(_input_label)
+	_input_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.95, 0.8, 0.3, 0.16))
+	_input_zone.position = INPUT_OFFSET
+	add_child(_input_zone)
 
 	_output_root = Node3D.new()
 	_output_root.position = OUTPUT_OFFSET
 	add_child(_output_root)
-	_output_root.add_child(Fx.pad(_pad_radius(), Color("#9ad0f0")))
+	_output_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.55, 0.8, 0.95, 0.16))
+	_output_root.add_child(_output_zone)
 	_output_pile = Node3D.new()
 	_output_root.add_child(_output_pile)
-	_output_label = Fx.label3d("", Vector3(0, 0.6, 0.9), 40)
-	_output_root.add_child(_output_label)
+
+
+## 製材所の建物の見た目（当たり判定・受け渡しの印は含まない）。強化画面のサムネイルでも使う。回転するノコギリを返す。
+static func build_house(root: Node3D) -> MeshInstance3D:
+	# 土台・板壁・切妻屋根
+	root.add_child(Fx.box(Vector3(3.9, 0.16, 3.3), Color("#9b9a92"), Vector3(0, 0.08, 0)))
+	var wall := Props.plank_wall(Vector3(3.5, 1.7, 2.9), Color("#b9784a"))
+	wall.position.y = 0.16
+	root.add_child(wall)
+	var roof := Props.gable_roof(3.9, 3.4, 1.1, Color("#b8452f"))
+	roof.position.y = 1.86
+	root.add_child(roof)
+	root.add_child(Fx.box(Vector3(3.95, 0.1, 0.12), Color("#7a2f22"), Vector3(0, 2.95, 0), "metal"))
+	# 正面（森側）の作業口とノコギリ、ベルトコンベア
+	root.add_child(Fx.box(Vector3(1.6, 1.1, 0.05), Color("#3a2618"), Vector3(0, 0.75, -1.47)))
+	root.add_child(Fx.box(Vector3(1.8, 0.12, 0.12), Color("#7a4a2a"), Vector3(0, 1.36, -1.5), "wood"))
+	var blade := Fx.cylinder(0.5, 0.05, Color("#c9ced3"), Vector3(0, 0.75, -1.52), -1.0, 16, false, "metal")
+	blade.rotation_degrees.z = 90.0
+	blade.rotation_degrees.y = 90.0
+	root.add_child(blade)
+	root.add_child(Fx.box(Vector3(0.9, 0.12, 1.4), Color("#3d4247"), Vector3(0, 0.45, -2.15), "metal"))
+	for i in 4:
+		root.add_child(Fx.box(Vector3(0.95, 0.05, 0.08), Color("#8c939a"), Vector3(0, 0.53, -1.6 - i * 0.33), "metal"))
+	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(-0.4, 0.2, -2.7)))
+	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(0.4, 0.2, -2.7)))
+	# 煙突と丸太の山
+	root.add_child(Fx.cylinder(0.14, 1.0, Color("#5b5f63"), Vector3(1.1, 2.7, 0.6), -1.0, 10, false, "metal"))
+	var pile := Props.log_pile(3, "pine")
+	pile.position = Vector3(-2.4, 0, 0.4)
+	root.add_child(pile)
+	return blade
 
 
 func _process(delta: float) -> void:
@@ -162,7 +165,7 @@ func _refresh() -> void:
 
 func _update_labels(unlocked: bool) -> void:
 	if unlocked:
-		_input_label.text = "丸太を置く（待ち %d本）" % queue.size()
-		_output_label.text = "板 %d枚" % output.size()
+		_input_zone.set_text("積み込み", "積載量: %d" % queue.size())
+		_output_zone.set_text("製材中" if not queue.is_empty() else "板", "積載量: %d" % output.size())
 	else:
-		_input_label.text = "丸太を売る"
+		_input_zone.set_text("丸太を売る", "")

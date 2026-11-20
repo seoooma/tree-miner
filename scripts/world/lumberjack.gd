@@ -41,9 +41,10 @@ func set_role(new_role: String) -> void:
 	_release_targets()
 	role = new_role
 	state = State.IDLE
-	# 帽子の色で役割を見分ける（緑 = 伐採、青 = 運搬）
-	_rig.set_hat(Color("#3fa34d") if role == "chop" else Color("#3a6fd0"))
+	# 作業員は全員黄色のヘルメット。役割は頭上の文字色で見分ける（緑 = 伐採、青 = 運搬）
+	_rig.set_hat(Color("#f2c230"))
 	_role_label.text = "伐採" if role == "chop" else "運搬"
+	_role_label.modulate = Color("#9be36b") if role == "chop" else Color("#8cc4ff")
 
 
 func _process(delta: float) -> void:

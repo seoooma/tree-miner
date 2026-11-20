@@ -7,21 +7,17 @@ const PAY_STEPS := 60.0
 
 var kind := "harvester"
 
-var _pad_root: Node3D
-var _label: Label3D
+var _zone: Zone
 ## 購入直後は、一度パッドから降りるまで次のランクの支払いを始めない
 var _wait_leave := false
 
 
 func _ready() -> void:
-	_pad_root = Node3D.new()
-	add_child(_pad_root)
-	_pad_root.add_child(Fx.pad(PAD_RADIUS, Color("#b07ae0")))
+	_zone = Zone.new(Vector2.ONE * PAD_RADIUS * 2.0, Color(0.7, 0.5, 0.9, 0.18))
+	add_child(_zone)
 	var sign := Props.signboard(GameData.machine_name(kind) + "ショップ", Color("#6a4fa0"))
 	sign.position = Vector3(0, 0, -1.9)
 	add_child(sign)
-	_label = Fx.label3d("", Vector3(0, 1.4, 0), 44)
-	add_child(_label)
 	GameState.machine_changed.connect(func(_k: String, _r: int) -> void: _update_label())
 	_update_label()
 
@@ -29,12 +25,12 @@ func _ready() -> void:
 func _update_label() -> void:
 	var title := GameData.machine_name(kind)
 	if GameState.machine_is_maxed(kind):
-		_label.text = "%s\n最高ランク" % title
-		_pad_root.visible = false
+		_zone.set_text(title, "最高ランク")
+		_zone.visible = false
 		return
 	var next := GameData.machine_rank(kind, GameState.machine_rank(kind) + 1)
 	var verb := "購入" if GameState.machine_rank(kind) == 0 else "ランクアップ"
-	_label.text = "%s %s\n¥%d" % [next.get("name", title), verb, GameState.shop_remaining(kind)]
+	_zone.set_text("%s\n%s" % [next.get("name", title), verb], "¥%d" % GameState.shop_remaining(kind))
 
 
 func _process(delta: float) -> void:
