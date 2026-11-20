@@ -7,7 +7,8 @@
   python tools/make_textures.py
 
 出力:
-  assets/textures/*.png  … 地面（草地・作業場・道）、樹皮、木材、金属、葉のノイズ（512px 以下、継ぎ目なしでタイル可能）
+  assets/textures/*.png  … 金属・塗装のムラ、葉のノイズ（512px 以下、継ぎ目なしでタイル可能）
+                           地面・樹皮・板材は tools/import_polyhaven.py で Poly Haven から取り込む
   assets/ui/*.png        … HUD・強化画面のアイコンやボタンの下地
 """
 import math
@@ -77,88 +78,8 @@ def save_rgb(arr: np.ndarray, name: str) -> None:
     Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB").save(TEX / name, optimize=True)
 
 
-# ---------------------------------------------------------------- 地面
-
-def grass() -> None:
-    s = 512
-    base = fbm(s, 2.2, 2.0)
-    mid = fbm(s, 1.4, 8.0)
-    fine = fbm(s, 0.6, 40.0)
-    dirt_mask = np.clip((fbm(s, 2.6, 2.0) - 0.62) * 5.0, 0, 1)
-    t = np.clip(base * 0.5 + mid * 0.35 + fine * 0.25 - 0.05, 0, 1)
-    col = lerp_colors(t, [(0.0, "#3e5c2e"), (0.45, "#4e7a3a"), (0.75, "#628c42"), (1.0, "#7a9a58")])
-    dirt = lerp_colors(fine, [(0.0, "#6b5236"), (1.0, "#8f7350")])
-    col = col * (1 - dirt_mask[..., None] * 0.7) + dirt * dirt_mask[..., None] * 0.7
-    # 草の葉っぽい細かい明暗
-    blades = fbm(s, 0.2, 90.0, aniso=(0.35, 1.0))
-    col *= (0.86 + 0.28 * blades)[..., None]
-    save_rgb(col, "grass_albedo.png")
-    h = mid * 0.5 + fine * 0.3 + blades * 0.4 - dirt_mask * 0.3
-    Image.fromarray(normal_map(h, 3.0), "RGB").save(TEX / "grass_normal.png", optimize=True)
-
-
-def yard() -> None:
-    """拠点の踏み固められた土＋小石"""
-    s = 512
-    base = fbm(s, 2.4, 2.0)
-    fine = fbm(s, 0.8, 30.0)
-    stones, mask = blobs(s, 150, 3.0, 8.0)
-    t = np.clip(base * 0.6 + fine * 0.4, 0, 1)
-    col = lerp_colors(t, [(0.0, "#8a6a4a"), (0.5, "#a88762"), (1.0, "#c9a77a")])
-    stone_col = lerp_colors(fbm(s, 1.0, 20.0), [(0.0, "#6f665a"), (1.0, "#9a8f7e")])
-    shade = (0.75 + 0.3 * stones)[..., None]
-    col = col * (1 - mask[..., None]) + stone_col * shade * mask[..., None]
-    # 石のまわりのうっすらした影
-    ao = np.array(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))) / 255.0
-    col *= (1 - 0.18 * ao * (1 - mask))[..., None]
-    save_rgb(col, "yard_albedo.png")
-    h = base * 0.4 + fine * 0.25 + stones * 1.2
-    Image.fromarray(normal_map(h, 2.5), "RGB").save(TEX / "yard_normal.png", optimize=True)
-
-
-def road() -> None:
-    """道: 轍のある乾いた土"""
-    s = 512
-    base = fbm(s, 2.0, 2.0)
-    fine = fbm(s, 0.7, 40.0)
-    ruts = fbm(s, 2.0, 3.0, aniso=(1.0, 0.15))
-    stones, mask = blobs(s, 90, 2.0, 5.0)
-    t = np.clip(base * 0.45 + fine * 0.3 + ruts * 0.35 - 0.05, 0, 1)
-    col = lerp_colors(t, [(0.0, "#7d6043"), (0.5, "#a3825a"), (1.0, "#c4a377")])
-    col = col * (1 - mask[..., None] * 0.6) + np.array([150, 138, 120]) * (0.8 + 0.3 * stones[..., None]) * mask[..., None] * 0.6
-    save_rgb(col, "road_albedo.png")
-    h = base * 0.3 + fine * 0.3 + ruts * 0.6 + stones * 0.8
-    Image.fromarray(normal_map(h, 2.0), "RGB").save(TEX / "road_normal.png", optimize=True)
-
-
-# ---------------------------------------------------------------- 樹皮・木材・金属・葉
-
-def bark() -> None:
-    """縦に割れた樹皮（グレースケール寄り。幹の色は頂点カラーで掛ける）"""
-    s = 256
-    ridges = fbm(s, 2.4, 6.0, aniso=(1.0, 0.12))
-    fine = fbm(s, 1.0, 24.0, aniso=(1.0, 0.4))
-    cracks = np.clip(1.0 - np.abs(ridges - 0.5) * 6.0, 0, 1) ** 2
-    v = np.clip(0.62 + fine * 0.35 - cracks * 0.55, 0, 1)
-    col = np.stack([v * 255, v * 238, v * 220], axis=-1)
-    save_rgb(col, "bark_albedo.png")
-    Image.fromarray(normal_map(fine * 0.4 - cracks * 1.2, 4.0), "RGB").save(TEX / "bark_normal.png", optimize=True)
-
-
-def wood() -> None:
-    """板材の木目（グレースケール寄り。色はマテリアル側で掛ける）"""
-    s = 256
-    grain = fbm(s, 2.0, 4.0, aniso=(0.08, 1.0))
-    rings = np.sin(grain * 40.0) * 0.5 + 0.5
-    fine = fbm(s, 1.0, 30.0)
-    v = 0.78 + rings * 0.12 + fine * 0.12
-    # 板の継ぎ目（64px ごと）
-    xx = np.arange(s)[None, :].repeat(s, 0)
-    seam = ((xx % 64) < 2).astype(float)
-    v = v * (1 - seam * 0.45)
-    col = np.stack([v * 255, v * 244, v * 228], axis=-1)
-    save_rgb(col, "wood_albedo.png")
-
+# ---------------------------------------------------------------- 金属・葉
+# 地面・樹皮・板材は Poly Haven の写真素材に置き換えた（tools/import_polyhaven.py）
 
 def metal() -> None:
     """塗装された金属の細かい傷とムラ（R=明るさ, G=ラフネス）"""
@@ -398,11 +319,6 @@ def icon_worker():
 def main() -> None:
     TEX.mkdir(parents=True, exist_ok=True)
     UI.mkdir(parents=True, exist_ok=True)
-    grass()
-    yard()
-    road()
-    bark()
-    wood()
     metal()
     leaf_noise()
     # 9-slice の下地（Godot の StyleBoxTexture で伸ばして使う）

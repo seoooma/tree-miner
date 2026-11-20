@@ -1,57 +1,78 @@
 class_name CharacterRig
 extends Node3D
-## キャラクターの見た目（Kenney のキャラクターモデル＋斧＋帽子）と、歩き／待機アニメの切り替え。
+## キャラクターの見た目（Quaternius の作業員モデル＋斧）と、待機／歩き／走り／斧を振るアニメの切り替え。
 ## プレイヤーと伐採員で共用する。モデルは +Z が正面。
+## 服の色は作業着（黄色のヘルメット・白シャツ・デニムのオーバーオール・茶色のブーツ）に塗り替える。
 
-const MODEL := "res://assets/kenney/platformer/character.glb"
+const MODELS := ["res://assets/quaternius/worker_male.glb", "res://assets/quaternius/worker_female.glb"]
+## 元のモデルは身長が約 3.3。model_scale 1.0 で身長が約 1.35 m になる倍率
+const BASE_SCALE := 0.41
+const LOOPS := ["Idle", "Walk", "Run"]
 
 var _anim: AnimationPlayer
 var _axe_pivot: Node3D
-var _hat_root: Node3D
+var _body: MeshInstance3D
 var _moving := false
+var _move_anim := "Idle"
+var _swinging := 0.0
 
 
-func _init(model_scale := 1.15) -> void:
-	var model := Fx.model(MODEL)
-	model.scale = Vector3.ONE * model_scale
+## variant: 0 = 男性、1 = 女性の作業員
+func _init(model_scale := 1.15, variant := 0) -> void:
+	var model := Fx.model(MODELS[clampi(variant, 0, MODELS.size() - 1)])
+	model.scale = Vector3.ONE * model_scale * BASE_SCALE
 	add_child(model)
-	_apply_workwear(model)
+	var meshes := model.find_children("*", "MeshInstance3D", true, false)
+	if meshes.size() > 0:
+		_body = meshes[0]
+		_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		_apply_workwear(_body)
 	var found := model.find_children("*", "AnimationPlayer", true, false)
 	if found.size() > 0:
 		_anim = found[0]
-		_anim.play("idle")
-	# 斧は右腕にくっつける（腕のアニメに合わせて動く）
-	var arm := model.find_child("arm-right", true, false) as Node3D
+		for a in LOOPS:
+			if _anim.has_animation(a):
+				_anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+		_anim.play("Idle")
+	# 斧は右手のボーンにくっつける（腕のアニメに合わせて動く）
 	_axe_pivot = Node3D.new()
-	if arm:
-		arm.add_child(_axe_pivot)
-		_axe_pivot.position = Vector3(-0.05, -0.1, 0.12)
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.size() > 0:
+		var att := BoneAttachment3D.new()
+		att.bone_name = "Fist.R"
+		skels[0].add_child(att)
+		att.add_child(_axe_pivot)
+		# 拳の中で柄を握り、刃が前を向くように。ボーンの空間はモデルの縮尺がかかっているので逆に戻す
+		_axe_pivot.scale = Vector3.ONE / BASE_SCALE
+		_axe_pivot.position = Vector3(0, 0.12, 0)
+		_axe_pivot.rotation_degrees = Vector3(-90, 0, 0)
 	else:
 		add_child(_axe_pivot)
 		_axe_pivot.position = Vector3(0.45, 0.6, 0.1)
-	_axe_pivot.add_child(make_axe())
-	_hat_root = Node3D.new()
-	_hat_root.position = Vector3(0, 1.08 * model_scale, 0)
-	add_child(_hat_root)
+	var axe := make_axe()
+	axe.position = Vector3(0, 0, -0.18)
+	_axe_pivot.add_child(axe)
 
 
-## Kenney のキャラクターを作業着の配色（白シャツ・デニムのオーバーオール・茶色のブーツ）に塗り替える。
-func _apply_workwear(model: Node3D) -> void:
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		var src := m.mesh.surface_get_material(0) as BaseMaterial3D
-		var texture: Texture2D = src.albedo_texture if src else null
-		if texture == null:
-			continue
-		match str(m.name):
-			"torso":
-				m.material_override = Mats.worker(texture, 0)
-			"arm-left", "arm-right":
-				m.material_override = Mats.worker(texture, 1)
-			"leg-left", "leg-right":
-				m.material_override = Mats.worker(texture, 2)
-			"antenna":
-				m.visible = false
+## マテリアル名ごとに作業着の色を割り当てる（Skin は手足と顔。ひざ下は茶色のブーツ）
+func _apply_workwear(mi: MeshInstance3D) -> void:
+	for i in mi.mesh.get_surface_count():
+		var src := mi.mesh.surface_get_material(i)
+		var mat_name := src.resource_name if src else ""
+		var mat: Material = null
+		match mat_name:
+			"Skin":
+				mat = Mats.worker_skin()
+			"Shirt":
+				mat = Mats.cloth(Color("#eceae4"), 0.9)
+			"Vest", "Pants":
+				mat = Mats.cloth(Color("#3a5a8c"), 0.85, true)
+			"Hat":
+				mat = Mats.surface(Color("#f2c230"), "paint", 0.32)
+			"Hair":
+				mat = Mats.cloth(Color("#4a2f1c"), 0.7)
+		if mat:
+			mi.set_surface_override_material(i, mat)
 
 
 ## 斧の見た目（柄が +Z 方向）。強化画面のサムネイルでも使う。
@@ -68,28 +89,49 @@ static func _part(mi: MeshInstance3D, mat: Material) -> MeshInstance3D:
 	return mi
 
 
-## ヘルメット（黄色の作業用ヘルメット。ツヤあり）の色を設定する。
+## ヘルメットの色を設定する（モデルのヘルメット部分の色を置き換える）。
 func set_hat(color: Color) -> void:
-	for c in _hat_root.get_children():
-		c.queue_free()
-	var mat := Mats.surface(color, "paint", 0.32)
-	_hat_root.add_child(_part(Fx.cylinder(0.31, 0.04, Color.WHITE, Vector3(0, -0.01, 0.05), -1.0, 16), Mats.surface(color.darkened(0.12), "paint", 0.4)))
-	_hat_root.add_child(_part(Fx.sphere(0.25, Color.WHITE, Vector3(0, 0.0, 0), 16, 8), mat))
-	_hat_root.add_child(_part(Fx.box(Vector3(0.05, 0.05, 0.5), Color.WHITE, Vector3(0, 0.24, 0)), mat))
+	if _body == null:
+		return
+	for i in _body.mesh.get_surface_count():
+		var src := _body.mesh.surface_get_material(i)
+		if src and src.resource_name == "Hat":
+			_body.set_surface_override_material(i, Mats.surface(color, "paint", 0.32))
 
 
 func set_moving(moving: bool, speed_scale := 1.0) -> void:
 	if _anim == null:
 		return
-	_anim.speed_scale = speed_scale if moving else 1.0
-	if moving == _moving:
-		return
+	# 速いときは走り、ゆっくりのときは歩き
+	var want := "Idle"
+	if moving:
+		want = "Run" if speed_scale >= 0.85 else "Walk"
+	_anim.speed_scale = (speed_scale / (1.0 if want == "Run" else 0.7)) if moving else 1.0
 	_moving = moving
-	_anim.play("walk" if moving else "idle", 0.15)
+	if _swinging > 0.0:
+		_move_anim = want
+		return
+	if want == _move_anim and _anim.current_animation == want:
+		return
+	_move_anim = want
+	_anim.play(want, 0.15)
 
 
+## 斧を振る。止まっているときは全身の振り下ろしアニメ、歩きながらなら腕の斧だけ振る。
 func swing() -> void:
 	var tween := create_tween()
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", -80.0, 0.08)
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", 45.0, 0.08)
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", 0.0, 0.14)
+	tween.tween_property(_axe_pivot, "rotation_degrees:x", -150.0, 0.08)
+	tween.tween_property(_axe_pivot, "rotation_degrees:x", -45.0, 0.08)
+	tween.tween_property(_axe_pivot, "rotation_degrees:x", -90.0, 0.14)
+	if _anim == null or _moving or not _anim.has_animation("SwordSlash"):
+		return
+	_swinging = 0.4
+	_anim.play("SwordSlash", 0.06, 2.6)
+
+
+func _process(delta: float) -> void:
+	if _swinging <= 0.0:
+		return
+	_swinging -= delta
+	if _swinging <= 0.0 and _anim:
+		_anim.play(_move_anim, 0.12)

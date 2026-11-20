@@ -26,7 +26,7 @@ func _ready() -> void:
 	add_to_group("carriers")
 	_visual = Node3D.new()
 	add_child(_visual)
-	_rig = CharacterRig.new(0.95)
+	_rig = CharacterRig.new(0.95, index % 2)
 	_visual.add_child(_rig)
 	stack = CarryStack.new()
 	stack.capacity_source = func() -> int: return roundi(GameState.value("lumberjack_capacity"))

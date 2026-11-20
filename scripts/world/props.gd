@@ -18,7 +18,7 @@ static func gable_roof(width: float, depth: float, height: float, color: Color) 
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.material_override = Mats.surface(color, "metal", 0.6)
+	mi.material_override = Mats.surface(color, "roof", 0.55)
 	return mi
 
 
