@@ -1,6 +1,6 @@
 class_name Hud
 extends CanvasLayer
-## 画面UI: 所持金・積荷数・強化パネル・バーチャルスティック。
+## 画面UI: 所持金・積荷数・燃料・乗り降りボタン・強化パネル（伐採員の役割切り替えを含む）・バーチャルスティック。
 
 var player: Player
 
@@ -8,6 +8,10 @@ var _money_label: Label
 var _carry_label: Label
 var _panel: PanelContainer
 var _upgrade_button: Button
+var _board_button: Button
+var _fuel_chip: Control
+var _fuel_label: Label
+var _roles_box: HFlowContainer
 var _rows: Dictionary = {}
 
 
@@ -39,6 +43,30 @@ func _ready() -> void:
 	top.add_child(spacer)
 	_carry_label = _chip_label(top, "積荷 0/0")
 
+	var second := HBoxContainer.new()
+	second.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	second.offset_left = 24
+	second.offset_right = -24
+	second.offset_top = 100
+	second.alignment = BoxContainer.ALIGNMENT_END
+	second.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(second)
+	_fuel_label = _chip_label(second, "")
+	_fuel_chip = _fuel_label.get_parent()
+	_fuel_chip.visible = false
+
+	_board_button = Button.new()
+	_board_button.custom_minimum_size = Vector2(200, 110)
+	_board_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_board_button.offset_left = 24
+	_board_button.offset_top = -134
+	_board_button.offset_right = 224
+	_board_button.offset_bottom = -24
+	_board_button.add_theme_font_size_override("font_size", 40)
+	_board_button.visible = false
+	_board_button.pressed.connect(_toggle_board)
+	root.add_child(_board_button)
+
 	var upgrade_button := Button.new()
 	upgrade_button.text = "強化"
 	upgrade_button.custom_minimum_size = Vector2(200, 110)
@@ -56,8 +84,42 @@ func _ready() -> void:
 	joystick.is_blocked = _is_over_ui
 
 	GameState.money_changed.connect(func(_m: int) -> void: _refresh())
-	GameState.upgrade_changed.connect(func(_id: String, _l: int) -> void: _refresh())
+	GameState.upgrade_changed.connect(func(_id: String, _l: int) -> void:
+		_refresh()
+		_rebuild_roles())
+	GameState.lumberjack_role_changed.connect(func(_i: int, _r: String) -> void: _rebuild_roles())
 	_refresh()
+	_rebuild_roles()
+
+
+func _process(_delta: float) -> void:
+	if player == null:
+		return
+	if player.vehicle:
+		_board_button.visible = true
+		_board_button.text = "降りる"
+		var m := player.vehicle
+		_fuel_chip.visible = true
+		_fuel_label.text = "燃料 %d/%d" % [ceili(m.fuel), roundi(m.fuel_max())]
+		_fuel_label.modulate = Color("#ff8a7a") if m.fuel <= 0.0 else Color.WHITE
+	else:
+		_fuel_chip.visible = false
+		_board_button.visible = player.nearby_machine() != null
+		_board_button.text = "乗る"
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_E:
+		_toggle_board()
+
+
+func _toggle_board() -> void:
+	if player == null:
+		return
+	if player.vehicle:
+		player.exit_vehicle()
+	else:
+		player.board(player.nearby_machine())
 
 
 func bind_player(p: Player) -> void:
@@ -70,6 +132,8 @@ func bind_player(p: Player) -> void:
 ## スティックを出さない場所（ボタン・開いている強化パネルの上）
 func _is_over_ui(pos: Vector2) -> bool:
 	if _upgrade_button.get_global_rect().has_point(pos):
+		return true
+	if _board_button.visible and _board_button.get_global_rect().has_point(pos):
 		return true
 	return _panel.visible and _panel.get_global_rect().has_point(pos)
 
@@ -148,6 +212,15 @@ func _build_upgrade_panel(root: Control) -> void:
 		row.add_child(button)
 		_rows[id] = {"name": name_label, "button": button}
 
+	var roles_title := Label.new()
+	roles_title.text = "伐採員の役割（タップで切り替え）"
+	roles_title.add_theme_font_size_override("font_size", 26)
+	vbox.add_child(roles_title)
+	_roles_box = HFlowContainer.new()
+	_roles_box.add_theme_constant_override("h_separation", 10)
+	_roles_box.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(_roles_box)
+
 	var close := Button.new()
 	close.text = "閉じる"
 	close.custom_minimum_size = Vector2(0, 80)
@@ -174,3 +247,22 @@ func _refresh() -> void:
 			var cost := GameState.next_cost(id)
 			button.text = "¥%d" % cost
 			button.disabled = GameState.money < cost
+
+
+func _rebuild_roles() -> void:
+	if _roles_box == null:
+		return
+	for child in _roles_box.get_children():
+		child.queue_free()
+	var count := roundi(GameState.value("lumberjack"))
+	_roles_box.get_parent().get_child(_roles_box.get_index() - 1).visible = count > 0
+	for i in count:
+		var role := GameState.lumberjack_role(i)
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(190, 64)
+		button.text = "%d: %s" % [i + 1, "伐採" if role == "chop" else "運搬"]
+		button.modulate = Color("#9fe0a8") if role == "chop" else Color("#9fc4ff")
+		var idx := i
+		button.pressed.connect(func() -> void:
+			GameState.set_lumberjack_role(idx, "haul" if GameState.lumberjack_role(idx) == "chop" else "chop"))
+		_roles_box.add_child(button)

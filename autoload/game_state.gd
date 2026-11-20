@@ -4,6 +4,8 @@ extends Node
 signal money_changed(money: int)
 signal upgrade_changed(id: String, level: int)
 signal area_unlocked(index: int)
+signal machine_changed(kind: String, rank: int)
+signal lumberjack_role_changed(index: int, role: String)
 
 const SAVE_PATH := "user://save.json"
 const AUTOSAVE_SEC := 5.0
@@ -13,6 +15,14 @@ var levels: Dictionary = {}
 var unlocked_area_count: int = 1
 ## エリア開放の支払い途中の金額（途中で離れても続きから払える）
 var gate_paid: Dictionary = {}
+## 機械のランク（0 = 未購入）。例 {"harvester": 1}
+var machine_ranks: Dictionary = {}
+## 機械購入パッドの支払い途中の金額
+var shop_paid: Dictionary = {}
+## 機械の燃料・位置（機械自身が毎フレーム書き込む）
+var machine_state: Dictionary = {}
+## 伐採員ごとの役割 "chop" / "haul"
+var lumberjack_roles: Array = []
 
 ## false にするとセーブしない（テスト用）
 var save_enabled := true
@@ -110,6 +120,60 @@ func unlock_area(index: int) -> void:
 	save_game()
 
 
+# ---- 機械 ----
+
+func machine_rank(kind: String) -> int:
+	return int(machine_ranks.get(kind, 0))
+
+
+func machine_next_cost(kind: String) -> int:
+	return int(GameData.machine_rank(kind, machine_rank(kind) + 1).get("cost", 0))
+
+
+func machine_is_maxed(kind: String) -> bool:
+	return machine_rank(kind) >= GameData.machine_rank_count(kind)
+
+
+func shop_remaining(kind: String) -> int:
+	if machine_is_maxed(kind):
+		return 0
+	return maxi(0, machine_next_cost(kind) - int(shop_paid.get(kind, 0)))
+
+
+## 機械の購入に向けて最大 amount だけ支払う。払い終わるとランクが上がる。
+func pay_toward_machine(kind: String, amount: int) -> int:
+	if machine_is_maxed(kind):
+		return 0
+	var pay := mini(amount, mini(money, shop_remaining(kind)))
+	if pay <= 0:
+		return 0
+	spend(pay)
+	shop_paid[kind] = int(shop_paid.get(kind, 0)) + pay
+	if shop_remaining(kind) == 0:
+		shop_paid.erase(kind)
+		machine_ranks[kind] = machine_rank(kind) + 1
+		machine_changed.emit(kind, machine_ranks[kind])
+		save_game()
+	return pay
+
+
+# ---- 伐採員の役割 ----
+
+func lumberjack_role(index: int) -> String:
+	if index < lumberjack_roles.size():
+		return str(lumberjack_roles[index])
+	# 未設定なら 伐採, 運搬, 伐採, ... の順
+	return "chop" if index % 2 == 0 else "haul"
+
+
+func set_lumberjack_role(index: int, role: String) -> void:
+	while lumberjack_roles.size() <= index:
+		lumberjack_roles.append(lumberjack_role(lumberjack_roles.size()))
+	lumberjack_roles[index] = role
+	lumberjack_role_changed.emit(index, role)
+	save_game()
+
+
 # ---- セーブ ----
 
 func save_game() -> void:
@@ -124,6 +188,10 @@ func save_game() -> void:
 		"levels": levels,
 		"unlocked_area_count": unlocked_area_count,
 		"gate_paid": gate_paid,
+		"machine_ranks": machine_ranks,
+		"shop_paid": shop_paid,
+		"machine_state": machine_state,
+		"lumberjack_roles": lumberjack_roles,
 	}))
 
 
@@ -141,6 +209,12 @@ func load_game() -> void:
 		levels[id] = int(saved_levels[id])
 	unlocked_area_count = clampi(int(parsed.get("unlocked_area_count", 1)), 1, GameData.areas.size())
 	gate_paid = parsed.get("gate_paid", {})
+	var ranks: Dictionary = parsed.get("machine_ranks", {})
+	for kind in ranks:
+		machine_ranks[kind] = int(ranks[kind])
+	shop_paid = parsed.get("shop_paid", {})
+	machine_state = parsed.get("machine_state", {})
+	lumberjack_roles = parsed.get("lumberjack_roles", [])
 
 
 func reset_state() -> void:
@@ -148,6 +222,10 @@ func reset_state() -> void:
 	levels = {}
 	unlocked_area_count = 1
 	gate_paid = {}
+	machine_ranks = {}
+	shop_paid = {}
+	machine_state = {}
+	lumberjack_roles = []
 
 
 ## デバッグ用: セーブを消して最初から。

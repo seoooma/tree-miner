@@ -29,7 +29,7 @@ func _refresh() -> void:
 func _process(delta: float) -> void:
 	if GameState.level("sawmill") <= 0:
 		return
-	for carrier in carriers_near(global_position, PAD_RADIUS, true):
+	for carrier in carriers_near(global_position, PAD_RADIUS, "plank_carriers"):
 		var stack: CarryStack = carrier.stack
 		if stack.count("plank") > 0 and tick(carrier, "sell", delta):
 			var item := stack.take("plank")

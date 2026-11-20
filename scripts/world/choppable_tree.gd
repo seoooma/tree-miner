@@ -1,6 +1,6 @@
 class_name ChoppableTree
 extends StaticBody3D
-## 切れる木。硬さ(hardness)ぶんダメージを受けると倒れ、一定時間で再生する。
+## 切れる木。硬さ(hardness)ぶんダメージを受けると倒れて丸太を数本落とし、一定時間で再生する。
 
 signal felled(tree: ChoppableTree)
 
@@ -87,6 +87,7 @@ func _fell() -> void:
 	_visual.visible = false
 	_hp_label.visible = false
 	_shape.set_deferred("disabled", true)
+	LogDrop.spawn_from_tree(self, tree_id)
 	felled.emit(self)
 	get_tree().create_timer(_respawn_sec).timeout.connect(_respawn)
 

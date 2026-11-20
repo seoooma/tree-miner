@@ -64,7 +64,7 @@ func _process(delta: float) -> void:
 		return
 	var cost := float(GameData.areas[area_index].get("unlock_cost", 0))
 	var chunk := maxi(1, ceili(cost / PAY_STEPS))
-	for carrier in carriers_near(global_position + PAD_OFFSET, PAD_RADIUS, true):
+	for carrier in carriers_near(global_position + PAD_OFFSET, PAD_RADIUS, "player"):
 		if GameState.money > 0 and tick(carrier, "pay", delta, 0.03):
 			GameState.pay_toward_area(area_index, chunk)
 			if is_queued_for_deletion():

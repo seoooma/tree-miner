@@ -1,13 +1,16 @@
 class_name Player
 extends CharacterBody3D
-## プレイヤー。移動・木の自動伐採・丸太/板の運搬。
-## 近くの木を自動で切り、売却ポイント等の上に立つと積荷が自動で受け渡される。
+## プレイヤー。移動・木の自動伐採・丸太の拾得・運搬・機械の乗り降り。
+## 近くの木を自動で切り（積荷が満杯でも切れる）、落ちた丸太は近くを歩くと拾う。
+## 売却ポイント等の上に立つと積荷が自動で受け渡される。
 
 signal carry_changed(count: int, capacity: int)
 
 ## HUD のバーチャルスティックから入力される（-1..1）
 var joystick_vector := Vector2.ZERO
 var stack: CarryStack
+## 乗っている機械（null なら徒歩）
+var vehicle: Machine = null
 
 var _chop_timer := 0.0
 var _visual: Node3D
@@ -17,6 +20,7 @@ var _axe_pivot: Node3D
 func _ready() -> void:
 	add_to_group("player")
 	add_to_group("carriers")
+	add_to_group("plank_carriers")
 	collision_layer = 2
 	collision_mask = 1
 
@@ -55,10 +59,18 @@ func _build_body() -> void:
 	_axe_pivot.add_child(Fx.box(Vector3(0.05, 0.3, 0.2), Color("#c8ccd0"), Vector3(0, 0.08, 0.62)))
 
 
-func _physics_process(delta: float) -> void:
+## スティック＋キーボードの移動入力（-1..1）。乗車中は機械がこれを読む。
+func move_input() -> Vector2:
 	var input := _keyboard_vector() + joystick_vector
-	if input.length() > 1.0:
-		input = input.normalized()
+	return input.normalized() if input.length() > 1.0 else input
+
+
+func _physics_process(delta: float) -> void:
+	if vehicle:
+		global_position = vehicle.seat_position()
+		_visual.rotation.y = vehicle.rotation.y
+		return
+	var input := move_input()
 	var dir := Vector3(input.x, 0.0, input.y)
 	velocity = dir * GameState.value("move_speed")
 	move_and_slide()
@@ -66,6 +78,7 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 0.05:
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 12.0))
 	_update_chop(delta)
+	LogDrop.collect_near(self, stack, float(GameData.player.get("pickup_radius", 1.8)))
 
 
 func _keyboard_vector() -> Vector2:
@@ -85,16 +98,14 @@ func _keyboard_vector() -> Vector2:
 
 func _update_chop(delta: float) -> void:
 	_chop_timer = maxf(0.0, _chop_timer - delta)
-	if _chop_timer > 0.0 or stack.is_full():
+	if _chop_timer > 0.0:
 		return
 	var tree := _find_tree()
 	if tree == null:
 		return
 	_chop_timer = float(GameData.player.get("chop_interval", 0.45))
 	_swing()
-	if tree.hit(GameState.value("axe_power")):
-		stack.add({"kind": "log", "tree": tree.tree_id})
-		Fx.popup(self, tree.global_position, "+1 " + GameData.tree_name(tree.tree_id), Color("#ffe9a8"))
+	tree.hit(GameState.value("axe_power"))
 
 
 func _find_tree() -> ChoppableTree:
@@ -117,6 +128,48 @@ func _swing() -> void:
 	tween.tween_property(_axe_pivot, "rotation_degrees:x", -70.0, 0.08)
 	tween.tween_property(_axe_pivot, "rotation_degrees:x", 40.0, 0.08)
 	tween.tween_property(_axe_pivot, "rotation_degrees:x", 0.0, 0.12)
+
+
+# ---- 機械 ----
+
+## 近くにある乗れる機械（無ければ null）
+func nearby_machine() -> Machine:
+	if vehicle:
+		return null
+	var best: Machine = null
+	var best_dist := float(GameData.player.get("board_range", 3.0))
+	for node in get_tree().get_nodes_in_group("machines"):
+		var m := node as Machine
+		var d := Fx.xz_distance(global_position, m.global_position)
+		if d <= best_dist:
+			best = m
+			best_dist = d
+	return best
+
+
+func board(machine: Machine) -> void:
+	if vehicle or machine == null or machine.driver != null:
+		return
+	vehicle = machine
+	machine.driver = self
+	velocity = Vector3.ZERO
+	collision_layer = 0
+	collision_mask = 0
+	remove_from_group("carriers")
+	remove_from_group("plank_carriers")
+
+
+func exit_vehicle() -> void:
+	if vehicle == null:
+		return
+	var machine := vehicle
+	vehicle = null
+	machine.driver = null
+	global_position = machine.exit_position()
+	collision_layer = 2
+	collision_mask = 1
+	add_to_group("carriers")
+	add_to_group("plank_carriers")
 
 
 # ---- 運搬（売却ポイント等から呼ばれる）----

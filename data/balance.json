@@ -10,11 +10,48 @@
 	"player": {
 		"chop_interval": 0.45,
 		"chop_range": 1.3,
+		"pickup_radius": 1.8,
+		"board_range": 3.0,
 		"transfer_interval": 0.08
 	},
 
+	"drops": {
+		"_comment": "木を倒すと min〜max 本の丸太が周囲に散らばる。max_on_map を超えると新しく落ちない",
+		"min": 2,
+		"max": 4,
+		"scatter": 1.6,
+		"max_on_map": 300
+	},
+
+	"fuel": {
+		"_comment": "燃料の単位は『動作秒数』。燃料缶1個で per_can 秒ぶん補給される。給油所では無料で受け取れる",
+		"per_can": 20
+	},
+
+	"machines": {
+		"_comment": "ランクごとの性能と価格。購入パッドで次のランクを買うと、既存の機械がそのランクに上がる",
+		"harvester": {
+			"name": "伐採機",
+			"ranks": [
+				{ "name": "伐採機 Mk1", "cost": 600,   "speed": 5.5, "chop_power": 3,  "chop_interval": 0.35, "chop_range": 2.0, "fuel_max": 60,  "color": "#e8b030" },
+				{ "name": "伐採機 Mk2", "cost": 4000,  "speed": 6.5, "chop_power": 8,  "chop_interval": 0.30, "chop_range": 2.4, "fuel_max": 90,  "color": "#e07a30" },
+				{ "name": "伐採機 Mk3", "cost": 25000, "speed": 7.5, "chop_power": 20, "chop_interval": 0.25, "chop_range": 2.8, "fuel_max": 120, "color": "#d04040" }
+			]
+		},
+		"hauler": {
+			"name": "運搬車",
+			"ranks": [
+				{ "name": "運搬車 Mk1", "cost": 500,   "speed": 7.0, "capacity": 20, "pickup_radius": 2.5, "fuel_max": 60,  "color": "#4a90d0" },
+				{ "name": "運搬車 Mk2", "cost": 3500,  "speed": 8.0, "capacity": 40, "pickup_radius": 3.0, "fuel_max": 90,  "color": "#3a70c0" },
+				{ "name": "運搬車 Mk3", "cost": 20000, "speed": 9.0, "capacity": 80, "pickup_radius": 3.5, "fuel_max": 120, "color": "#6a50c0" }
+			]
+		}
+	},
+
 	"lumberjack": {
-		"capacity": 3,
+		"_comment": "伐採員は役割ごとに動く。chop = 木を切って丸太を落とす / haul = 落ちている丸太を拾って製材所へ運ぶ",
+		"capacity": 4,
+		"pickup_radius": 1.5,
 		"move_speed": 3.2,
 		"axe_power": 1.0,
 		"chop_interval": 0.6
@@ -62,7 +99,7 @@
 		  "base_value": 5.0, "per_level": 0.4,  "base_cost": 25,  "cost_growth": 1.6,  "max_level": 15, "unit": "m/秒",  "decimals": 1 },
 		{ "id": "sawmill",    "name": "製材ライン", "desc": "Lv1で開放。丸太を板(売値x2)に加工。以降は加工速度アップ",
 		  "base_value": 0.25, "per_level": 0.25, "base_cost": 150, "cost_growth": 1.7, "max_level": 20, "unit": "本/秒", "decimals": 2, "locked_at_zero": true },
-		{ "id": "lumberjack", "name": "伐採員",     "desc": "自動で木を切って製材所に運ぶ仲間",
+		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 }
 	]
 }

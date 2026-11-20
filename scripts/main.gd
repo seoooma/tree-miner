@@ -13,12 +13,17 @@ const CAMERA_FOLLOW_SPEED := 6.0
 const SAWMILL_POS := Vector3(-5, 0, 9)
 const DOCK_POS := Vector3(5.5, 0, 9)
 const PLAYER_SPAWN := Vector3(1, 0, 4)
+const FUEL_POS := Vector3(0, 0, 14)
+## 機械の購入パッドと出現位置
+const SHOP_POS := {"harvester": Vector3(-12, 0, 6), "hauler": Vector3(12, 0, 6)}
+const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 11), "hauler": Vector3(12, 0, 11)}
 
 var player: Player
 var camera: Camera3D
 var sawmill: Sawmill
 var hud: Hud
 var lumberjacks: Array[Lumberjack] = []
+var machines: Dictionary = {}  # kind -> Machine
 
 var _area_ranges: Array[Vector2] = []  # 各エリアの (near_z, far_z)
 
@@ -40,6 +45,15 @@ func _ready() -> void:
 	GameState.upgrade_changed.connect(func(id: String, _l: int) -> void:
 		if id == "lumberjack":
 			_sync_lumberjacks())
+	GameState.lumberjack_role_changed.connect(func(i: int, role: String) -> void:
+		if i < lumberjacks.size():
+			lumberjacks[i].set_role(role))
+	for kind in GameData.machines:
+		if kind.begins_with("_"):
+			continue
+		if GameState.machine_rank(kind) > 0:
+			_spawn_machine(kind)
+	GameState.machine_changed.connect(_on_machine_changed)
 
 
 func _process(delta: float) -> void:
@@ -148,6 +162,14 @@ func _build_facilities() -> void:
 	var dock := ShipDock.new()
 	dock.position = DOCK_POS
 	add_child(dock)
+	var fuel := FuelStation.new()
+	fuel.position = FUEL_POS
+	add_child(fuel)
+	for kind in SHOP_POS:
+		var shop := MachineShop.new()
+		shop.kind = kind
+		shop.position = SHOP_POS[kind]
+		add_child(shop)
 
 
 func _build_gates() -> void:
@@ -217,7 +239,37 @@ func _sync_lumberjacks() -> void:
 	var wanted := roundi(GameState.value("lumberjack"))
 	while lumberjacks.size() < wanted:
 		var lj := Lumberjack.new()
+		lj.index = lumberjacks.size()
+		lj.role = GameState.lumberjack_role(lj.index)
 		lj.sawmill = sawmill
 		lj.position = sawmill.input_position() + Vector3(lumberjacks.size() * 0.8 - 1.0, 0, -1.0)
 		add_child(lj)
 		lumberjacks.append(lj)
+
+
+# ---- 機械 ----
+
+func _on_machine_changed(kind: String, rank: int) -> void:
+	if machines.has(kind):
+		(machines[kind] as Machine).set_rank(rank)
+	else:
+		_spawn_machine(kind, true)
+
+
+func _spawn_machine(kind: String, fresh := false) -> void:
+	var m := Machine.new()
+	m.kind = kind
+	m.rank = GameState.machine_rank(kind)
+	var saved: Dictionary = GameState.machine_state.get(kind, {})
+	if fresh or saved.is_empty():
+		# 最初の燃料は満タン
+		m.position = MACHINE_SPAWN[kind]
+		m.fuel = float(GameData.machine_rank(kind, m.rank).get("fuel_max", 60))
+	else:
+		m.position = Vector3(float(saved.get("x", 0)), 0, float(saved.get("z", 0)))
+		m.rotation.y = float(saved.get("ry", 0))
+		m.fuel = float(saved.get("fuel", 0))
+	add_child(m)
+	machines[kind] = m
+	if fresh:
+		Fx.popup(m, m.global_position, "%s 登場！" % m.display_name(), Color("#ffe14d"))
