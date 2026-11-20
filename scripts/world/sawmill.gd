@@ -16,6 +16,10 @@ var _input_zone: Zone
 var _output_zone: Zone
 var _output_root: Node3D
 var _output_pile: Node3D
+## 投入口の横に積み上がる、加工待ちの丸太
+var _input_pile: Node3D
+const INPUT_PILE_OFFSET := Vector3(-2.3, 0, -2.6)
+const PILE_VISIBLE := 48
 var _blade: MeshInstance3D
 
 
@@ -66,6 +70,9 @@ func _build() -> void:
 	_output_root.add_child(_output_zone)
 	_output_pile = Node3D.new()
 	_output_root.add_child(_output_pile)
+	_input_pile = Node3D.new()
+	_input_pile.position = INPUT_PILE_OFFSET
+	add_child(_input_pile)
 
 
 ## 製材所の建物の見た目（当たり判定・受け渡しの印は含まない）。強化画面のサムネイルでも使う。回転するノコギリを返す。
@@ -107,6 +114,7 @@ func _process(delta: float) -> void:
 		var stack: CarryStack = carrier.stack
 		if stack.count("log") > 0 and tick(carrier, "in", delta):
 			var item := stack.take("log")
+			_fly_in(item["tree"], (carrier as Node3D).global_position)
 			_accept_log(item["tree"])
 
 	if unlocked:
@@ -115,16 +123,32 @@ func _process(delta: float) -> void:
 		for carrier in carriers_near(output_position(), _pad_radius(), "plank_carriers"):
 			var stack: CarryStack = carrier.stack
 			if not output.is_empty() and not stack.is_full() and tick(carrier, "out", delta):
-				stack.add({"kind": "plank", "tree": output.pop_back()})
+				var tree_id: String = output.pop_back()
+				stack.add({"kind": "plank", "tree": tree_id})
+				Fx.fly_item(self, _plank_mesh(tree_id), output_position() + Vector3(0, 0.6, 0), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
 				_rebuild_output()
 
 	_blade.rotate_object_local(Vector3.UP, delta * (12.0 if unlocked and not queue.is_empty() else 1.0))
 	_update_labels(unlocked)
 
 
+## 運ばれてきた丸太が投入口（加工待ちの山）へ飛んでいく演出
+func _fly_in(tree_id: String, from: Vector3) -> void:
+	var target := input_position() + Vector3(0, 0.3, 0)
+	if is_line_unlocked():
+		target = global_position + INPUT_PILE_OFFSET + Vector3(0, 0.2 + floori(mini(queue.size(), PILE_VISIBLE) / 4.0) * 0.2, 0)
+	Fx.fly_item(self, LogDrop.make_log_mesh(tree_id), from + Vector3(0, 1.0, 0), target, 0.25)
+
+
+## 丸太を受け取る（プレイヤー・運搬者・川やトロッコから）。
+func accept_log(tree_id: String) -> void:
+	_accept_log(tree_id)
+
+
 func _accept_log(tree_id: String) -> void:
 	if is_line_unlocked():
 		queue.append(tree_id)
+		_rebuild_input()
 	else:
 		var price := GameData.log_price(tree_id)
 		GameState.add_money(price)
@@ -146,17 +170,39 @@ func _process_line(delta: float) -> void:
 		changed = true
 	if changed:
 		_rebuild_output()
+		_rebuild_input()
 
 
+## 出口の板の山（4枚ずつ互い違いに積む）
 func _rebuild_output() -> void:
 	for child in _output_pile.get_children():
 		child.queue_free()
-	for i in mini(output.size(), 30):
-		var def := GameData.tree_def(output[i])
-		var color := Color(def.get("trunk_color", "#a77a4f")).lightened(0.45)
-		var col := i % 3
-		var row := floori(i / 3.0)
-		_output_pile.add_child(Fx.box(Vector3(0.9, 0.16, 0.3), color, Vector3(0, 0.1 + row * 0.17, (col - 1) * 0.34)))
+	for i in mini(output.size(), 60):
+		var col := i % 4
+		var row := floori(i / 4.0)
+		var plank := _plank_mesh(output[i])
+		plank.position = Vector3(0, 0.1 + row * 0.17, (col - 1.5) * 0.32)
+		plank.rotation_degrees.y = 4.0 if row % 2 == 0 else -4.0
+		_output_pile.add_child(plank)
+
+
+## 投入口横の加工待ちの丸太の山（4本ずつ積む）
+func _rebuild_input() -> void:
+	for child in _input_pile.get_children():
+		child.queue_free()
+	for i in mini(queue.size(), PILE_VISIBLE):
+		var col := i % 4
+		var row := floori(i / 4.0)
+		var log_mesh := LogDrop.make_log_mesh(queue[i], 90.0)
+		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
+		log_mesh.position = Vector3((col - 1.5) * 0.23 + (0.11 if row % 2 == 1 else 0.0), 0.12 + row * 0.2, 0)
+		_input_pile.add_child(log_mesh)
+
+
+static func _plank_mesh(tree_id: String) -> MeshInstance3D:
+	var def := GameData.tree_def(tree_id)
+	var color := Color(def.get("trunk_color", "#a77a4f")).lightened(0.45)
+	return Fx.box(Vector3(0.9, 0.16, 0.3), color, Vector3.ZERO, "wood")
 
 
 func _refresh() -> void:

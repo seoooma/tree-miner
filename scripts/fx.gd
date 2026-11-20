@@ -212,6 +212,21 @@ static func burst(context: Node, world_pos: Vector3, colors: Array, amount := 10
 		p.get_tree().create_timer(lifetime + 0.2).timeout.connect(p.queue_free)
 
 
+## 受け渡しのとき、品物が放物線を描いて飛んでいく演出（見た目だけ）。node は新しく作った見た目のノード。
+static func fly_item(context: Node, node: Node3D, from: Vector3, to: Vector3, duration := 0.28) -> void:
+	var scene := context.get_tree().current_scene
+	if scene == null:
+		node.queue_free()
+		return
+	scene.add_child(node)
+	node.global_position = from
+	var tween := node.create_tween()
+	tween.tween_method(func(t: float) -> void:
+		if is_instance_valid(node):
+			node.global_position = from.lerp(to, t) + Vector3(0, sin(t * PI) * 1.2, 0), 0.0, 1.0, duration)
+	tween.tween_callback(node.queue_free)
+
+
 ## コインが跳ねて消える演出（売却時）。
 static func coin_pop(context: Node, world_pos: Vector3) -> void:
 	var scene := context.get_tree().current_scene
