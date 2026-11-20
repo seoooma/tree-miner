@@ -1,7 +1,7 @@
 class_name GuideArrows
 extends Node3D
 ## 次に向かう場所へ、地面に緑の三角（シェブロン）を点線のように並べて案内する。ゆっくり流れる。
-## - 積荷が満杯: 製材所の投入口（板を持っていれば出荷場）
+## - 積荷が満杯: いちばん近い届け先（製材所の投入口か、川・トロッコの積み込み枠）。板を持っていれば出荷場
 ## - それ以外: いちばん近い木
 ## 案内先は HUD の画面端インジケーター（goal / goal_kind）でも使う。表示だけでゲームの処理には影響しない。
 
@@ -63,7 +63,7 @@ func _pick_goal() -> void:
 		goal = dock.global_position
 		goal_kind = "home"
 	elif stack.is_full() and sawmill:
-		goal = sawmill.input_position()
+		goal = LoadingPoint.nearest_dropoff(self, player.global_position, sawmill)
 		goal_kind = "home"
 	else:
 		_tree_goal = _nearest_tree()

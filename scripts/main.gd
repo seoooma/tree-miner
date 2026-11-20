@@ -14,12 +14,16 @@ const FUEL_POS := Vector3(0, 0, 14)
 ## 機械の購入パッドと出現位置
 const SHOP_POS := {"harvester": Vector3(-12, 0, 6), "hauler": Vector3(12, 0, 6)}
 const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 11), "hauler": Vector3(12, 0, 11)}
+## 川流し（左端）とトロッコ（右端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
+const LINE_X := {"river": -16.5, "trolley": 16.5}
+const LINE_CLEAR_X := 14.6
 
 var player: Player
 var camera: FollowCamera
 var sawmill: Sawmill
 var dock: ShipDock
 var guide: GuideArrows
+var lines: Dictionary = {}  # "river" / "trolley" -> LogLine
 var hud: Hud
 var lumberjacks: Array[Lumberjack] = []
 var machines: Dictionary = {}  # kind -> Machine
@@ -35,6 +39,7 @@ func _ready() -> void:
 	_build_bounds()
 	_build_facilities()
 	_build_gates()
+	_build_lines()
 	_spawn_trees()
 	_spawn_player()
 	_build_camera()
@@ -191,6 +196,19 @@ func _build_facilities() -> void:
 		add_child(shop)
 
 
+func _build_lines() -> void:
+	for kind in LINE_X:
+		var line := LogLine.new()
+		line.kind = kind
+		line.x = LINE_X[kind]
+		line.far_z = _area_ranges[-1].y + 1.0
+		line.near_z = 3.0
+		line.sawmill = sawmill
+		line.area_ranges = _area_ranges
+		add_child(line)
+		lines[kind] = line
+
+
 func _build_gates() -> void:
 	for i in range(1, GameData.areas.size()):
 		if GameState.is_area_unlocked(i):
@@ -235,8 +253,13 @@ func _spawn_trees() -> void:
 
 func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool:
 	# 中央の道は空けておく（機械が走りやすいように）
-	if absf(pos.x) < 1.8:
+	if absf(pos.x) < 1.8 or absf(pos.x) > LINE_CLEAR_X:
 		return false
+	# 川岸・トロッコ駅の積み込み枠のまわり
+	for i in _area_ranges.size():
+		var cz := (_area_ranges[i].x + _area_ranges[i].y) * 0.5
+		if absf(absf(pos.x) - 13.2) < 2.2 and absf(pos.z - cz) < 2.2:
+			return false
 	for p in placed:
 		if Fx.xz_distance(p, pos) < spacing:
 			return false

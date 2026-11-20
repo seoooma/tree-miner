@@ -15,6 +15,9 @@ const STAT_NAMES := {
 	"move_speed": "移動速度",
 	"sawmill": "加工速度",
 	"lumberjack": "人数",
+	"lumberjack_capacity": "積載量",
+	"river": "流れの速さ",
+	"trolley": "走る速さ",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -23,6 +26,9 @@ const BADGES := {
 	"move_speed": "badge_speed",
 	"sawmill": "badge_speed",
 	"lumberjack": "badge_capacity",
+	"lumberjack_capacity": "badge_capacity",
+	"river": "badge_speed",
+	"trolley": "badge_speed",
 }
 
 var player: Player
@@ -32,6 +38,7 @@ var _root: Control
 var _money_label: Label
 var _money_pill: Control
 var _board_button: Button
+var _discard_button: Button
 var _upgrade_button: Button
 var _gear: TextureButton
 var _settings: Control
@@ -46,6 +53,16 @@ var _roles_title: Label
 var _rows: Dictionary = {}
 var _shown_money := 0
 var _thumbs: Thumbnails
+var _scroll: ScrollContainer
+# 強化シートを指でなぞってスクロールする（ボタンの上から始めても動く）
+var _drag_id := -99
+var _drag_start_y := 0.0
+var _drag_start_scroll := 0.0
+var _drag_moved := false
+var _drag_last_y := 0.0
+var _drag_velocity := 0.0
+var _fling := 0.0
+var _suppress_tap_until := 0
 
 # ワールド表示
 var _carry_root: Control
@@ -195,6 +212,19 @@ func _build_bottom_tiles() -> void:
 	_board_button.pressed.connect(_toggle_board)
 	_root.add_child(_board_button)
 
+	# 燃料缶を捨てる（徒歩で缶を持っているときだけ出る）
+	_discard_button = UiKit.tile_button("icon_fuel", "缶を捨てる")
+	_discard_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_discard_button.offset_left = 24
+	_discard_button.offset_top = -324
+	_discard_button.offset_right = 164
+	_discard_button.offset_bottom = -184
+	_discard_button.visible = false
+	_discard_button.pressed.connect(func() -> void:
+		if player:
+			player.discard_fuel())
+	_root.add_child(_discard_button)
+
 	_upgrade_button = UiKit.tile_button("icon_upgrade", "強化")
 	_upgrade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_upgrade_button.offset_left = -164
@@ -207,7 +237,8 @@ func _build_bottom_tiles() -> void:
 	_root.add_child(_upgrade_button)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_fling(delta)
 	if player == null:
 		return
 	if player.vehicle:
@@ -216,7 +247,73 @@ func _process(_delta: float) -> void:
 	else:
 		_board_button.visible = player.nearby_machine() != null
 		UiKit.set_tile_text(_board_button, "乗る")
+	_discard_button.visible = player.vehicle == null and player.stack.count(Machine.FUEL_KIND) > 0
 	_update_world_overlay()
+
+
+# ---- 強化シートのドラッグスクロール ----
+
+func _input(event: InputEvent) -> void:
+	if not _sheet_open or _scroll == null:
+		return
+	var pressed := false
+	var released := false
+	var moved := false
+	var id := -99
+	var pos := Vector2.ZERO
+	if event is InputEventScreenTouch:
+		id = event.index
+		pos = event.position
+		pressed = event.pressed
+		released = not event.pressed
+	elif event is InputEventScreenDrag:
+		id = event.index
+		pos = event.position
+		moved = true
+	elif event is InputEventMouseButton and event.device != -1 and event.button_index == MOUSE_BUTTON_LEFT:
+		id = -2
+		pos = event.position
+		pressed = event.pressed
+		released = not event.pressed
+	elif event is InputEventMouseMotion and event.device != -1 and _drag_id == -2:
+		id = -2
+		pos = event.position
+		moved = true
+	else:
+		return
+	if pressed and _drag_id == -99 and _scroll.get_global_rect().has_point(pos):
+		_drag_id = id
+		_drag_start_y = pos.y
+		_drag_last_y = pos.y
+		_drag_start_scroll = _scroll.scroll_vertical
+		_drag_moved = false
+		_drag_velocity = 0.0
+		_fling = 0.0
+	elif moved and id == _drag_id:
+		if absf(pos.y - _drag_start_y) > 14.0:
+			_drag_moved = true
+		if _drag_moved:
+			_scroll.scroll_vertical = int(_drag_start_scroll - (pos.y - _drag_start_y))
+			_drag_velocity = lerpf(_drag_velocity, (_drag_last_y - pos.y) * 60.0, 0.5)
+		_drag_last_y = pos.y
+	elif released and id == _drag_id:
+		_drag_id = -99
+		if _drag_moved:
+			# なぞった直後の指離れで、ボタンが押されたことにならないようにする
+			_suppress_tap_until = Time.get_ticks_msec() + 150
+			_fling = _drag_velocity
+
+
+func _update_fling(delta: float) -> void:
+	if absf(_fling) < 20.0 or _scroll == null:
+		_fling = 0.0
+		return
+	_scroll.scroll_vertical += int(_fling * delta)
+	_fling = move_toward(_fling, 0.0, 2600.0 * delta)
+
+
+func _tap_suppressed() -> bool:
+	return _drag_moved and Time.get_ticks_msec() < _suppress_tap_until or _drag_id != -99 and _drag_moved
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -237,7 +334,7 @@ func _toggle_board() -> void:
 func _is_over_ui(pos: Vector2) -> bool:
 	if _sheet_open:
 		return true
-	for c in [_upgrade_button, _board_button, _gear, _settings]:
+	for c in [_upgrade_button, _board_button, _discard_button, _gear, _settings]:
 		var ctl := c as Control
 		if ctl.visible and ctl.get_global_rect().has_point(pos):
 			return true
@@ -312,6 +409,7 @@ func _build_sheet() -> void:
 	header.add_child(close)
 
 	var scroll := ScrollContainer.new()
+	_scroll = scroll
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_top = 124
 	scroll.offset_left = 4
@@ -431,6 +529,8 @@ func _build_card(list: Control, def: Dictionary) -> void:
 	button.add_theme_font_size_override("font_size", 34)
 	button.add_theme_constant_override("outline_size", 10)
 	button.pressed.connect(func() -> void:
+		if _tap_suppressed():
+			return
 		if GameState.buy_upgrade(id):
 			Audio.play("buy", -2.0)
 			if player:
@@ -587,6 +687,8 @@ func _rebuild_roles() -> void:
 		chip.add_theme_font_size_override("font_size", 28)
 		var idx := i
 		chip.pressed.connect(func() -> void:
+			if _tap_suppressed():
+				return
 			Audio.play("ui", -4.0)
 			GameState.set_lumberjack_role(idx, "haul" if GameState.lumberjack_role(idx) == "chop" else "chop"))
 		_roles_box.add_child(chip)

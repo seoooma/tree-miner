@@ -24,8 +24,9 @@
 	},
 
 	"fuel": {
-		"_comment": "燃料の単位は『動作秒数』。燃料缶1個で per_can 秒ぶん補給される。給油所では無料で受け取れる",
-		"per_can": 20
+		"_comment": "燃料の単位は『動作秒数』。燃料缶1個で per_can 秒ぶん補給される。給油所では無料で受け取れる。機械に乗ったまま給油所に入ると station_refuel_per_sec ずつ補給される",
+		"per_can": 20,
+		"station_refuel_per_sec": 15
 	},
 
 	"machines": {
@@ -50,7 +51,7 @@
 
 	"lumberjack": {
 		"_comment": "伐採員は役割ごとに動く。chop = 木を切って丸太を落とす / haul = 落ちている丸太を拾って製材所へ運ぶ",
-		"capacity": 4,
+		"_capacity_note": "積載量は強化の lumberjack_capacity で決まる",
 		"pickup_radius": 1.5,
 		"move_speed": 3.2,
 		"axe_power": 1.0,
@@ -108,6 +109,12 @@
 		{ "id": "sawmill",    "name": "製材ライン", "desc": "Lv1で開放。丸太を板(売値x2)に加工。以降は加工速度アップ",
 		  "base_value": 0.25, "per_level": 0.25, "base_cost": 150, "cost_growth": 1.7, "max_level": 20, "unit": "本/秒", "decimals": 2, "locked_at_zero": true },
 		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
-		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 }
+		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
+		{ "id": "lumberjack_capacity", "name": "伐採員の積載量", "desc": "伐採員が一度に運べる丸太の数",
+		  "base_value": 4.0, "per_level": 2.0,  "base_cost": 250, "cost_growth": 1.6,  "max_level": 15, "unit": "本",    "decimals": 0 },
+		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて製材所へ届く。以降は流れが速くなる",
+		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true },
+		{ "id": "trolley",    "name": "トロッコ",   "desc": "Lv1で開放。各エリアの駅の枠に置いた丸太をトロッコが製材所へ運ぶ。川より速い",
+		  "base_value": 5.0, "per_level": 0.8,  "base_cost": 12000, "cost_growth": 1.7, "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true }
 	]
 }

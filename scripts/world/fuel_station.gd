@@ -1,6 +1,7 @@
 class_name FuelStation
 extends Station
 ## 給油所。上に立つと燃料缶を無料で受け取れる（運搬容量を使う）。缶を持って機械に近づくと補給される。
+## 機械に乗ったまま入ると、そのまま燃料が補給される。
 
 const PAD_RADIUS := 1.4
 const GIVE_INTERVAL := 0.25
@@ -34,7 +35,22 @@ static func _can(pos: Vector3) -> Node3D:
 	return root
 
 
+var _popup_timer := 0.0
+
+
 func _process(delta: float) -> void:
+	# 乗ったまま給油
+	_popup_timer -= delta
+	var rate := float(GameData.fuel.get("station_refuel_per_sec", 15))
+	for node in carriers_near(global_position, PAD_RADIUS, "machines"):
+		var m := node as Machine
+		if m.driver == null or m.fuel >= m.fuel_max() - 0.01:
+			continue
+		m.fuel = minf(m.fuel_max(), m.fuel + rate * delta)
+		if _popup_timer <= 0.0:
+			_popup_timer = 0.6
+			Fx.popup(m, m.global_position, "給油中", Color("#ff9a7a"), 48)
+			Audio.play("fuel", -8.0, 1.1)
 	for carrier in carriers_near(global_position, PAD_RADIUS, "player"):
 		var p := carrier as Player
 		if p.vehicle == null and not p.stack.is_full() and tick(carrier, "fuel", delta, GIVE_INTERVAL):

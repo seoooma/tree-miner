@@ -117,8 +117,11 @@ func _run() -> void:
 	_check(Fx.xz_distance(pos_before, harvester.global_position) < 0.01, "燃料切れだと動かない")
 	player.exit_vehicle()
 	_check(player.vehicle == null, "機械から降りられる")
+	_check(player.stack.count("fuel") == 0, "機械に乗ると持っていた燃料缶はなくなる")
 	if player.stack.count("fuel") == 0:
-		await _walk_to(main.FUEL_POS, 0.4)
+		# 途中で製材所の出口から拾った板で手がふさがっていたら空ける
+		_empty_hands()
+		await _go_to_fuel_station()
 		await _wait(1.0)
 		await _walk_to(harvester.global_position, 2.0)
 	await _wait(1.0)
@@ -146,6 +149,10 @@ func _run() -> void:
 		await _drive_to(drop.global_position, 1.0)
 	_check(hauler.stack.count("log") > 0, "運搬車で落ちた丸太を拾える (%d本)" % hauler.stack.count("log"))
 	var queue_before: int = main.sawmill.queue.size()
+	# 木に引っかからないよう、中央の道に置き直してから製材所へ（経路探索はテストの対象外）
+	hauler.fuel = hauler.fuel_max()
+	hauler.global_position = Vector3(0, 0, hauler.global_position.z)
+	await _drive_to(Vector3(0, 0, main.sawmill.input_position().z), 0.8)
 	await _drive_to(main.sawmill.input_position(), 0.8)
 	await _wait(3.0)
 	_check(hauler.stack.count("log") == 0 and main.sawmill.queue.size() > queue_before, "運搬車から製材所に丸太を降ろせる")
@@ -162,8 +169,73 @@ func _run() -> void:
 	await _wait(4.0)
 	_check(GameState.is_area_unlocked(1), "柵の前で支払うとエリア1が開放される")
 
+	# 12. 燃料缶を捨てる
+	_empty_hands()
+	await _go_to_fuel_station()
+	await _wait(1.0)
+	var cans := player.stack.count("fuel")
+	var dropped := player.discard_fuel()
+	_check(cans > 0 and dropped == cans and player.stack.count("fuel") == 0, "燃料缶を捨てられる (%d個)" % dropped)
+
+	# 13. 乗ったまま給油所に入ると補給される
+	await _walk_to(hauler.global_position, 2.0)
+	player.board(hauler)
+	hauler.fuel = 5.0
+	await _drive_to(Vector3(0, 0, hauler.global_position.z), 0.8)
+	await _drive_to(main.FUEL_POS, 0.6)
+	var fuel_at_station := hauler.fuel
+	await _wait(2.0)
+	_check(hauler.fuel > fuel_at_station + 10.0, "乗ったまま給油所で補給される (%.0f → %.0f)" % [fuel_at_station, hauler.fuel])
+	player.exit_vehicle()
+
+	# 14. 伐採員の積載量の強化
+	GameState.money += 1000000
+	var cap0: int = main.lumberjacks[0].stack.capacity()
+	GameState.buy_upgrade("lumberjack_capacity")
+	_check(main.lumberjacks[0].stack.capacity() > cap0, "伐採員の積載量を強化できる (%d → %d)" % [cap0, main.lumberjacks[0].stack.capacity()])
+
+	# 15. 川流しを開放して、積み込み枠から製材所へ丸太を流す
+	var river: LogLine = main.lines["river"]
+	_check(not river.visible, "川流しは最初は使えない")
+	GameState.buy_upgrade("river")
+	await get_tree().process_frame
+	_check(river.visible and get_tree().get_nodes_in_group("log_dropoffs").size() > 0, "強化で川流しが開放される")
+	var point: LoadingPoint = null
+	for node in get_tree().get_nodes_in_group("log_dropoffs"):
+		var lp := node as LoadingPoint
+		if lp.line == river and lp.area_index == 1:
+			point = lp
+	_check(point != null, "開放済みエリアに積み込み枠がある")
+	if point == null:
+		return
+	_empty_hands()
+	for i in 3:
+		player.stack.add({"kind": "log", "tree": "pine"})
+	player.global_position = point.global_position
+	await _wait(2.0)
+	_check(player.stack.count("log") == 0 and river.in_transit_from(point) > 0, "積み込み枠に丸太を置くと川を流れる (%d本)" % river.in_transit_from(point))
+	player.global_position = main.PLAYER_SPAWN
+	var q0: int = main.sawmill.queue.size()
+	var frames := 0
+	while river.in_transit_from(point) > 0 and frames < 60 * 60:
+		await get_tree().physics_frame
+		frames += 1
+	_check(main.sawmill.queue.size() >= q0 + 1 and river.in_transit_from(point) == 0, "流した丸太が製材所に届く (%.0f秒)" % (frames / 60.0))
+
 
 # ---- ヘルパー ----
+
+## 製材所の出口（板を拾ってしまう）を避けて、右側から給油所へ向かう
+func _go_to_fuel_station() -> void:
+	await _walk_to(Vector3(3.5, 0, player.global_position.z), 0.5)
+	await _walk_to(Vector3(3.5, 0, main.FUEL_POS.z), 0.5)
+	await _walk_to(main.FUEL_POS, 0.4)
+
+
+func _empty_hands() -> void:
+	while not player.stack.is_empty():
+		player.stack.take(player.stack.items[-1]["kind"])
+
 
 func _chop_down(tree: ChoppableTree) -> void:
 	var frames := 0

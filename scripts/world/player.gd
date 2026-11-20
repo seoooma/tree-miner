@@ -149,6 +149,15 @@ func board(machine: Machine) -> void:
 		return
 	vehicle = machine
 	machine.driver = self
+	# 持っている燃料缶はすべて機械に注いで手放す（入りきらない分は捨てる）
+	var cans := stack.count(Machine.FUEL_KIND)
+	if cans > 0:
+		var before := machine.fuel
+		machine.fuel = minf(machine.fuel_max(), machine.fuel + cans * float(GameData.fuel.get("per_can", 20)))
+		for i in cans:
+			stack.take(Machine.FUEL_KIND)
+		if machine.fuel > before + 0.5:
+			Fx.popup(machine, machine.global_position, "燃料 +%d" % roundi(machine.fuel - before), Color("#ff9a7a"))
 	_visual.visible = false
 	Audio.play("board", -6.0)
 	velocity = Vector3.ZERO
@@ -171,6 +180,17 @@ func exit_vehicle() -> void:
 	collision_mask = 1
 	add_to_group("carriers")
 	add_to_group("plank_carriers")
+
+
+## 持っている燃料缶をすべて捨てる。捨てた数を返す。
+func discard_fuel() -> int:
+	var cans := stack.count(Machine.FUEL_KIND)
+	for i in cans:
+		stack.take(Machine.FUEL_KIND)
+	if cans > 0:
+		Fx.burst(self, global_position + Vector3(0, 0.8, 0), [Color("#c43a2e"), Color("#5a5a5a")], 10, 2.5, 0.1, 0.5)
+		Audio.play("drop", -6.0)
+	return cans
 
 
 # ---- 運搬（売却ポイント等から呼ばれる）----

@@ -87,17 +87,10 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 		rock_xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.6, 1.4)), p))
 	_multimesh(parent, rock, rock_xf, Mats.surface(Color("#a49e92"), "paint", 0.9))
 
-	# マップの外側の森（飾り）
+	# マップの外側の森（飾り）。左右の外側には生やさず、奥と手前の帯だけ
 	var border: Dictionary = {}
-	var z := base_depth + 6.0
-	while z > far - 6.0:
-		for side in [-1, 1]:
-			for k in 3:
-				var x: float = side * (half + 1.2 + k * 1.8 + rng.randf_range(0, 0.8))
-				_add_border_tree(border, rng, Vector3(x, 0, z + rng.randf_range(-0.6, 0.6)))
-		z -= 1.7
-	var x2 := -half - 6.0
-	while x2 < half + 6.0:
+	var x2 := -half + 0.8
+	while x2 < half - 0.8:
 		for k in 3:
 			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, base_depth + 1.2 + k * 1.8))
 			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, far - 1.2 - k * 1.8))

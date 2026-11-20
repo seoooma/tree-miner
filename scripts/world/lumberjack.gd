@@ -29,7 +29,7 @@ func _ready() -> void:
 	_rig = CharacterRig.new(0.95)
 	_visual.add_child(_rig)
 	stack = CarryStack.new()
-	stack.capacity_source = func() -> int: return int(GameData.lumberjack.get("capacity", 4))
+	stack.capacity_source = func() -> int: return roundi(GameState.value("lumberjack_capacity"))
 	stack.position = Vector3(0, 0.45, -0.34)
 	_visual.add_child(stack)
 	_role_label = Fx.label3d("", Vector3(0, 1.6, 0), 30)
@@ -61,7 +61,7 @@ func _process(delta: float) -> void:
 func _process_chop(delta: float) -> void:
 	# 運搬役から切り替わった直後で丸太を持っていれば、先に製材所へ届ける
 	if not stack.is_empty():
-		if _move_to(sawmill.input_position(), 0.5, delta):
+		if _move_to(LoadingPoint.nearest_dropoff(self, global_position, sawmill), 0.5, delta):
 			state = State.UNLOAD
 		return
 	if state == State.UNLOAD or state == State.TO_SAWMILL or state == State.TO_DROP:
@@ -135,7 +135,7 @@ func _process_haul(delta: float) -> void:
 			else:
 				_move_to(_target_drop.global_position, 0.3, delta)
 		State.TO_SAWMILL:
-			if _move_to(sawmill.input_position(), 0.5, delta):
+			if _move_to(LoadingPoint.nearest_dropoff(self, global_position, sawmill), 0.5, delta):
 				state = State.UNLOAD
 		State.UNLOAD:
 			# 製材所が投入口にいる運搬者から丸太を受け取っていく

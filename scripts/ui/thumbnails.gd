@@ -77,6 +77,42 @@ func _render(id: String) -> Texture2D:
 			subject.add_child(house)
 			look = Vector3(0, 1.2, 0)
 			dist = 11.0
+		"lumberjack_capacity":
+			var rig := CharacterRig.new(1.0)
+			rig.set_hat(Color("#f2c230"))
+			rig.rotation_degrees.y = 30.0
+			rig.position = Vector3(-0.5, 0, 0)
+			subject.add_child(rig)
+			var pile := Props.log_pile(2, "pine")
+			pile.position = Vector3(0.55, 0, -0.1)
+			pile.rotation_degrees.y = 70.0
+			subject.add_child(pile)
+			look = Vector3(0, 0.55, 0)
+			dist = 4.6
+		"river":
+			var water := MeshInstance3D.new()
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(2.2, 3.0)
+			water.mesh = plane
+			water.material_override = LogLine.water_material()
+			subject.add_child(water)
+			for i in 3:
+				var lg := LogDrop.make_log_mesh("pine", 90.0 + i * 20.0)
+				lg.scale = Vector3.ONE * 1.5
+				lg.position = Vector3(-0.4 + i * 0.4, 0.05, -0.8 + i * 0.8)
+				subject.add_child(lg)
+			look = Vector3(0, 0, 0)
+			dist = 4.4
+		"trolley":
+			var cart := LogLine.trolley_cart()
+			cart.rotation_degrees.y = 30.0
+			subject.add_child(cart)
+			var lg := LogDrop.make_log_mesh("oak", 120.0)
+			lg.position = Vector3(0, 0.75, 0)
+			lg.scale = Vector3(1.0, 1.4, 1.4)
+			subject.add_child(lg)
+			look = Vector3(0, 0.45, 0)
+			dist = 3.6
 		_:
 			for i in 2:
 				var rig := CharacterRig.new(1.0)
