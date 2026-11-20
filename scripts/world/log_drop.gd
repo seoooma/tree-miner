@@ -12,8 +12,8 @@ var claimed_by: Node = null
 var _age := 0.0
 
 
-## 倒れた木の周りに丸太をばらまく。
-static func spawn_from_tree(tree: Node3D, p_tree_id: String) -> void:
+## 倒れた木の周りに丸太をばらまく。dir を渡すと倒れた方向（幹の上）に多めに落ちる。
+static func spawn_from_tree(tree: Node3D, p_tree_id: String, dir := Vector3.ZERO) -> void:
 	var parent := tree.get_parent()
 	if parent == null:
 		return
@@ -25,10 +25,18 @@ static func spawn_from_tree(tree: Node3D, p_tree_id: String) -> void:
 		var drop := LogDrop.new()
 		drop.tree_id = p_tree_id
 		parent.add_child(drop)
-		drop.global_position = tree.global_position + Vector3(0, 1.0, 0)
-		var angle := randf() * TAU
-		var dist := randf_range(0.6, scatter)
-		drop._land(tree.global_position + Vector3(cos(angle) * dist, 0.1, sin(angle) * dist))
+		var target: Vector3
+		if dir != Vector3.ZERO:
+			var along := randf_range(0.7, scatter + 0.6)
+			var side := dir.cross(Vector3.UP) * randf_range(-0.6, 0.6)
+			target = tree.global_position + dir * along + side
+		else:
+			var angle := randf() * TAU
+			var dist := randf_range(0.6, scatter)
+			target = tree.global_position + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+		target.y = 0.1
+		drop.global_position = target + Vector3(0, 1.0, 0) - dir * 0.5
+		drop._land(target)
 
 
 ## 運搬者の近くにある丸太を、空きがある分だけ拾う。拾った数を返す。
@@ -45,15 +53,38 @@ static func collect_near(carrier: Node3D, stack: CarryStack, radius: float) -> i
 		stack.add({"kind": "log", "tree": drop.tree_id})
 		drop._fly_to(carrier)
 		picked += 1
+	if picked > 0 and carrier.is_in_group("player") or picked > 0 and carrier is Machine:
+		Audio.play("pickup", -6.0, 1.0 + 0.05 * stack.size() / maxf(1.0, stack.capacity()) * 6.0)
 	return picked
 
 
 func _ready() -> void:
 	add_to_group("drops")
-	var def := GameData.tree_def(tree_id)
-	var mesh := Fx.cylinder(0.11, 0.7, Color(def.get("trunk_color", "#8a5a33")))
-	mesh.rotation_degrees = Vector3(0, randf() * 180.0, 90)
-	add_child(mesh)
+	add_child(LogDrop.make_log_mesh(tree_id, randf() * 180.0))
+
+
+## 丸太の見た目（樹皮の円柱＋両端の木口）。積荷の表示でも使う。
+static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
+	var def := GameData.tree_def(p_tree_id)
+	var bark := Color(def.get("trunk_color", "#8a5a33"))
+	var mesh := Fx.merged("log/" + p_tree_id, [
+		[_cyl(0.11, 0.7, 7), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), bark],
+		[_cyl(0.085, 0.72, 7), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO), Color("#e8c99a")],
+	])
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.rotation_degrees.y = yaw_deg
+	return mi
+
+
+static func _cyl(r: float, h: float, seg: int) -> CylinderMesh:
+	var c := CylinderMesh.new()
+	c.top_radius = r
+	c.bottom_radius = r
+	c.height = h
+	c.radial_segments = seg
+	c.rings = 1
+	return c
 
 
 func _process(delta: float) -> void:

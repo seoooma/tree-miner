@@ -8,12 +8,29 @@ const GIVE_INTERVAL := 0.25
 
 func _ready() -> void:
 	add_child(Fx.pad(PAD_RADIUS, Color("#e8695a")))
-	add_child(Fx.box(Vector3(0.8, 1.6, 0.6), Color("#d83a2e"), Vector3(0, 0.8, -2.0)))
-	add_child(Fx.box(Vector3(0.6, 0.4, 0.05), Color("#ffffff"), Vector3(0, 1.2, -1.68)))
-	add_child(Fx.box(Vector3(2.4, 0.15, 1.6), Color("#8c8c8c"), Vector3(0, 2.4, -1.6)))
-	add_child(Fx.box(Vector3(0.12, 2.4, 0.12), Color("#6c6c6c"), Vector3(-1.0, 1.2, -1.0)))
-	add_child(Fx.box(Vector3(0.12, 2.4, 0.12), Color("#6c6c6c"), Vector3(1.0, 1.2, -1.0)))
-	add_child(Fx.label3d("給油所\n燃料缶（無料）", Vector3(0, 3.1, -1.6), 44))
+	# 給油機と屋根
+	add_child(Fx.box(Vector3(2.8, 0.1, 2.0), Color("#a3a39b"), Vector3(0, 0.05, -2.0)))
+	add_child(Fx.box(Vector3(0.7, 1.4, 0.5), Color("#d83a2e"), Vector3(-0.5, 0.75, -2.2)))
+	add_child(Fx.box(Vector3(0.5, 0.35, 0.04), Color("#f4f4f0"), Vector3(-0.5, 1.15, -1.94)))
+	add_child(Fx.box(Vector3(0.5, 0.12, 0.04), Color("#2b2b2b"), Vector3(-0.5, 0.85, -1.94)))
+	add_child(Fx.cylinder(0.04, 0.8, Color("#2b2b2b"), Vector3(-0.15, 0.7, -2.0), -1.0, 6))
+	add_child(Fx.box(Vector3(3.0, 0.16, 2.2), Color("#f4f4f0"), Vector3(0, 2.5, -2.0)))
+	add_child(Fx.box(Vector3(3.02, 0.12, 2.22), Color("#d83a2e"), Vector3(0, 2.4, -2.0)))
+	for x in [-1.3, 1.3]:
+		add_child(Fx.cylinder(0.08, 2.4, Color("#e8e8e4"), Vector3(x, 1.2, -2.0), -1.0, 8))
+	# 燃料缶の山
+	for i in 3:
+		add_child(_can(Vector3(0.5 + i * 0.32, 0.1, -2.3)))
+	add_child(_can(Vector3(0.66, 0.42, -2.3)))
+	add_child(Fx.label3d("給油所\n燃料缶（無料）", Vector3(0, 3.2, -2.0), 44))
+
+
+static func _can(pos: Vector3) -> Node3D:
+	var root := Node3D.new()
+	root.position = pos
+	root.add_child(Fx.box(Vector3(0.26, 0.32, 0.16), Color("#d83a2e"), Vector3(0, 0.16, 0)))
+	root.add_child(Fx.box(Vector3(0.12, 0.05, 0.05), Color("#2b2b2b"), Vector3(0.04, 0.34, 0)))
+	return root
 
 
 func _process(delta: float) -> void:
@@ -21,3 +38,4 @@ func _process(delta: float) -> void:
 		var p := carrier as Player
 		if p.vehicle == null and not p.stack.is_full() and tick(carrier, "fuel", delta, GIVE_INTERVAL):
 			p.stack.add({"kind": Machine.FUEL_KIND})
+			Audio.play("fuel", -6.0, 1.2)

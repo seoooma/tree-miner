@@ -51,11 +51,32 @@ func _build() -> void:
 	shape.position.y = 1.2
 	body.add_child(shape)
 	add_child(body)
-	add_child(Fx.box(Vector3(3.6, 2.2, 3.0), Color("#b5774a"), Vector3(0, 1.1, 0)))
-	add_child(Fx.box(Vector3(4.0, 0.4, 3.4), Color("#7a3f2a"), Vector3(0, 2.4, 0)))
-	_blade = Fx.cylinder(0.7, 0.05, Color("#d0d4d8"), Vector3(0, 1.0, -1.55))
-	_blade.rotation_degrees.x = 90.0
+	# 土台・板壁・切妻屋根
+	add_child(Fx.box(Vector3(3.9, 0.16, 3.3), Color("#9b9a92"), Vector3(0, 0.08, 0)))
+	var wall := Props.plank_wall(Vector3(3.5, 1.7, 2.9), Color("#b9784a"))
+	wall.position.y = 0.16
+	add_child(wall)
+	var roof := Props.gable_roof(3.9, 3.4, 1.1, Color("#b8452f"))
+	roof.position.y = 1.86
+	add_child(roof)
+	add_child(Fx.box(Vector3(3.95, 0.1, 0.12), Color("#7a2f22"), Vector3(0, 2.95, 0)))
+	# 正面（森側）の作業口とノコギリ、ベルトコンベア
+	add_child(Fx.box(Vector3(1.6, 1.1, 0.05), Color("#3a2618"), Vector3(0, 0.75, -1.47)))
+	add_child(Fx.box(Vector3(1.8, 0.12, 0.12), Color("#7a4a2a"), Vector3(0, 1.36, -1.5)))
+	_blade = Fx.cylinder(0.5, 0.05, Color("#d6dadf"), Vector3(0, 0.75, -1.52), -1.0, 16)
+	_blade.rotation_degrees.z = 90.0
+	_blade.rotation_degrees.y = 90.0
 	add_child(_blade)
+	add_child(Fx.box(Vector3(0.9, 0.12, 1.4), Color("#3d4247"), Vector3(0, 0.45, -2.15)))
+	for i in 4:
+		add_child(Fx.box(Vector3(0.95, 0.05, 0.08), Color("#8c939a"), Vector3(0, 0.53, -1.6 - i * 0.33)))
+	add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(-0.4, 0.2, -2.7)))
+	add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(0.4, 0.2, -2.7)))
+	# 煙突と丸太の山
+	add_child(Fx.cylinder(0.14, 1.0, Color("#5b5f63"), Vector3(1.1, 2.7, 0.6), -1.0, 8))
+	var pile := Props.log_pile(3, "pine")
+	pile.position = Vector3(-2.4, 0, 0.4)
+	add_child(pile)
 	_title = Fx.label3d("製材所", Vector3(0, 3.6, 0), 56)
 	add_child(_title)
 
@@ -94,7 +115,7 @@ func _process(delta: float) -> void:
 				stack.add({"kind": "plank", "tree": output.pop_back()})
 				_rebuild_output()
 
-	_blade.rotation_degrees.y += delta * (720.0 if unlocked and not queue.is_empty() else 60.0)
+	_blade.rotate_object_local(Vector3.UP, delta * (12.0 if unlocked and not queue.is_empty() else 1.0))
 	_update_labels(unlocked)
 
 
@@ -105,6 +126,8 @@ func _accept_log(tree_id: String) -> void:
 		var price := GameData.log_price(tree_id)
 		GameState.add_money(price)
 		Fx.popup(self, input_position(), "+¥%d" % price, Color("#ffe14d"))
+		Fx.coin_pop(self, input_position())
+		Audio.play("sell", -6.0)
 
 
 func _process_line(delta: float) -> void:

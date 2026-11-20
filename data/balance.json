@@ -33,17 +33,17 @@
 		"harvester": {
 			"name": "伐採機",
 			"ranks": [
-				{ "name": "伐採機 Mk1", "cost": 600,   "speed": 5.5, "chop_power": 3,  "chop_interval": 0.35, "chop_range": 2.0, "fuel_max": 60,  "color": "#e8b030" },
-				{ "name": "伐採機 Mk2", "cost": 4000,  "speed": 6.5, "chop_power": 8,  "chop_interval": 0.30, "chop_range": 2.4, "fuel_max": 90,  "color": "#e07a30" },
-				{ "name": "伐採機 Mk3", "cost": 25000, "speed": 7.5, "chop_power": 20, "chop_interval": 0.25, "chop_range": 2.8, "fuel_max": 120, "color": "#d04040" }
+				{ "name": "伐採機 Mk1", "cost": 600,   "speed": 5.5, "chop_power": 3,  "chop_interval": 0.35, "chop_range": 2.0, "fuel_max": 60,  "color": "#e8b030", "model": "yellow" },
+				{ "name": "伐採機 Mk2", "cost": 4000,  "speed": 6.5, "chop_power": 8,  "chop_interval": 0.30, "chop_range": 2.4, "fuel_max": 90,  "color": "#e07a30", "model": "red" },
+				{ "name": "伐採機 Mk3", "cost": 25000, "speed": 7.5, "chop_power": 20, "chop_interval": 0.25, "chop_range": 2.8, "fuel_max": 120, "color": "#d04040", "model": "purple" }
 			]
 		},
 		"hauler": {
 			"name": "運搬車",
 			"ranks": [
-				{ "name": "運搬車 Mk1", "cost": 500,   "speed": 7.0, "capacity": 20, "pickup_radius": 2.5, "fuel_max": 60,  "color": "#4a90d0" },
-				{ "name": "運搬車 Mk2", "cost": 3500,  "speed": 8.0, "capacity": 40, "pickup_radius": 3.0, "fuel_max": 90,  "color": "#3a70c0" },
-				{ "name": "運搬車 Mk3", "cost": 20000, "speed": 9.0, "capacity": 80, "pickup_radius": 3.5, "fuel_max": 120, "color": "#6a50c0" }
+				{ "name": "運搬車 Mk1", "cost": 500,   "speed": 7.0, "capacity": 20, "pickup_radius": 2.5, "fuel_max": 60,  "color": "#4a90d0", "model": "green" },
+				{ "name": "運搬車 Mk2", "cost": 3500,  "speed": 8.0, "capacity": 40, "pickup_radius": 3.0, "fuel_max": 90,  "color": "#3a70c0", "model": "yellow" },
+				{ "name": "運搬車 Mk3", "cost": 20000, "speed": 9.0, "capacity": 80, "pickup_radius": 3.5, "fuel_max": 120, "color": "#6a50c0", "model": "purple" }
 			]
 		}
 	},
@@ -62,31 +62,39 @@
 		"pad_radius": 1.6
 	},
 
+	"camera": {
+		"_comment": "カメラ位置（プレイヤーからの高さ・手前への距離）と画角。乗車中は drive_zoom 倍だけ引く",
+		"height": 6.8,
+		"back": 4.6,
+		"fov": 50,
+		"drive_zoom": 1.35
+	},
+
 	"world": {
 		"seed": 20261119,
 		"width": 40,
 		"base_depth": 18,
-		"tree_min_spacing": 2.3
+		"tree_min_spacing": 1.5
 	},
 
 	"trees": [
-		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 6,  "scale": 0.8, "shape": "sphere", "leaf_color": "#9fd36f", "trunk_color": "#a77a4f" },
-		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 8,  "scale": 1.0, "shape": "cone",   "leaf_color": "#3f8f4f", "trunk_color": "#8a5a33" },
+		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 6,  "scale": 0.8, "shape": "sphere", "leaf_color": "#7cc05a", "trunk_color": "#a77a4f" },
+		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 8,  "scale": 1.0, "shape": "cone",   "leaf_color": "#2f8a4a", "trunk_color": "#8a5a33" },
 		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 10, "scale": 1.1, "shape": "sphere", "leaf_color": "#e0763a", "trunk_color": "#7a4a2a" },
 		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 12, "scale": 1.3, "shape": "sphere", "leaf_color": "#2f6b3a", "trunk_color": "#5e3d22" },
 		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 15, "scale": 1.5, "shape": "cone",   "leaf_color": "#4b3a6b", "trunk_color": "#2a1e17" }
 	],
 
 	"areas": [
-		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0,     "tree_count": 18, "ground_color": "#7fbf5a",
+		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0,     "tree_count": 80, "ground_color": "#76b052",
 		  "weights": { "sapling": 80, "pine": 17, "maple": 3 } },
-		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150,   "tree_count": 20, "ground_color": "#6fb052",
+		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150,   "tree_count": 88, "ground_color": "#68a64c",
 		  "weights": { "sapling": 20, "pine": 60, "maple": 17, "oak": 3 } },
-		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200,  "tree_count": 22, "ground_color": "#8fa84a",
+		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200,  "tree_count": 92, "ground_color": "#8fa84a",
 		  "weights": { "sapling": 5, "pine": 20, "maple": 55, "oak": 17, "ebony": 3 } },
-		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000,  "tree_count": 22, "ground_color": "#5a8f45",
+		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000,  "tree_count": 96, "ground_color": "#5a8f45",
 		  "weights": { "pine": 5, "maple": 20, "oak": 60, "ebony": 15 } },
-		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "tree_count": 24, "ground_color": "#4f6e46",
+		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "tree_count": 100, "ground_color": "#4f6e46",
 		  "weights": { "maple": 5, "oak": 25, "ebony": 70 } }
 	],
 
