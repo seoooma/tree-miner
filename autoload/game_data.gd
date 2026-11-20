@@ -9,6 +9,9 @@ var player: Dictionary = {}
 var lumberjack: Dictionary = {}
 var sawmill: Dictionary = {}
 var world: Dictionary = {}
+var drops: Dictionary = {}
+var fuel: Dictionary = {}
+var machines: Dictionary = {}
 var trees: Array = []
 var areas: Array = []
 var upgrades: Array = []
@@ -36,6 +39,9 @@ func load_balance() -> void:
 	lumberjack = data.get("lumberjack", {})
 	sawmill = data.get("sawmill", {})
 	world = data.get("world", {})
+	drops = data.get("drops", {})
+	fuel = data.get("fuel", {})
+	machines = data.get("machines", {})
 	trees = data.get("trees", [])
 	areas = data.get("areas", [])
 	upgrades = data.get("upgrades", [])
@@ -113,3 +119,22 @@ func format_upgrade_value(id: String, level: int) -> String:
 	var v := upgrade_value(id, level)
 	var text := ("%d" % roundi(v)) if decimals == 0 else (("%." + str(decimals) + "f") % v)
 	return text + str(d.get("unit", ""))
+
+
+# ---- 機械 ----
+
+## kind ("harvester" / "hauler") のランク数
+func machine_rank_count(kind: String) -> int:
+	return (machines.get(kind, {}).get("ranks", []) as Array).size()
+
+
+## rank は 1 始まり（0 = 未購入）
+func machine_rank(kind: String, rank: int) -> Dictionary:
+	var ranks: Array = machines.get(kind, {}).get("ranks", [])
+	if rank < 1 or rank > ranks.size():
+		return {}
+	return ranks[rank - 1]
+
+
+func machine_name(kind: String) -> String:
+	return str(machines.get(kind, {}).get("name", kind))

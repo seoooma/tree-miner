@@ -87,8 +87,8 @@ func _process(delta: float) -> void:
 
 	if unlocked:
 		_process_line(delta)
-		# 出口: プレイヤーが板を受け取る
-		for carrier in carriers_near(output_position(), _pad_radius(), true):
+		# 出口: プレイヤー・運搬車が板を受け取る
+		for carrier in carriers_near(output_position(), _pad_radius(), "plank_carriers"):
 			var stack: CarryStack = carrier.stack
 			if not output.is_empty() and not stack.is_full() and tick(carrier, "out", delta):
 				stack.add({"kind": "plank", "tree": output.pop_back()})

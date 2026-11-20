@@ -5,12 +5,14 @@ extends Node3D
 var _timers: Dictionary = {}
 
 
-## 指定位置から半径内にいる運搬者（プレイヤー・伐採員）を返す。
-func carriers_near(pos: Vector3, radius: float, player_only := false) -> Array[Node]:
+## 指定位置から半径内にいるグループのメンバーを返す。
+## group: "carriers"（丸太を運ぶ全員）/ "plank_carriers"（板も運べる: プレイヤー・運搬車）/ "player"
+## 大きな機械は meta "pad_reach" の分だけ遠くからでも乗っている扱いにする。
+func carriers_near(pos: Vector3, radius: float, group := "carriers") -> Array[Node]:
 	var result: Array[Node] = []
-	var group := "player" if player_only else "carriers"
 	for node in get_tree().get_nodes_in_group(group):
-		if Fx.xz_distance((node as Node3D).global_position, pos) <= radius:
+		var reach := float(node.get_meta("pad_reach", 0.0))
+		if Fx.xz_distance((node as Node3D).global_position, pos) <= radius + reach:
 			result.append(node)
 	return result
 
