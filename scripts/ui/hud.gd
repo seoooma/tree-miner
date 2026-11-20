@@ -12,6 +12,9 @@ var _board_button: Button
 var _fuel_chip: Control
 var _fuel_label: Label
 var _roles_box: HFlowContainer
+var _music_button: Button
+var _sfx_button: Button
+var _shown_money := 0
 var _rows: Dictionary = {}
 
 
@@ -48,9 +51,20 @@ func _ready() -> void:
 	second.offset_left = 24
 	second.offset_right = -24
 	second.offset_top = 100
-	second.alignment = BoxContainer.ALIGNMENT_END
 	second.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	second.add_theme_constant_override("separation", 10)
 	root.add_child(second)
+	_music_button = _small_button(second, "", func() -> void:
+		Audio.toggle_music()
+		_update_sound_buttons())
+	_sfx_button = _small_button(second, "", func() -> void:
+		Audio.toggle_sfx()
+		_update_sound_buttons())
+	_update_sound_buttons()
+	var spacer2 := Control.new()
+	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	second.add_child(spacer2)
 	_fuel_label = _chip_label(second, "")
 	_fuel_chip = _fuel_label.get_parent()
 	_fuel_chip.visible = false
@@ -63,6 +77,7 @@ func _ready() -> void:
 	_board_button.offset_right = 224
 	_board_button.offset_bottom = -24
 	_board_button.add_theme_font_size_override("font_size", 40)
+	_style_button(_board_button, Color("#f08a2c"))
 	_board_button.visible = false
 	_board_button.pressed.connect(_toggle_board)
 	root.add_child(_board_button)
@@ -76,7 +91,10 @@ func _ready() -> void:
 	upgrade_button.offset_right = -24
 	upgrade_button.offset_bottom = -24
 	upgrade_button.add_theme_font_size_override("font_size", 40)
-	upgrade_button.pressed.connect(func() -> void: _panel.visible = not _panel.visible)
+	_style_button(upgrade_button, Color("#3fa34d"))
+	upgrade_button.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		_panel.visible = not _panel.visible)
 	root.add_child(upgrade_button)
 	_upgrade_button = upgrade_button
 
@@ -133,22 +151,70 @@ func bind_player(p: Player) -> void:
 func _is_over_ui(pos: Vector2) -> bool:
 	if _upgrade_button.get_global_rect().has_point(pos):
 		return true
-	if _board_button.visible and _board_button.get_global_rect().has_point(pos):
-		return true
+	for b in [_board_button, _music_button, _sfx_button]:
+		if (b as Control).visible and (b as Control).get_global_rect().has_point(pos):
+			return true
 	return _panel.visible and _panel.get_global_rect().has_point(pos)
 
 
 func _make_theme() -> Theme:
 	var theme := Theme.new()
 	theme.default_font_size = 30
+	theme.set_stylebox("normal", "Button", _box(Color("#4a5a48")))
+	theme.set_stylebox("hover", "Button", _box(Color("#566a54")))
+	theme.set_stylebox("pressed", "Button", _box(Color("#3a4838"), true))
+	theme.set_stylebox("disabled", "Button", _box(Color(0.3, 0.32, 0.3, 0.7)))
+	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	theme.set_color("font_disabled_color", "Button", Color(1, 1, 1, 0.45))
+	theme.set_color("font_outline_color", "Label", Color(0.1, 0.07, 0.03, 0.6))
+	theme.set_constant("outline_size", "Label", 6)
 	return theme
+
+
+static func _box(color: Color, pressed := false) -> StyleBoxFlat:
+	var b := StyleBoxFlat.new()
+	b.bg_color = color
+	b.set_corner_radius_all(20)
+	b.border_width_bottom = 2 if pressed else 7
+	b.border_color = color.darkened(0.35)
+	b.content_margin_left = 16
+	b.content_margin_right = 16
+	b.content_margin_top = 8
+	b.content_margin_bottom = 8 if pressed else 12
+	b.shadow_color = Color(0, 0, 0, 0.25)
+	b.shadow_size = 4
+	b.shadow_offset = Vector2(0, 3)
+	return b
+
+
+func _style_button(b: Button, color: Color) -> void:
+	b.add_theme_stylebox_override("normal", _box(color))
+	b.add_theme_stylebox_override("hover", _box(color.lightened(0.08)))
+	b.add_theme_stylebox_override("pressed", _box(color.darkened(0.12), true))
+
+
+func _small_button(parent: Control, text: String, on_press: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(96, 64)
+	b.add_theme_font_size_override("font_size", 26)
+	b.pressed.connect(on_press)
+	parent.add_child(b)
+	return b
+
+
+func _update_sound_buttons() -> void:
+	_music_button.text = "♪ ON" if Audio.music_enabled else "♪ OFF"
+	_sfx_button.text = "SE ON" if Audio.sfx_enabled else "SE OFF"
+	_music_button.modulate = Color.WHITE if Audio.music_enabled else Color(1, 1, 1, 0.6)
+	_sfx_button.modulate = Color.WHITE if Audio.sfx_enabled else Color(1, 1, 1, 0.6)
 
 
 func _chip_label(parent: Control, text: String) -> Label:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0.45)
-	style.set_corner_radius_all(16)
+	style.bg_color = Color(0.12, 0.1, 0.06, 0.55)
+	style.set_corner_radius_all(18)
 	style.content_margin_left = 20
 	style.content_margin_right = 20
 	style.content_margin_top = 8
@@ -174,7 +240,9 @@ func _build_upgrade_panel(root: Control) -> void:
 	_panel.offset_right = -24
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.12, 0.1, 0.94)
+	style.bg_color = Color(0.13, 0.16, 0.12, 0.95)
+	style.border_width_top = 4
+	style.border_color = Color("#3fa34d")
 	style.set_corner_radius_all(24)
 	style.set_content_margin_all(24)
 	_panel.add_theme_stylebox_override("panel", style)
@@ -208,7 +276,12 @@ func _build_upgrade_panel(root: Control) -> void:
 		info.add_child(desc)
 		var button := Button.new()
 		button.custom_minimum_size = Vector2(180, 80)
-		button.pressed.connect(func() -> void: GameState.buy_upgrade(id))
+		_style_button(button, Color("#e0a92c"))
+		button.pressed.connect(func() -> void:
+			if GameState.buy_upgrade(id):
+				Audio.play("buy", -2.0)
+				if player:
+					Fx.burst(player, player.global_position + Vector3(0, 1.2, 0), [Color("#ffd84a"), Color("#8fe07a"), Color("#6bc4ff")], 24, 5.0, 0.09, 1.0))
 		row.add_child(button)
 		_rows[id] = {"name": name_label, "button": button}
 
@@ -224,11 +297,20 @@ func _build_upgrade_panel(root: Control) -> void:
 	var close := Button.new()
 	close.text = "閉じる"
 	close.custom_minimum_size = Vector2(0, 80)
-	close.pressed.connect(func() -> void: _panel.visible = false)
+	close.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		_panel.visible = false)
 	vbox.add_child(close)
 
 
 func _refresh() -> void:
+	if GameState.money > _shown_money and _money_label.is_inside_tree():
+		var chip := _money_label.get_parent() as Control
+		chip.pivot_offset = chip.size * 0.5
+		var tw := chip.create_tween()
+		tw.tween_property(chip, "scale", Vector2.ONE * 1.12, 0.06)
+		tw.tween_property(chip, "scale", Vector2.ONE, 0.12)
+	_shown_money = GameState.money
 	_money_label.text = "¥%d" % GameState.money
 	for id in _rows:
 		var row: Dictionary = _rows[id]
@@ -264,5 +346,6 @@ func _rebuild_roles() -> void:
 		button.modulate = Color("#9fe0a8") if role == "chop" else Color("#9fc4ff")
 		var idx := i
 		button.pressed.connect(func() -> void:
+			Audio.play("ui", -4.0)
 			GameState.set_lumberjack_role(idx, "haul" if GameState.lumberjack_role(idx) == "chop" else "chop"))
 		_roles_box.add_child(button)

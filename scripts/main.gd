@@ -7,9 +7,6 @@ extends Node3D
 ##   z = -20 .. -40: エリア1（柵の手前のパッドで支払うと開放）... 以降も同様
 ## 拠点に近いエリアほど柔らかい木が多く、遠いほど硬い木が多い（重みは JSON で設定）。
 
-const CAMERA_OFFSET := Vector3(0, 15, 11)
-const CAMERA_FOLLOW_SPEED := 6.0
-
 const SAWMILL_POS := Vector3(-5, 0, 9)
 const DOCK_POS := Vector3(5.5, 0, 9)
 const PLAYER_SPAWN := Vector3(1, 0, 4)
@@ -19,7 +16,7 @@ const SHOP_POS := {"harvester": Vector3(-12, 0, 6), "hauler": Vector3(12, 0, 6)}
 const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 11), "hauler": Vector3(12, 0, 11)}
 
 var player: Player
-var camera: Camera3D
+var camera: FollowCamera
 var sawmill: Sawmill
 var hud: Hud
 var lumberjacks: Array[Lumberjack] = []
@@ -32,6 +29,7 @@ func _ready() -> void:
 	_compute_area_ranges()
 	_build_environment()
 	_build_ground()
+	Decor.build(self, _area_ranges, _width(), float(GameData.world.get("base_depth", 18)), int(GameData.world.get("seed", 1)))
 	_build_bounds()
 	_build_facilities()
 	_build_gates()
@@ -54,11 +52,6 @@ func _ready() -> void:
 		if GameState.machine_rank(kind) > 0:
 			_spawn_machine(kind)
 	GameState.machine_changed.connect(_on_machine_changed)
-
-
-func _process(delta: float) -> void:
-	var target := player.global_position + CAMERA_OFFSET
-	camera.global_position = camera.global_position.lerp(target, minf(1.0, delta * CAMERA_FOLLOW_SPEED))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -90,37 +83,45 @@ func _build_environment() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#6fb3e8")
-	sky_mat.sky_horizon_color = Color("#cfe8f5")
-	sky_mat.ground_horizon_color = Color("#cfe8f5")
+	sky_mat.sky_top_color = Color("#5aa7e6")
+	sky_mat.sky_horizon_color = Color("#d6ecf7")
+	sky_mat.ground_horizon_color = Color("#9cc47a")
+	sky_mat.ground_bottom_color = Color("#5f9443")
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#b8c8d8")
-	env.ambient_light_energy = 0.45
+	env.ambient_light_color = Color("#c9d6e8")
+	env.ambient_light_energy = 0.48
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.tonemap_exposure = 0.92
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -30, 0)
-	sun.light_energy = 0.85
+	sun.rotation_degrees = Vector3(-52, -35, 0)
+	sun.light_color = Color("#fff3dc")
+	sun.light_energy = 0.92
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 60.0
+	sun.shadow_opacity = 0.75
+	sun.shadow_blur = 1.5
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 28.0
 	add_child(sun)
 
 
 func _build_ground() -> void:
 	var width := _width()
 	var base_depth := float(GameData.world.get("base_depth", 18))
-	_add_ground_tile(width, base_depth, base_depth * 0.5, Color("#c9b07a"))
+	_add_ground_tile(width, base_depth, base_depth * 0.5, Color("#c9a66c"))
 	for i in GameData.areas.size():
 		var r := _area_ranges[i]
 		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, Color(GameData.areas[i].get("ground_color", "#7fbf5a")))
 
 
 func _add_ground_tile(width: float, depth: float, center_z: float, color: Color) -> void:
+	color = color.darkened(0.08)
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(width, depth)
 	mesh.material = Fx.material(color)
@@ -201,7 +202,7 @@ func _spawn_trees() -> void:
 			if not _is_free_spot(pos, placed, spacing):
 				continue
 			var tree := ChoppableTree.new()
-			tree.setup(GameData.tree_def(GameData.pick_tree_for_area(i, rng)), i)
+			tree.setup(GameData.tree_def(GameData.pick_tree_for_area(i, rng)), i, rng.randi() % ChoppableTree.VARIANTS)
 			tree.position = pos
 			tree.rotation.y = rng.randf() * TAU
 			add_child(tree)
@@ -210,6 +211,9 @@ func _spawn_trees() -> void:
 
 
 func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool:
+	# 中央の道は空けておく（機械が走りやすいように）
+	if absf(pos.x) < 1.8:
+		return false
 	for p in placed:
 		if Fx.xz_distance(p, pos) < spacing:
 			return false
@@ -227,12 +231,10 @@ func _spawn_player() -> void:
 
 
 func _build_camera() -> void:
-	camera = Camera3D.new()
-	camera.fov = 50.0
-	camera.keep_aspect = Camera3D.KEEP_WIDTH
+	camera = FollowCamera.new()
+	camera.target = player
 	add_child(camera)
-	camera.look_at_from_position(player.global_position + CAMERA_OFFSET, player.global_position)
-	camera.current = true
+	camera.snap()
 
 
 func _sync_lumberjacks() -> void:

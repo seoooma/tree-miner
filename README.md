@@ -61,6 +61,15 @@
 | 製材ライン | Lv1で開放、以降は加工速度アップ |
 | 伐採員 | NPC を雇う。役割（伐採／運搬）を切り替えられる |
 
+## 見た目と音
+
+- カメラはプレイヤーを斜め上から近めに追う。乗車中は少し引き、木が倒れると軽く揺れる。距離と画角は `data/balance.json` の `camera` で調整できる
+- 人物とトラックは Kenney の CC0 モデル。木・施設・小物はコードでローポリのモデルを組み立てている（`scripts/world/props.gd`, `decor.gd`）
+- 伐採の木くず、倒木の葉と土ぼこり、売却時のコイン、購入・開放時の紙吹雪などのエフェクト付き
+- BGM と効果音あり。画面左上の「♪」「SE」ボタンでそれぞれオン／オフできる（設定は保存される）
+- BGM と伐採音は `tools/make_bgm.py` で生成している（`python3 tools/make_bgm.py`。numpy と ffmpeg が必要）
+- 使っている素材の出典とライセンスは [CREDITS.md](CREDITS.md) を参照
+
 ## 実行方法
 
 1. [Godot 4.3 以降](https://godotengine.org/download)（標準版）をインストール

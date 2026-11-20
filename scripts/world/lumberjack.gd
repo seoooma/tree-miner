@@ -17,7 +17,8 @@ var _target_tree: ChoppableTree
 var _target_drop: LogDrop
 var _chop_timer := 0.0
 var _visual: Node3D
-var _hat: MeshInstance3D
+var _rig: CharacterRig
+var _moved := false
 var _role_label: Label3D
 
 
@@ -25,13 +26,13 @@ func _ready() -> void:
 	add_to_group("carriers")
 	_visual = Node3D.new()
 	add_child(_visual)
-	_visual.add_child(Fx.cylinder(0.28, 0.9, Color("#c0503a"), Vector3(0, 0.55, 0), 0.24))
-	_visual.add_child(Fx.sphere(0.22, Color("#f2c9a0"), Vector3(0, 1.22, 0)))
+	_rig = CharacterRig.new(0.95)
+	_visual.add_child(_rig)
 	stack = CarryStack.new()
 	stack.capacity_source = func() -> int: return int(GameData.lumberjack.get("capacity", 4))
-	stack.position = Vector3(0, 0.65, -0.36)
+	stack.position = Vector3(0, 0.45, -0.34)
 	_visual.add_child(stack)
-	_role_label = Fx.label3d("", Vector3(0, 2.0, 0), 32)
+	_role_label = Fx.label3d("", Vector3(0, 1.6, 0), 30)
 	add_child(_role_label)
 	set_role(role)
 
@@ -40,20 +41,18 @@ func set_role(new_role: String) -> void:
 	_release_targets()
 	role = new_role
 	state = State.IDLE
-	if _hat:
-		_hat.queue_free()
 	# 帽子の色で役割を見分ける（緑 = 伐採、青 = 運搬）
-	var hat_color := Color("#3a8a4a") if role == "chop" else Color("#3a6fd0")
-	_hat = Fx.cylinder(0.26, 0.1, hat_color, Vector3(0, 1.4, 0), 0.18)
-	_visual.add_child(_hat)
+	_rig.set_hat(Color("#3fa34d") if role == "chop" else Color("#3a6fd0"))
 	_role_label.text = "伐採" if role == "chop" else "運搬"
 
 
 func _process(delta: float) -> void:
+	_moved = false
 	if role == "chop":
 		_process_chop(delta)
 	else:
 		_process_haul(delta)
+	_rig.set_moving(_moved, 0.7)
 
 
 # ---- 伐採役 ----
@@ -86,7 +85,8 @@ func _process_chop(delta: float) -> void:
 			_chop_timer -= delta
 			if _chop_timer <= 0.0:
 				_chop_timer = float(GameData.lumberjack.get("chop_interval", 0.6))
-				if _target_tree.hit(float(GameData.lumberjack.get("axe_power", 1.0))):
+				_rig.swing()
+				if _target_tree.hit(float(GameData.lumberjack.get("axe_power", 1.0)), global_position):
 					_release_targets()
 					state = State.IDLE
 
@@ -179,5 +179,6 @@ func _move_to(target: Vector3, arrive_dist: float, delta: float) -> bool:
 		return true
 	var step := minf(dist, float(GameData.lumberjack.get("move_speed", 3.2)) * delta)
 	global_position += to / dist * step
+	_moved = true
 	_visual.rotation.y = lerp_angle(_visual.rotation.y, atan2(to.x, to.z), minf(1.0, delta * 10.0))
 	return false

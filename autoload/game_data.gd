@@ -9,6 +9,7 @@ var player: Dictionary = {}
 var lumberjack: Dictionary = {}
 var sawmill: Dictionary = {}
 var world: Dictionary = {}
+var camera: Dictionary = {}
 var drops: Dictionary = {}
 var fuel: Dictionary = {}
 var machines: Dictionary = {}
@@ -39,6 +40,7 @@ func load_balance() -> void:
 	lumberjack = data.get("lumberjack", {})
 	sawmill = data.get("sawmill", {})
 	world = data.get("world", {})
+	camera = data.get("camera", {})
 	drops = data.get("drops", {})
 	fuel = data.get("fuel", {})
 	machines = data.get("machines", {})

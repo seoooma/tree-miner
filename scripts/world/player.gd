@@ -14,7 +14,7 @@ var vehicle: Machine = null
 
 var _chop_timer := 0.0
 var _visual: Node3D
-var _axe_pivot: Node3D
+var _rig: CharacterRig
 
 
 func _ready() -> void:
@@ -38,7 +38,7 @@ func _ready() -> void:
 
 	stack = CarryStack.new()
 	stack.capacity_source = func() -> int: return roundi(GameState.value("capacity"))
-	stack.position = Vector3(0, 0.75, -0.42)
+	stack.position = Vector3(0, 0.55, -0.4)
 	_visual.add_child(stack)
 	stack.changed.connect(_emit_carry)
 	GameState.upgrade_changed.connect(func(_id: String, _level: int) -> void: _emit_carry())
@@ -46,17 +46,9 @@ func _ready() -> void:
 
 
 func _build_body() -> void:
-	# モデルは +Z 方向を正面とする
-	var body := Fx.cylinder(0.33, 1.0, Color("#3a6fb0"), Vector3(0, 0.6, 0), 0.28)
-	_visual.add_child(body)
-	_visual.add_child(Fx.sphere(0.26, Color("#f2c9a0"), Vector3(0, 1.35, 0)))
-	_visual.add_child(Fx.cylinder(0.3, 0.12, Color("#e8b030"), Vector3(0, 1.55, 0), 0.22))
-	_visual.add_child(Fx.box(Vector3(0.12, 0.1, 0.08), Color("#222222"), Vector3(0, 1.38, 0.24)))
-	_axe_pivot = Node3D.new()
-	_axe_pivot.position = Vector3(0.42, 0.85, 0.1)
-	_visual.add_child(_axe_pivot)
-	_axe_pivot.add_child(Fx.box(Vector3(0.07, 0.07, 0.75), Color("#7a5230"), Vector3(0, 0, 0.3)))
-	_axe_pivot.add_child(Fx.box(Vector3(0.05, 0.3, 0.2), Color("#c8ccd0"), Vector3(0, 0.08, 0.62)))
+	_rig = CharacterRig.new(1.15)
+	_rig.set_hat(Color("#f2b632"))
+	_visual.add_child(_rig)
 
 
 ## スティック＋キーボードの移動入力（-1..1）。乗車中は機械がこれを読む。
@@ -69,14 +61,22 @@ func _physics_process(delta: float) -> void:
 	if vehicle:
 		global_position = vehicle.seat_position()
 		_visual.rotation.y = vehicle.rotation.y
+		_rig.set_moving(false)
+		Audio.set_loop("walk", false)
+		var driving := vehicle.velocity.length() > 0.1
+		Audio.set_loop("engine", vehicle.fuel > 0.0, -6.0 if driving else -13.0, 1.15 if driving else 0.8)
 		return
+	Audio.set_loop("engine", false)
 	var input := move_input()
 	var dir := Vector3(input.x, 0.0, input.y)
 	velocity = dir * GameState.value("move_speed")
 	move_and_slide()
 	position.y = 0.0
+	var moving := dir.length() > 0.05 and get_real_velocity().length() > 0.3
 	if dir.length() > 0.05:
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 12.0))
+	_rig.set_moving(moving, GameState.value("move_speed") / 5.0)
+	Audio.set_loop("walk", moving, -12.0, GameState.value("move_speed") / 5.0)
 	_update_chop(delta)
 	LogDrop.collect_near(self, stack, float(GameData.player.get("pickup_radius", 1.8)))
 
@@ -105,7 +105,7 @@ func _update_chop(delta: float) -> void:
 		return
 	_chop_timer = float(GameData.player.get("chop_interval", 0.45))
 	_swing()
-	tree.hit(GameState.value("axe_power"))
+	tree.hit(GameState.value("axe_power"), global_position)
 
 
 func _find_tree() -> ChoppableTree:
@@ -124,10 +124,7 @@ func _find_tree() -> ChoppableTree:
 
 
 func _swing() -> void:
-	var tween := create_tween()
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", -70.0, 0.08)
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", 40.0, 0.08)
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", 0.0, 0.12)
+	_rig.swing()
 
 
 # ---- 機械 ----
@@ -152,6 +149,8 @@ func board(machine: Machine) -> void:
 		return
 	vehicle = machine
 	machine.driver = self
+	_visual.visible = false
+	Audio.play("board", -6.0)
 	velocity = Vector3.ZERO
 	collision_layer = 0
 	collision_mask = 0
@@ -165,6 +164,8 @@ func exit_vehicle() -> void:
 	var machine := vehicle
 	vehicle = null
 	machine.driver = null
+	_visual.visible = true
+	Audio.play("board", -8.0, 1.2)
 	global_position = machine.exit_position()
 	collision_layer = 2
 	collision_mask = 1

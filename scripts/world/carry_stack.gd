@@ -72,7 +72,7 @@ func _rebuild() -> void:
 	changed.emit()
 
 
-func _make_visual(item: Dictionary, index: int) -> MeshInstance3D:
+func _make_visual(item: Dictionary, index: int) -> Node3D:
 	var per_layer := columns * rows
 	var layer := floori(index / float(per_layer))
 	var cell := index % per_layer
@@ -88,6 +88,7 @@ func _make_visual(item: Dictionary, index: int) -> MeshInstance3D:
 	if item["kind"] == "plank":
 		var plank_color := Color(def.get("trunk_color", "#a77a4f")).lightened(0.45)
 		return Fx.box(Vector3(0.62, ITEM_HEIGHT * 0.8, 0.3), plank_color, pos)
-	var log_mesh := Fx.cylinder(0.09, 0.6, Color(def.get("trunk_color", "#8a5a33")), pos)
-	log_mesh.rotation_degrees.z = 90.0
+	var log_mesh := LogDrop.make_log_mesh(item.get("tree", ""))
+	log_mesh.position = pos
+	log_mesh.scale = Vector3.ONE * 0.85
 	return log_mesh

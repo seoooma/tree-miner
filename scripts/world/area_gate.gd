@@ -24,12 +24,15 @@ func _ready() -> void:
 	shape.position.y = 1.0
 	fence.add_child(shape)
 	add_child(fence)
-	fence.add_child(Fx.box(Vector3(width, 0.15, 0.12), Color("#d9b27c"), Vector3(0, 0.55, 0)))
-	fence.add_child(Fx.box(Vector3(width, 0.15, 0.12), Color("#d9b27c"), Vector3(0, 1.05, 0)))
+	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#d9b27c"), Vector3(0, 0.5, 0)))
+	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#d9b27c"), Vector3(0, 0.95, 0)))
 	var x := -width * 0.5
 	while x <= width * 0.5 + 0.01:
-		fence.add_child(Fx.box(Vector3(0.18, 1.3, 0.18), Color("#9c7348"), Vector3(x, 0.65, 0)))
-		x += 2.0
+		fence.add_child(Fx.cylinder(0.09, 1.25, Color("#9c7348"), Vector3(x, 0.62, 0), 0.07, 6, true))
+		x += 1.6
+	# 鎖と南京錠（開放待ちの目印）
+	fence.add_child(Fx.box(Vector3(0.3, 0.36, 0.14), Color("#e0b030"), Vector3(0, 0.72, 0.1)))
+	fence.add_child(Fx.cylinder(0.1, 0.06, Color("#8c939a"), Vector3(0, 0.95, 0.1), -1.0, 10))
 
 	_pad_root = Node3D.new()
 	_pad_root.position = PAD_OFFSET
@@ -68,5 +71,7 @@ func _process(delta: float) -> void:
 		if GameState.money > 0 and tick(carrier, "pay", delta, 0.03):
 			GameState.pay_toward_area(area_index, chunk)
 			if is_queued_for_deletion():
+				Audio.play("unlock", 0.0)
+				Fx.burst(get_parent(), global_position + Vector3(0, 1.0, 0), [Color("#ffd84a"), Color("#ff6b6b"), Color("#6bc4ff"), Color("#8fe07a")], 48, 7.0, 0.12, 1.4)
 				return
 			_update_label()

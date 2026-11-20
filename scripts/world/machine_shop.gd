@@ -17,7 +17,10 @@ func _ready() -> void:
 	_pad_root = Node3D.new()
 	add_child(_pad_root)
 	_pad_root.add_child(Fx.pad(PAD_RADIUS, Color("#b07ae0")))
-	_label = Fx.label3d("", Vector3(0, 1.6, 0), 44)
+	var sign := Props.signboard(GameData.machine_name(kind) + "ショップ", Color("#6a4fa0"))
+	sign.position = Vector3(0, 0, -1.9)
+	add_child(sign)
+	_label = Fx.label3d("", Vector3(0, 1.4, 0), 44)
 	add_child(_label)
 	GameState.machine_changed.connect(func(_k: String, _r: int) -> void: _update_label())
 	_update_label()
@@ -50,4 +53,6 @@ func _process(delta: float) -> void:
 			GameState.pay_toward_machine(kind, chunk)
 			if GameState.machine_rank(kind) != rank_before:
 				_wait_leave = true
+				Audio.play("buy", 0.0)
+				Fx.burst(self, global_position + Vector3(0, 1.0, 0), [Color("#ffd84a"), Color("#ff6b6b"), Color("#6bc4ff"), Color("#8fe07a")], 32, 6.0, 0.1, 1.2)
 			_update_label()

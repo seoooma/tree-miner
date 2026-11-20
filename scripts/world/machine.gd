@@ -21,6 +21,7 @@ var _fuel_label: Label3D
 var _saw: Node3D
 var _chop_timer := 0.0
 var _refuel_timer := 0.0
+var _wheels: Array[Node] = []
 
 
 func _ready() -> void:
@@ -36,7 +37,7 @@ func _ready() -> void:
 
 	_visual = Node3D.new()
 	add_child(_visual)
-	_fuel_label = Fx.label3d("", Vector3(0, 2.8, 0), 40)
+	_fuel_label = Fx.label3d("", Vector3(0, 2.4, 0), 36)
 	add_child(_fuel_label)
 
 	if kind == "hauler":
@@ -45,11 +46,11 @@ func _ready() -> void:
 		set_meta("pad_reach", 1.4)
 		stack = CarryStack.new()
 		stack.capacity_source = func() -> int: return int(spec().get("capacity", 20))
-		stack.columns = 3
-		stack.rows = 2
-		stack.item_spacing = Vector2(0.36, 0.7)
-		stack.max_visible = 60
-		stack.position = Vector3(0, 0.75, -0.35)
+		stack.columns = 2
+		stack.rows = 3
+		stack.item_spacing = Vector2(0.3, 0.32)
+		stack.max_visible = 36
+		stack.position = Vector3(0, 0.95, -0.65)
 		stack.rotation_degrees.y = 90.0
 		add_child(stack)
 	_build_visual()
@@ -84,31 +85,38 @@ func exit_position() -> Vector3:
 	return p
 
 
+## トラックモデルの向き補正（モデルの正面を +Z に合わせる）
+const MODEL_YAW := 0.0
+
+
 func _build_visual() -> void:
 	for child in _visual.get_children():
 		child.queue_free()
+	_wheels.clear()
 	var color := Color(spec().get("color", "#e8b030"))
-	# 履帯／タイヤ
-	_visual.add_child(Fx.box(Vector3(0.35, 0.45, 2.3), Color("#2b2b2b"), Vector3(-0.7, 0.22, 0)))
-	_visual.add_child(Fx.box(Vector3(0.35, 0.45, 2.3), Color("#2b2b2b"), Vector3(0.7, 0.22, 0)))
-	_visual.add_child(Fx.box(Vector3(1.2, 0.35, 2.2), color.darkened(0.2), Vector3(0, 0.55, 0)))
+	var truck := Fx.model("res://assets/kenney/racing/vehicle-truck-%s.glb" % spec().get("model", "yellow"))
+	truck.rotation.y = MODEL_YAW
+	truck.scale = Vector3.ONE * 0.95
+	_visual.add_child(truck)
+	for n in truck.find_children("wheel-*", "", true, false):
+		_wheels.append(n)
 	if kind == "harvester":
-		_visual.add_child(Fx.box(Vector3(1.0, 0.8, 0.9), color, Vector3(0, 1.05, -0.4)))
-		_visual.add_child(Fx.box(Vector3(0.9, 0.5, 0.7), Color("#9fd0e8"), Vector3(0, 1.5, -0.4)))
-		_visual.add_child(Fx.box(Vector3(0.2, 0.2, 1.2), color.darkened(0.3), Vector3(0.3, 0.9, 1.0)))
+		# 前方に伸びるアームと回転ノコギリ
+		_visual.add_child(Fx.box(Vector3(0.18, 0.18, 1.1), color.darkened(0.35), Vector3(0.0, 0.85, 1.55)))
+		_visual.add_child(Fx.box(Vector3(1.3, 0.12, 0.18), Color("#555b61"), Vector3(0.0, 0.62, 2.05)))
 		_saw = Node3D.new()
-		_saw.position = Vector3(0.3, 0.7, 1.65)
+		_saw.position = Vector3(0.0, 0.62, 2.15)
 		_visual.add_child(_saw)
-		var blade := Fx.cylinder(0.45, 0.06, Color("#d0d4d8"))
-		blade.rotation_degrees.z = 90.0
-		_saw.add_child(blade)
-	else:
-		_visual.add_child(Fx.box(Vector3(1.2, 0.9, 0.7), color, Vector3(0, 1.1, 0.75)))
-		_visual.add_child(Fx.box(Vector3(1.0, 0.4, 0.5), Color("#9fd0e8"), Vector3(0, 1.4, 0.85)))
-		_visual.add_child(Fx.box(Vector3(1.3, 0.1, 1.5), color.darkened(0.35), Vector3(0, 0.75, -0.35)))
-	# ランク表示の帯
+		for x in [-0.42, 0.42]:
+			var blade := Fx.cylinder(0.32, 0.05, Color("#d6dadf"), Vector3(x, 0, 0), -1.0, 14)
+			blade.rotation_degrees.z = 90.0
+			_saw.add_child(blade)
+			var hub := Fx.cylinder(0.08, 0.07, Color("#3a3f44"), Vector3(x, 0, 0), -1.0, 8)
+			hub.rotation_degrees.z = 90.0
+			_saw.add_child(hub)
+	# ランク表示（屋根の上の星）
 	for i in rank:
-		_visual.add_child(Fx.box(Vector3(0.12, 0.06, 0.3), Color.WHITE, Vector3(-0.5 + i * 0.2, 0.74, 1.05 if kind == "harvester" else 0.3)))
+		_visual.add_child(Fx.sphere(0.09, Color("#ffd84a"), Vector3(-0.25 + i * 0.25, 1.62, -0.1), 6, 3, true))
 
 
 func _physics_process(delta: float) -> void:
@@ -136,6 +144,9 @@ func _physics_process(delta: float) -> void:
 		fuel = maxf(0.0, fuel - delta)
 	if _saw:
 		_saw.rotation_degrees.x += delta * (900.0 if driver and has_fuel else 0.0)
+	var spin := velocity.length() * delta / 0.3
+	for w in _wheels:
+		(w as Node3D).rotate_object_local(Vector3.RIGHT, spin)
 
 	_refuel_from_player(delta)
 	_update_label()
@@ -150,7 +161,7 @@ func _update_harvest(delta: float) -> bool:
 	_chop_timer -= delta
 	if _chop_timer <= 0.0:
 		_chop_timer = float(spec().get("chop_interval", 0.35))
-		tree.hit(float(spec().get("chop_power", 3)))
+		tree.hit(float(spec().get("chop_power", 3)), global_position)
 	return true
 
 
@@ -187,6 +198,7 @@ func _refuel_from_player(delta: float) -> void:
 		fuel = minf(fuel_max(), fuel + per_can)
 		_refuel_timer = 0.2
 		Fx.popup(self, global_position, "燃料 +%d" % roundi(per_can), Color("#ff9a7a"))
+		Audio.play("fuel", -4.0, 0.8)
 
 
 func _update_label() -> void:
