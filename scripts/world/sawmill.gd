@@ -242,7 +242,12 @@ func accept_log(tree_id: String) -> void:
 
 func _accept_log(tree_id: String) -> void:
 	if is_line_unlocked():
-		queue.append(tree_id)
+		# 山は上から使う（queue の最後が製材台で加工中の1本）。加工中の1本はそのままにして、
+		# 新しく来た丸太はその手前＝山のいちばん上に積む
+		if queue.is_empty():
+			queue.append(tree_id)
+		else:
+			queue.insert(queue.size() - 1, tree_id)
 		_rebuild_input()
 	else:
 		var price := GameData.log_price(tree_id)
@@ -260,7 +265,7 @@ func _process_line(delta: float) -> void:
 	var changed := false
 	while _progress >= 1.0 and not queue.is_empty():
 		_progress -= 1.0
-		output.append(queue.pop_front())
+		output.append(queue.pop_back())
 		changed = true
 	if changed:
 		_rebuild_output()
@@ -276,7 +281,7 @@ func _update_work(cutting: bool) -> void:
 		_work_log.visible = false
 		_work_plank.visible = false
 		return
-	var tree_id: String = queue[0]
+	var tree_id: String = queue.back()
 	if tree_id != _work_tree:
 		_work_tree = tree_id
 		for child in _work_log.get_children():
@@ -298,18 +303,17 @@ func _rebuild_output() -> void:
 	_output_pile.show_items(output)
 
 
-## 丸太置き場の加工待ちの丸太の山。製材台の上で加工中の1本（queue の先頭）は山から除くので、
+## 丸太置き場の加工待ちの丸太の山。製材台の上で加工中の1本（queue の最後＝山のいちばん上から取った1本）は山から除くので、
 ## 山と製材台の丸太を合わせた数が queue と同じになる
 func _rebuild_input() -> void:
 	var waiting := queue
 	if is_line_unlocked() and not queue.is_empty():
-		waiting = queue.slice(1)
+		waiting = queue.slice(0, queue.size() - 1)
 	_input_pile.show_items(waiting)
 
 
 static func _pile_log(tree_id: String) -> MeshInstance3D:
 	var log_mesh := LogDrop.make_log_mesh(tree_id, 90.0) as MeshInstance3D
-	log_mesh.scale = Vector3(1.5, 1.0, 1.0)
 	return log_mesh
 
 
@@ -322,7 +326,7 @@ static func _plank_mesh(tree_id: String) -> MeshInstance3D:
 	box.size = Vector3(0.8, 0.16, 0.3)
 	var cap := BoxMesh.new()
 	cap.size = Vector3(0.05, 0.162, 0.302)
-	var mesh := Fx.merged("plank/" + tree_id, [
+	var mesh := Fx.merged_flat("plank/" + tree_id, [
 		[box, Transform3D.IDENTITY, body],
 		[cap, Transform3D(Basis.IDENTITY, Vector3(0.425, 0, 0)), grade],
 		[cap, Transform3D(Basis.IDENTITY, Vector3(-0.425, 0, 0)), grade],

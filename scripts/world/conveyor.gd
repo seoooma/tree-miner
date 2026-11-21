@@ -128,30 +128,29 @@ static func build_visual(root: Node3D, p: Array[Vector3], stripes: Array[MeshIns
 		var b := p[k]
 		var seg := a.distance_to(b)
 		total += seg
-		var mid := (a + b) * 0.5
-		var seg_len := seg + 0.8
-		var along_x := absf(b.x - a.x) > absf(b.z - a.z)
-		var belt_size := Vector3(seg_len, 0.05, 0.62) if along_x else Vector3(0.62, 0.05, seg_len)
-		var frame_size := Vector3(seg_len, 0.1, 0.74) if along_x else Vector3(0.74, 0.1, seg_len)
-		root.add_child(Fx.box(frame_size, Color("#8c939a"), mid + Vector3(0, 0.25, 0), "metal"))
-		root.add_child(Fx.box(belt_size, Color("#3d4247"), mid + Vector3(0, 0.31, 0), "metal"))
-		# 脚
 		var dir := (b - a).normalized()
+		# 区間ごとに、ベルトの向き（ローカルの +Z）を区間の向きに回したノードに作る（斜めの区間にも対応）
+		var part := Node3D.new()
+		part.position = (a + b) * 0.5
+		part.rotation.y = atan2(dir.x, dir.z)
+		root.add_child(part)
+		var seg_len := seg + 0.8
+		part.add_child(Fx.box(Vector3(0.74, 0.1, seg_len), Color("#8c939a"), Vector3(0, 0.25, 0), "metal"))
+		part.add_child(Fx.box(Vector3(0.62, 0.05, seg_len), Color("#3d4247"), Vector3(0, 0.31, 0), "metal"))
+		# 脚
 		var steps := maxi(1, floori(seg_len / 1.6))
 		for j in steps + 1:
-			var q := (a - dir * 0.3).lerp(b + dir * 0.3, j / float(steps))
+			var z := lerpf(-seg * 0.5 - 0.3, seg * 0.5 + 0.3, j / float(steps))
 			for side in [-0.38, 0.38]:
-				var off := Vector3(0, 0, side * 0.8) if along_x else Vector3(side * 0.8, 0, 0)
-				root.add_child(Fx.box(Vector3(0.07, 0.22, 0.07), Color("#5b6168"), q + off + Vector3(0, 0.11, 0), "metal"))
+				part.add_child(Fx.box(Vector3(0.07, 0.22, 0.07), Color("#5b6168"), Vector3(side * 0.8, 0.11, z), "metal"))
 		# ベルトの継ぎ目（動いていることが分かるように流す）
-		var stripe_size := Vector3(0.05, 0.012, 0.6) if along_x else Vector3(0.6, 0.012, 0.05)
 		var n := maxi(1, floori(seg / 0.5))
 		for j in n:
-			var s := Fx.box(stripe_size, Color("#5b6168"), a + dir * (j * 0.5) + Vector3(0, 0.34, 0), "metal")
-			s.set_meta("base", a + Vector3(0, 0.34, 0))
-			s.set_meta("dir", dir)
+			var s := Fx.box(Vector3(0.6, 0.012, 0.05), Color("#5b6168"), Vector3(0, 0.34, -seg * 0.5 + j * 0.5), "metal")
+			s.set_meta("base", Vector3(0, 0.34, -seg * 0.5))
+			s.set_meta("dir", Vector3(0, 0, 1))
 			s.set_meta("seg", seg)
 			s.set_meta("off", j * 0.5)
-			root.add_child(s)
+			part.add_child(s)
 			stripes.append(s)
 	return total

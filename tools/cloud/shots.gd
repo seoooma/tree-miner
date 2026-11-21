@@ -246,3 +246,13 @@ func _shot_yard() -> void:
 	line._rebuild_yard()
 	_place(line.yard_pad_position() + Vector3(1.5, 0, 1.5))
 	await _wait(0.5)
+
+
+## 製材所から出荷場への板のコンベア（名前を指定したときだけ撮る: belt）
+func _shot_belt() -> void:
+	GameState.buy_upgrade("plank_belt")
+	for i in 12:
+		main.sawmill.output.append("pine")
+	main.sawmill._rebuild_output()
+	_place(Vector3(1.0, 0, 8.0))
+	await _wait(2.0)

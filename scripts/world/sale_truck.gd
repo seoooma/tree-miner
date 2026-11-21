@@ -127,7 +127,6 @@ func _cargo_mesh(index: int) -> Node3D:
 	var node: Node3D
 	if item["kind"] == "log":
 		node = LogDrop.make_log_mesh(item["tree"], 0.0)
-		node.scale = Vector3(1.3, 1.2, 1.2)
 	else:
 		node = Sawmill._plank_mesh(item["tree"])
 	node.position = _slot(index)
