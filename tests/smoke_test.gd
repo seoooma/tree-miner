@@ -239,24 +239,36 @@ func _run() -> void:
 	GameState.buy_upgrade("lumberjack_capacity")
 	_check(main.lumberjacks[0].stack.capacity() > cap0, "伐採員の積載量を強化できる (%d → %d)" % [cap0, main.lumberjacks[0].stack.capacity()])
 
-	# 15. 川流しを開放して、積み込み枠から製材所へ丸太を流す
+	# 15. 川の積み場をその場で支払って開放し、積み込み枠から製材所へ丸太を流す
 	var river: LogLine = main.lines["river"]
-	_check(not river.visible, "川流しは最初は使えない")
-	GameState.buy_upgrade("river")
-	await get_tree().process_frame
-	_check(river.visible and get_tree().get_nodes_in_group("log_dropoffs").size() > 0, "強化で川流しが開放される")
 	var point: LoadingPoint = null
-	for node in get_tree().get_nodes_in_group("log_dropoffs"):
-		var lp := node as LoadingPoint
-		if lp.line == river and lp.area_index == 1:
-			point = lp
-	_check(point != null, "開放済みエリアに積み込み枠がある")
+	for p in river._points:
+		if p.area_index == 1:
+			point = p
+	_check(point != null, "開放済みエリアに川の積み場がある")
 	if point == null:
 		return
+	_check(not river.is_active() and get_tree().get_nodes_in_group("log_dropoffs").is_empty() and point.visible and point.is_for_sale(), "川の積み場は最初は支払い枠で、丸太は積めない")
+	_check(not GameState.is_available("river") and not GameState.is_available("conveyor"), "川の流れ・集積所コンベアの強化は積み場の開放が先")
 	# 運搬役の伐採員が川へ丸太を積むと数が変わるので止めておく
 	for lj in main.lumberjacks:
 		lj.process_mode = Node.PROCESS_MODE_DISABLED
 	_empty_hands()
+	var cost := GameState.river_point_remaining(1)
+	GameState.money = cost + 10
+	player.global_position = point.global_position
+	var pay_frames := 0
+	while not GameState.is_river_point_unlocked(1) and pay_frames < 60 * 15:
+		await get_tree().physics_frame
+		pay_frames += 1
+	await get_tree().process_frame
+	_check(GameState.is_river_point_unlocked(1) and GameState.money == 10, "積み場に立つと支払って開放できる (¥%d, %.1f秒)" % [cost, pay_frames / 60.0])
+	_check(river.is_active() and point.is_active() and point.is_in_group("log_dropoffs"), "開放すると積み込み枠になり、川流しが動く")
+	_check(not GameState.is_river_point_unlocked(0) and river._points[0].is_for_sale(), "ほかのエリアの積み場は別に開放する")
+	_check(GameState.is_available("river") and GameState.is_available("conveyor"), "開放後は川の流れ・集積所コンベアを強化できる")
+	player.global_position = main.PLAYER_SPAWN
+	GameState.money += 1000000
+	await _wait(0.3)
 	for i in 3:
 		player.stack.add({"kind": "log", "tree": "pine"})
 	player.global_position = point.global_position

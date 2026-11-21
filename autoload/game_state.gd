@@ -4,6 +4,8 @@ extends Node
 signal money_changed(money: int)
 signal upgrade_changed(id: String, level: int)
 signal area_unlocked(index: int)
+## 川の積み場（各エリアの川岸の積み込み枠）を開放した
+signal river_point_unlocked(index: int)
 signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
 ## 伐採員が狙う木のグレードが変わった（"" = すべて）
@@ -11,6 +13,8 @@ signal lumberjack_target_changed(tree_id: String)
 ## セーブの直前。施設（集積所・製材所・出荷場）が在庫を stock に書き込む
 signal saving
 
+## 強化の requires にこれを書くと「川の積み場を1つ以上開放済み」が条件になる
+const RIVER_REQ := "river_point"
 const SAVE_PATH := "user://save.json"
 const AUTOSAVE_SEC := 5.0
 
@@ -19,6 +23,10 @@ var levels: Dictionary = {}
 var unlocked_area_count: int = 1
 ## エリア開放の支払い途中の金額（途中で離れても続きから払える）
 var gate_paid: Dictionary = {}
+## 開放済みの川の積み場（エリア番号の文字列 → true）。1つでも開放すると川流しが動く
+var river_points: Dictionary = {}
+## 川の積み場の支払い途中の金額
+var river_paid: Dictionary = {}
 ## 機械のランク（0 = 未購入）。例 {"harvester": 1}
 var machine_ranks: Dictionary = {}
 ## 機械の燃料・位置（機械自身が毎フレーム書き込む）
@@ -88,6 +96,8 @@ func next_cost(id: String) -> int:
 ## 先に開放が必要な強化（requires）が済んでいるか
 func is_available(id: String) -> bool:
 	var req := str(GameData.upgrade_def(id).get("requires", ""))
+	if req == RIVER_REQ:
+		return is_river_open()
 	return req == "" or level(req) > 0
 
 
@@ -129,6 +139,46 @@ func unlock_area(index: int) -> void:
 	unlocked_area_count = index + 1
 	gate_paid.erase(str(index))
 	area_unlocked.emit(index)
+	save_game()
+
+
+# ---- 川の積み場 ----
+
+func is_river_point_unlocked(index: int) -> bool:
+	return river_points.has(str(index))
+
+
+## 川の積み場を1つでも開放していれば川流しが動く
+func is_river_open() -> bool:
+	return not river_points.is_empty()
+
+
+func river_point_cost(index: int) -> int:
+	return int(GameData.areas[index].get("river_cost", 0))
+
+
+func river_point_remaining(index: int) -> int:
+	return maxi(0, river_point_cost(index) - int(river_paid.get(str(index), 0)))
+
+
+## 川の積み場の開放に向けて最大 amount だけ支払う。実際に払った額を返す。
+func pay_toward_river_point(index: int, amount: int) -> int:
+	var pay := mini(amount, mini(money, river_point_remaining(index)))
+	if pay <= 0:
+		return 0
+	spend(pay)
+	river_paid[str(index)] = int(river_paid.get(str(index), 0)) + pay
+	if river_point_remaining(index) == 0:
+		unlock_river_point(index)
+	return pay
+
+
+func unlock_river_point(index: int) -> void:
+	if is_river_point_unlocked(index):
+		return
+	river_points[str(index)] = true
+	river_paid.erase(str(index))
+	river_point_unlocked.emit(index)
 	save_game()
 
 
@@ -213,6 +263,8 @@ func save_game(collect := true) -> void:
 		"levels": levels,
 		"unlocked_area_count": unlocked_area_count,
 		"gate_paid": gate_paid,
+		"river_points": river_points,
+		"river_paid": river_paid,
 		"machine_ranks": machine_ranks,
 		"machine_state": machine_state,
 		"lumberjack_roles": lumberjack_roles,
@@ -235,6 +287,15 @@ func load_game() -> void:
 		levels[id] = int(saved_levels[id])
 	unlocked_area_count = clampi(int(parsed.get("unlocked_area_count", 1)), 1, GameData.areas.size())
 	gate_paid = parsed.get("gate_paid", {})
+	if parsed.has("river_points"):
+		river_points = parsed.get("river_points", {})
+		river_paid = parsed.get("river_paid", {})
+	elif level("river") > 0:
+		# 以前は強化「川流し」Lv1 で全エリアの積み込み枠が開いていた。開放済みエリアの積み場は開いたままにし、
+		# レベルは1つ下げる（旧 Lv1 の流れの速さ = いまの Lv0）
+		for i in unlocked_area_count:
+			river_points[str(i)] = true
+		levels["river"] = level("river") - 1
 	var ranks: Dictionary = parsed.get("machine_ranks", {})
 	for kind in ranks:
 		machine_ranks[kind] = int(ranks[kind])
@@ -257,6 +318,8 @@ func reset_state() -> void:
 	levels = {}
 	unlocked_area_count = 1
 	gate_paid = {}
+	river_points = {}
+	river_paid = {}
 	machine_ranks = {}
 	machine_state = {}
 	lumberjack_roles = []
