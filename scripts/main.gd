@@ -47,6 +47,7 @@ func _ready() -> void:
 	guide.player = player
 	guide.sawmill = sawmill
 	guide.dock = dock
+	guide.river = lines.get("river")
 	add_child(guide)
 	hud = Hud.new()
 	hud.guide = guide
@@ -184,6 +185,7 @@ func _build_facilities() -> void:
 	sawmill.position = SAWMILL_POS
 	add_child(sawmill)
 	dock = ShipDock.new()
+	dock.sawmill = sawmill
 	dock.position = DOCK_POS
 	add_child(dock)
 	var fuel := FuelStation.new()

@@ -4,16 +4,18 @@ extends Node3D
 ## - マップの左端に、奥から拠点まで1本流れている
 ## - 各エリアの岸にある枠に丸太を置くと、川を流れて拠点へ向かう
 ## - 拠点の端まで流れ着いた丸太は、いったん岸の集積所に積まれる
-## - 集積所の丸太はベルトコンベアで1本ずつ製材所の丸太置き場へ運ばれる（製材ライン未開放ならそこで売れる）
+## - 集積所の丸太は、最初はプレイヤー（か運搬車）が枠に立って拾い、製材所まで運ぶ
+## - 強化『集積所コンベア』を開放すると、ベルトコンベアで製材所の丸太置き場へ自動で運ばれる
+##   （1秒あたりの本数は強化レベルで増える。丸太置き場がいっぱいならコンベアは止まり、集積所に溜まる）
 
 const MAX_VISIBLE := 160
 ## 集積所に見た目で積む最大数
-const YARD_VISIBLE := 40
-## 集積所からコンベアに1本載せる間隔（秒）とコンベアの速さ（m/秒）
-const DISPATCH_INTERVAL := 0.3
-const BELT_SPEED := 3.0
+const YARD_VISIBLE := 60
+## 集積所の枠の半径（ここに立つと丸太を拾う）
+const YARD_RADIUS := 1.3
 
 const UPGRADE_ID := "river"
+const CONVEYOR_ID := "conveyor"
 var x := -16.5
 var near_z := 3.0
 var far_z := -100.0
@@ -25,14 +27,11 @@ var _items: Array[Dictionary] = []
 ## 集積所で待っている丸太（_items と同じ辞書）
 var _yard: Array[Dictionary] = []
 var _yard_pile: Node3D
-var _dispatch_timer := 0.0
-## コンベアに載っている丸太 {"tree", "d": 進んだ距離, "node", "from"}
-var _belt: Array[Dictionary] = []
-## コンベアの経路（集積所 → 製材所の丸太置き場）
-var _belt_path: Array[Vector3] = []
-var _belt_length := 0.0
-## コンベアで製材所に渡した丸太の累計
-var delivered := 0
+var _yard_zone: Zone
+## 集積所の枠で拾う処理（受け渡し間隔の管理）
+var _yard_station: Station
+## 集積所 → 製材所の丸太置き場のコンベア（強化で開放）
+var belt: Conveyor
 var _visual: Node3D
 var _points: Array[LoadingPoint] = []
 var _time := 0.0
@@ -45,6 +44,10 @@ func _ready() -> void:
 	_build_river()
 	_build_end()
 	_build_belt()
+	for id in GameState.stock_list("yard"):
+		_yard.append({"tree": id, "z": near_z, "node": null, "from": null})
+	_rebuild_yard()
+	GameState.saving.connect(_save_stock)
 	for i in area_ranges.size():
 		var r := area_ranges[i]
 		var p := LoadingPoint.new()
@@ -54,7 +57,7 @@ func _ready() -> void:
 		add_child(p)
 		_points.append(p)
 	GameState.upgrade_changed.connect(func(id: String, _l: int) -> void:
-		if id == UPGRADE_ID:
+		if id == UPGRADE_ID or id == CONVEYOR_ID:
 			_refresh())
 	GameState.area_unlocked.connect(func(_i: int) -> void: _refresh())
 	_refresh()
@@ -68,10 +71,25 @@ func speed() -> float:
 	return GameState.value(UPGRADE_ID)
 
 
+func conveyor_active() -> bool:
+	return GameState.level(CONVEYOR_ID) > 0
+
+
 func _refresh() -> void:
 	visible = is_active()
+	belt.set_active(is_active() and conveyor_active())
 	for p in _points:
 		p.refresh()
+
+
+## 集積所・川・コンベアの丸太は、セーブでは集積所に積まれている扱いにする
+func _save_stock() -> void:
+	var ids: Array[String] = []
+	for list in [_yard, _items]:
+		for item in list:
+			ids.append(str(item["tree"]))
+	ids.append_array(belt.ids_in_flight())
+	GameState.stock["yard"] = ids
 
 
 ## 枠に置かれた丸太を流す。
@@ -83,10 +101,10 @@ func launch(tree_id: String, from: LoadingPoint) -> void:
 	_items.append(item)
 
 
-## このLoadingPoint から出て、まだ製材所に届いていない数（川・集積所・コンベアの合計）
+## このLoadingPoint から出て、まだ集積所から運び出されていない数（川・集積所の合計）
 func in_transit_from(p: LoadingPoint) -> int:
 	var n := 0
-	for list in [_items, _yard, _belt]:
+	for list in [_items, _yard]:
 		for item in list:
 			if item["from"] == p:
 				n += 1
@@ -103,6 +121,11 @@ func yard_position() -> Vector3:
 	return Vector3(x + 1.1, 0, near_z + 2.4)
 
 
+## 集積所の丸太を拾う枠の位置
+func yard_pad_position() -> Vector3:
+	return yard_position() + Vector3(0, 0, 2.0)
+
+
 func _visible_count() -> int:
 	var n := 0
 	for item in _items:
@@ -115,7 +138,8 @@ func _process(delta: float) -> void:
 	_time += delta
 	if _water_mat:
 		_water_mat.set_shader_parameter("flow", _time * speed() * 0.25)
-	_process_belt(delta)
+	_process_yard_pickup(delta)
+	_update_yard_label()
 	if _items.is_empty():
 		return
 	var v := speed() * delta
@@ -151,51 +175,39 @@ func _yard_top() -> Vector3:
 	return yard_position() + Vector3(0, 0.15 + floori(mini(_yard.size(), YARD_VISIBLE) / 4.0) * 0.2, 0)
 
 
-## 集積所の丸太を1本ずつコンベアに載せ、端まで運んだら製材所に渡す
-func _process_belt(delta: float) -> void:
-	if not _yard.is_empty():
-		_dispatch_timer -= delta
-		if _dispatch_timer <= 0.0:
-			_dispatch_timer = DISPATCH_INTERVAL
-			var item: Dictionary = _yard.pop_back()
-			item["d"] = 0.0
-			item["node"] = LogDrop.make_log_mesh(item["tree"])
-			_visual.add_child(item["node"])
-			_belt.append(item)
-			_rebuild_yard()
+## 集積所の丸太を1本取り出す（コンベア・手で拾う共通）。無ければ空文字
+func take_from_yard() -> String:
+	if _yard.is_empty():
+		return ""
+	var item: Dictionary = _yard.pop_back()
+	_rebuild_yard()
+	var from: LoadingPoint = item["from"]
+	if is_instance_valid(from):
+		from.refresh_text()
+	return str(item["tree"])
+
+
+## 集積所の枠に立ったプレイヤー・運搬車が丸太を拾う
+func _process_yard_pickup(delta: float) -> void:
+	if _yard.is_empty() or not visible:
+		return
+	for carrier in _yard_station.carriers_near(yard_pad_position(), YARD_RADIUS, "plank_carriers"):
+		var stack: CarryStack = carrier.stack
+		if not stack.is_full() and not _yard.is_empty() and _yard_station.tick(carrier, "yard", delta):
+			var top := _yard_top()
+			var id := take_from_yard()
+			stack.add({"kind": "log", "tree": id})
+			Fx.fly_item(self, LogDrop.make_log_mesh(id), top, (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.2)
+
+
+func _update_yard_label() -> void:
+	if _yard_zone == null:
+		return
+	var sub := "丸太: %d" % _yard.size()
+	if conveyor_active():
+		_yard_zone.set_text("コンベアで搬送中" if not _yard.is_empty() else "集積所", sub)
 	else:
-		_dispatch_timer = 0.0
-	var i := 0
-	while i < _belt.size():
-		var item := _belt[i]
-		item["d"] = float(item["d"]) + BELT_SPEED * delta
-		var node: Node3D = item["node"]
-		if float(item["d"]) >= _belt_length:
-			node.queue_free()
-			_belt.remove_at(i)
-			sawmill.accept_log(item["tree"])
-			delivered += 1
-			var from: LoadingPoint = item["from"]
-			if is_instance_valid(from):
-				from.refresh_text()
-			continue
-		var t := _belt_point(float(item["d"]))
-		node.position = t[0] + Vector3(0, 0.44, 0)
-		node.rotation.y = t[1]
-		i += 1
-
-
-## コンベア上の距離 d の位置と向き（丸太が進行方向に直角になる角度）
-func _belt_point(d: float) -> Array:
-	for k in range(1, _belt_path.size()):
-		var a := _belt_path[k - 1]
-		var b := _belt_path[k]
-		var seg := a.distance_to(b)
-		if d <= seg or k == _belt_path.size() - 1:
-			var dir := (b - a).normalized()
-			return [a.lerp(b, clampf(d / seg, 0.0, 1.0)), atan2(dir.x, dir.z)]
-		d -= seg
-	return [_belt_path[-1], 0.0]
+		_yard_zone.set_text("丸太を拾う" if not _yard.is_empty() else "集積所", sub)
 
 
 ## 集積所の丸太の山（4本ずつ積む）。数は待っている丸太と同じ
@@ -264,6 +276,12 @@ func _build_end() -> void:
 	_yard_pile = Node3D.new()
 	_yard_pile.position = yp
 	_visual.add_child(_yard_pile)
+	# 丸太を拾う枠（集積所の手前、拠点側）
+	_yard_zone = Zone.new(Vector2.ONE * YARD_RADIUS * 2.0, Color(0.95, 0.8, 0.3, 0.16))
+	_yard_zone.position = yard_pad_position()
+	_visual.add_child(_yard_zone)
+	_yard_station = Station.new()
+	add_child(_yard_station)
 	var sign := Props.signboard("川流し 集積所")
 	sign.position = Vector3(x - 1.6, 0, near_z + 3.2)
 	sign.rotation_degrees.y = 30.0
@@ -271,35 +289,24 @@ func _build_end() -> void:
 	_visual.add_child(sign)
 
 
-## 集積所から製材所の丸太置き場までのベルトコンベア
+## 集積所から製材所の丸太置き場までのベルトコンベア（強化で開放するまでは隠しておく）
 func _build_belt() -> void:
 	var yp := yard_position()
 	var goal := sawmill.input_pile_position()
 	var start := yp + Vector3(1.0, 0, 0)
 	var end := Vector3(goal.x - 0.9, 0, goal.z)
-	_belt_path = [start]
+	var path: Array[Vector3] = [start]
 	if absf(start.z - end.z) > 0.05:
-		_belt_path.append(Vector3(start.x, 0, end.z))
-	_belt_path.append(end)
-	_belt_length = 0.0
-	for k in range(1, _belt_path.size()):
-		var a := _belt_path[k - 1]
-		var b := _belt_path[k]
-		_belt_length += a.distance_to(b)
-		var mid := (a + b) * 0.5
-		var seg_len := a.distance_to(b) + 0.8
-		var along_x := absf(b.x - a.x) > absf(b.z - a.z)
-		var belt_size := Vector3(seg_len, 0.05, 0.62) if along_x else Vector3(0.62, 0.05, seg_len)
-		var frame_size := Vector3(seg_len, 0.1, 0.74) if along_x else Vector3(0.74, 0.1, seg_len)
-		_visual.add_child(Fx.box(frame_size, Color("#8c939a"), mid + Vector3(0, 0.25, 0), "metal"))
-		_visual.add_child(Fx.box(belt_size, Color("#3d4247"), mid + Vector3(0, 0.31, 0), "metal"))
-		# 脚
-		var steps := maxi(1, floori(seg_len / 1.6))
-		for j in steps + 1:
-			var p := (a - (b - a).normalized() * 0.3).lerp(b + (b - a).normalized() * 0.3, j / float(steps))
-			for side in [-0.38, 0.38]:
-				var off := Vector3(0, 0, side * 0.8) if along_x else Vector3(side * 0.8, 0, 0)
-				_visual.add_child(Fx.box(Vector3(0.07, 0.22, 0.07), Color("#5b6168"), p + off + Vector3(0, 0.11, 0), "metal"))
+		path.append(Vector3(start.x, 0, end.z))
+	path.append(end)
+	belt = Conveyor.new()
+	belt.path = path
+	belt.rate_source = func() -> float: return GameState.value(CONVEYOR_ID)
+	belt.take_source = take_from_yard
+	belt.room_source = func(n: int) -> bool: return sawmill.has_input_room(n)
+	belt.deliver = func(id: String) -> void: sawmill.accept_log(id)
+	add_child(belt)
+	belt.set_active(false)
 
 
 static func water_material() -> ShaderMaterial:

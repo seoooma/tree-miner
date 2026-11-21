@@ -2,6 +2,7 @@ class_name GuideArrows
 extends Node3D
 ## 次に向かう場所へ、地面に緑の三角（シェブロン）を点線のように並べて案内する。ゆっくり流れる。
 ## - 積荷が満杯: いちばん近い届け先（製材所の投入口か、川の積み込み枠）。板を持っていれば出荷場
+## - 拠点にいて手ぶらのとき: 製材所の板（板のコンベアが未開放なら）、川の集積所の丸太（集積所コンベアが未開放なら）
 ## - それ以外: いちばん近い木
 ## 案内先は HUD の画面端インジケーター（goal / goal_kind）でも使う。表示だけでゲームの処理には影響しない。
 
@@ -13,6 +14,7 @@ const SCROLL_SPEED := 0.7
 var player: Player
 var sawmill: Sawmill
 var dock: Node3D
+var river: LogLine
 
 ## 案内先（無ければ Vector3.INF）と種類（"home" = 届け先 / "tree" = 木）
 var goal := Vector3.INF
@@ -65,10 +67,22 @@ func _pick_goal() -> void:
 	elif stack.is_full() and sawmill:
 		goal = LoadingPoint.nearest_dropoff(self, player.global_position, sawmill)
 		goal_kind = "home"
+	elif stack.is_empty() and player.global_position.z > 0.0 and _manual_pickup() != Vector3.INF:
+		goal = _manual_pickup()
+		goal_kind = "home"
 	else:
 		_tree_goal = _nearest_tree()
 		goal = _tree_goal.global_position if _tree_goal else Vector3.INF
 		goal_kind = "tree"
+
+
+## 手で運ぶ必要があるもの（コンベアが未開放の工程）の受け取り場所。無ければ Vector3.INF
+func _manual_pickup() -> Vector3:
+	if sawmill and dock and GameState.level("plank_belt") == 0 and not sawmill.output.is_empty():
+		return sawmill.output_position()
+	if river and river.visible and not river.conveyor_active() and river.yard_count() > 0 and sawmill.has_input_room():
+		return river.yard_pad_position()
+	return Vector3.INF
 
 
 func _nearest_tree() -> ChoppableTree:
