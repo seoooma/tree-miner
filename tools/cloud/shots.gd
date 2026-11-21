@@ -137,13 +137,23 @@ func _shot_upgrades() -> void:
 	await _wait(0.5)
 
 
+## 強化画面の乗り物タブ（販売のトラックのカード）（名前を指定したときだけ撮る: upgrades_truck）
+func _shot_upgrades_truck() -> void:
+	_place(main.PLAYER_SPAWN)
+	main.hud._set_sheet(true)
+	main.hud._select_tab(GameData.upgrade_group_of("truck_capacity"))
+	await _wait(0.5)
+	main.hud._scroll.scroll_vertical = 0
+	await _wait(0.3)
+
+
 ## 強化画面の仲間タブ（伐採員のカードと役割・狙う木。名前を指定したときだけ撮る: upgrades_chop）
 func _shot_upgrades_chop() -> void:
 	_place(main.PLAYER_SPAWN)
 	main.hud._set_sheet(true)
 	main.hud._select_tab(GameData.upgrade_group_of("lumberjack"))
 	await _wait(0.5)
-	main.hud._scroll.scroll_vertical = 100000
+	main.hud._scroll.scroll_vertical = 00
 	await _wait(0.3)
 
 

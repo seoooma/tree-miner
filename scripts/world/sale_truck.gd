@@ -12,7 +12,8 @@ enum State { PARKED, LEAVING, AWAY, ARRIVING }
 
 ## 停める位置から、見えなくなる位置までの距離（+X 方向）
 const EXIT_DISTANCE := 18.0
-const SPEED := 9.0
+## 走る速さは強化『トラックの速さ』（m/秒）。速いほど見えない間（AWAY_SEC）も短くなる
+const BASE_SPEED := 9.0
 const AWAY_SEC := 0.6
 ## 荷台（ローカル座標）。板は荷台の長さ方向に4枚、横に4枚並べて積む
 const BED_CENTER := Vector3(-0.85, 0.82, 0)
@@ -42,6 +43,11 @@ var _load_root: Node3D
 func _ready() -> void:
 	park_x = position.x
 	_build()
+
+
+func max_speed() -> float:
+	var v := GameState.value("truck_speed")
+	return v if v > 0.0 else BASE_SPEED
 
 
 func is_parked() -> bool:
@@ -74,14 +80,15 @@ func depart() -> void:
 
 
 func _process(delta: float) -> void:
+	var top := max_speed()
 	match state:
 		State.LEAVING:
-			_speed = minf(SPEED, _speed + 6.0 * delta)
+			_speed = minf(top, _speed + top * 0.7 * delta)
 			position.x += _speed * delta
 			if position.x >= park_x + EXIT_DISTANCE:
 				state = State.AWAY
 				visible = false
-				_away_timer = AWAY_SEC
+				_away_timer = AWAY_SEC * BASE_SPEED / top
 				clear_cargo()
 		State.AWAY:
 			_away_timer -= delta
@@ -92,7 +99,7 @@ func _process(delta: float) -> void:
 		State.ARRIVING:
 			# バックで出荷場の横へ。止まる手前でゆっくりになる
 			var left := position.x - park_x
-			var v := clampf(left * 1.6, 1.2, SPEED)
+			var v := clampf(left * 1.6 * top / BASE_SPEED, 1.2, top)
 			position.x = maxf(park_x, position.x - v * delta)
 			_speed = -v
 			if position.x <= park_x:
