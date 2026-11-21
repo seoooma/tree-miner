@@ -93,11 +93,11 @@
 	},
 
 	"trees": [
-		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 18, "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#c9b48c", "end_color": "#f4e8c8", "grade_color": "#9ee05a" },
-		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 24, "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#a8582e", "end_color": "#f2c47c", "grade_color": "#3aa6f0" },
-		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 30, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8f8070", "end_color": "#f5d3c0", "grade_color": "#ff9a2e" },
-		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 36, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#5f3c22", "end_color": "#c8955c", "grade_color": "#ee4a4a" },
-		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#2f2733", "end_color": "#6b4a5c", "grade_color": "#b57cff" }
+		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 18, "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#b07d50", "end_color": "#f1dfb4", "grade_color": "#a9d97a" },
+		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 24, "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#9a6438", "end_color": "#efc684", "grade_color": "#6fb4e0" },
+		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 30, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8a5530", "end_color": "#f0cfae", "grade_color": "#f0a95a" },
+		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 36, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#74492a", "end_color": "#d2a46c", "grade_color": "#d97a6a" },
+		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428", "end_color": "#8a6a5a", "grade_color": "#a98ad6" }
 	],
 
 	"areas": [
