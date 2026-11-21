@@ -72,11 +72,15 @@ static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
 	var end_c := end_color(def)
 	var grade := grade_color(def)
 	var along := Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO)
-	var mesh := Fx.merged("log/" + p_tree_id, [
-		[_cyl(0.11, 0.7, 8), along, bark],
-		[_cyl(0.085, 0.72, 8), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
-		[_cyl(0.034, 0.726, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
-		[_cyl(0.114, 0.05, 8), along, Color(grade.r, grade.g, grade.b, 0.0)],
+	var mesh := _log_mesh("log/" + p_tree_id, [
+		[_cyl(0.11, 0.7, 10), along, bark],
+		# 木口は樹皮と同じ長さの面に薄く貼る（端が角張った円柱に見えるように）
+		[_cyl(0.092, 0.706, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
+		# 年輪（木口の内側の少し濃い輪）
+		[_cyl(0.064, 0.709, 10), along, Color(end_c.darkened(0.14).r, end_c.darkened(0.14).g, end_c.darkened(0.14).b, 0.5)],
+		[_cyl(0.05, 0.71, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
+		[_cyl(0.026, 0.712, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
+		[_cyl(0.114, 0.05, 10), along, Color(grade.r, grade.g, grade.b, 0.0)],
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -93,6 +97,41 @@ static func end_color(def: Dictionary) -> Color:
 ## 等級の色（丸太の帯・板の端に塗る）
 static func grade_color(def: Dictionary) -> Color:
 	return Color(def.get("grade_color", "#ffffff"))
+
+
+## 丸太のメッシュ（Fx.merged と同じ頂点カラーの合成）。法線は、側面は円柱の外向き、木口は軸の向きにして、
+## 端の角を丸くぼかさずにくっきり見せる（法線を平均すると角が丸く見えて丸太らしくない）。
+static func _log_mesh(key: String, parts: Array) -> Mesh:
+	return Fx._cached(key, func() -> Mesh:
+		var verts := PackedVector3Array()
+		var colors := PackedColorArray()
+		for part in parts:
+			var prim: Mesh = part[0]
+			var xf: Transform3D = part[1]
+			var arrays := prim.surface_get_arrays(0)
+			var pv: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			for i in (idx if not idx.is_empty() else range(pv.size())):
+				verts.append(xf * pv[i])
+				colors.append(part[2])
+		var normals := PackedVector3Array()
+		normals.resize(verts.size())
+		for t in range(0, verts.size(), 3):
+			var face := (verts[t + 2] - verts[t]).cross(verts[t + 1] - verts[t]).normalized()
+			for k in 3:
+				var v := verts[t + k]
+				if absf(face.x) > 0.9:
+					normals[t + k] = Vector3(signf(v.x), 0, 0)
+				else:
+					normals[t + k] = Vector3(0, v.y, v.z).normalized()
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = verts
+		arr[Mesh.ARRAY_NORMAL] = normals
+		arr[Mesh.ARRAY_COLOR] = colors
+		var m := ArrayMesh.new()
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		return m)
 
 
 static func _cyl(r: float, h: float, seg: int) -> CylinderMesh:
