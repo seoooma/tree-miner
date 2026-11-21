@@ -4,11 +4,18 @@ extends CanvasLayer
 ## - 左上: 設定（ギア）。BGM / 効果音のオン・オフはここから開く
 ## - 右上: 所持金のピル
 ## - 下: 乗る／降りる・強化のタイルボタン
-## - 強化画面: 下からせり上がるシート（カード・サムネイル・おすすめ・伐採員の役割チップ）
+## - 強化画面: 下からせり上がるシート。上のタブ（伐採・運搬・製材・販売・車両。balance.json の upgrade_groups）で切り替え、カード・サムネイル・おすすめ・伐採員の役割チップを出す
 ## - ワールド表示: プレイヤー頭上の積荷バー、機械の燃料・積荷バー、案内先が画面外のときの端のインジケーター
 ## 表示だけを担当し、ゲームの数値や処理は GameState / 各ノードが持つ。
 
 const SHEET_RATIO := 0.65
+## 強化シートのタブの位置と高さ（見出しの帯のすぐ下）
+const TABS_TOP := 122
+const TABS_HEIGHT := 84
+const TAB_ON := Color("#ff9d1e")
+const TAB_OFF := Color("#5d6166")
+## upgrade_groups のどこにも入っていない強化を集めるタブ
+const OTHER_GROUP := "_other"
 const STAT_NAMES := {
 	"axe_power": "伐採力",
 	"capacity": "積載量",
@@ -59,6 +66,10 @@ var _sheet_tween: Tween
 var _roles_box: HFlowContainer
 var _roles_title: Label
 var _rows: Dictionary = {}
+var _groups: Array = []
+var _tabs: Dictionary = {}  # グループの id -> {button, dot}
+var _pages: Dictionary = {}  # グループの id -> そのタブのカードを並べる VBoxContainer
+var _current_tab := ""
 var _shown_money := 0
 var _thumbs: Thumbnails
 var _scroll: ScrollContainer
@@ -418,10 +429,12 @@ func _build_sheet() -> void:
 		_set_sheet(false))
 	header.add_child(close)
 
+	_build_tabs()
+
 	var scroll := ScrollContainer.new()
 	_scroll = scroll
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_top = 124
+	scroll.offset_top = TABS_TOP + TABS_HEIGHT + 6
 	scroll.offset_left = 4
 	scroll.offset_right = -12
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -433,32 +446,138 @@ func _build_sheet() -> void:
 	margin.add_theme_constant_override("margin_top", 18)
 	margin.add_theme_constant_override("margin_right", 8)
 	scroll.add_child(margin)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 26)
-	margin.add_child(list)
-	var top_pad := Control.new()
-	top_pad.custom_minimum_size = Vector2(0, 4)
-	list.add_child(top_pad)
+	var pages := VBoxContainer.new()
+	pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(pages)
+	for g in _groups:
+		var list := VBoxContainer.new()
+		list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		list.add_theme_constant_override("separation", 26)
+		pages.add_child(list)
+		var top_pad := Control.new()
+		top_pad.custom_minimum_size = Vector2(0, 4)
+		list.add_child(top_pad)
+		_pages[g["id"]] = list
 
+	# カードは balance.json の upgrades → machines の順。どのタブに入るかは upgrade_groups で決める
 	for def in GameData.upgrades:
-		_build_card(list, def)
+		_build_card(_page_for(str(def["id"])), def)
 	# 機械（伐採機・運搬車）もほかの強化と同じカードで買う。Lv = ランク
 	for kind in GameData.machines:
 		if str(kind).begins_with("_"):
 			continue
 		var m: Dictionary = GameData.machines[kind]
-		_build_card(list, {"id": kind, "name": m.get("name", kind), "desc": m.get("desc", "")})
+		_build_card(_page_for(kind), {"id": kind, "name": m.get("name", kind), "desc": m.get("desc", "")})
 
+	# 伐採員の役割は伐採員のカードと同じタブに出す
+	var roles_page := _page_for("lumberjack")
 	_roles_title = UiKit.label("伐採員の役割（タップで切り替え）", 26)
-	list.add_child(_roles_title)
+	roles_page.add_child(_roles_title)
 	_roles_box = HFlowContainer.new()
 	_roles_box.add_theme_constant_override("h_separation", 12)
 	_roles_box.add_theme_constant_override("v_separation", 12)
-	list.add_child(_roles_box)
-	var bottom_pad := Control.new()
-	bottom_pad.custom_minimum_size = Vector2(0, 30)
-	list.add_child(bottom_pad)
+	roles_page.add_child(_roles_box)
+	for g in _groups:
+		var bottom_pad := Control.new()
+		bottom_pad.custom_minimum_size = Vector2(0, 30)
+		(_pages[g["id"]] as Control).add_child(bottom_pad)
+	_select_tab(str(_groups[0]["id"]))
+
+
+## タブの一覧を作る。balance.json の upgrade_groups に入っていない強化・機械があれば、最後に「その他」タブを足す
+func _collect_groups() -> Array:
+	var groups: Array = []
+	for g in GameData.upgrade_groups:
+		groups.append(g)
+	var ids: Array = []
+	for def in GameData.upgrades:
+		ids.append(str(def["id"]))
+	for kind in GameData.machines:
+		if not str(kind).begins_with("_"):
+			ids.append(str(kind))
+	for id in ids:
+		if GameData.upgrade_group_of(id) == "":
+			groups.append({"id": OTHER_GROUP, "name": "その他", "icon": "icon_upgrade", "items": []})
+			break
+	return groups
+
+
+## カードが入るタブの id（どこにも入っていなければ「その他」）
+func _tab_of(id: String) -> String:
+	var g := GameData.upgrade_group_of(id)
+	return g if _pages.has(g) else OTHER_GROUP
+
+
+func _page_for(id: String) -> VBoxContainer:
+	return _pages[_tab_of(id)]
+
+
+## 見出しの下のタブ（伐採・運搬・製材・販売・車両）。選んでいるタブはオレンジ、ほかは灰色
+func _build_tabs() -> void:
+	_groups = _collect_groups()
+	var bar := HBoxContainer.new()
+	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bar.offset_top = TABS_TOP
+	bar.offset_bottom = TABS_TOP + TABS_HEIGHT
+	bar.offset_left = 14
+	bar.offset_right = -14
+	bar.add_theme_constant_override("separation", 8)
+	_sheet.add_child(bar)
+	for g in _groups:
+		var gid := str(g["id"])
+		var tab := Button.new()
+		tab.focus_mode = Control.FOCUS_NONE
+		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tab.custom_minimum_size = Vector2(0, TABS_HEIGHT)
+		tab.clip_contents = false
+		bar.add_child(tab)
+		var box := HBoxContainer.new()
+		box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		box.offset_bottom = -8
+		box.alignment = BoxContainer.ALIGNMENT_CENTER
+		box.add_theme_constant_override("separation", 2)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tab.add_child(box)
+		var ic := TextureRect.new()
+		ic.texture = UiKit.icon(str(g.get("icon", "icon_upgrade")))
+		ic.custom_minimum_size = Vector2(38, 38)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(ic)
+		var l := UiKit.label(str(g.get("name", gid)), 24, false, Color.WHITE, 7)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		box.add_child(l)
+		# 今買える強化があるタブに付ける赤い丸
+		var dot := Panel.new()
+		dot.add_theme_stylebox_override("panel", UiKit.flat_box(UiKit.PRICE_RED, 11, 3, Color.WHITE))
+		dot.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		dot.offset_left = -18
+		dot.offset_right = 4
+		dot.offset_top = -6
+		dot.offset_bottom = 16
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dot.visible = false
+		tab.add_child(dot)
+		tab.button_down.connect(func() -> void: box.position.y = 6)
+		tab.button_up.connect(func() -> void: box.position.y = 0)
+		tab.pressed.connect(func() -> void:
+			if _current_tab != gid:
+				Audio.play("ui", -4.0)
+			_select_tab(gid))
+		_tabs[gid] = {"button": tab, "dot": dot}
+
+
+func _select_tab(gid: String) -> void:
+	_current_tab = gid
+	for key in _tabs:
+		var on: bool = key == gid
+		UiKit.flat_skin(_tabs[key]["button"], TAB_ON if on else TAB_OFF, 18)
+		(_pages[key] as Control).visible = on
+	if _scroll:
+		_scroll.scroll_vertical = 0
+	_fling = 0.0
 
 
 func _build_card(list: Control, def: Dictionary) -> void:
@@ -607,6 +726,7 @@ func _refresh() -> void:
 	_money_label.text = "¥%d" % GameState.money
 
 	var best_id := _recommended()
+	var buyable_tabs: Dictionary = {}
 	for id in _rows:
 		var row: Dictionary = _rows[id]
 		var is_machine := GameData.machines.has(id)
@@ -653,12 +773,15 @@ func _refresh() -> void:
 			button.icon = UiKit.icon("icon_money")
 			button.disabled = false
 			if affordable:
+				buyable_tabs[_tab_of(id)] = true
 				UiKit.skin_button(button, "btn_green", "btn_green_pressed", 18, 10)
 				_price_color(button, Color.WHITE, Color("#1d4a12"))
 			else:
 				UiKit.skin_button(button, "btn_gray", "", 18, 10)
 				_price_color(button, UiKit.PRICE_RED, Color(1, 1, 1, 0.9))
 		(row["ribbon"] as Label).visible = id == best_id
+	for gid in _tabs:
+		(_tabs[gid]["dot"] as Control).visible = buyable_tabs.has(gid)
 
 
 static func _price_color(b: Button, color: Color, outline: Color) -> void:
