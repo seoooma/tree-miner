@@ -14,11 +14,13 @@ const BELT_ID := "plank_belt"
 ## 丸太を売る枠（出荷場の右隣）
 const LOG_PAD_OFFSET := Vector3(3.7, 0, 0.2)
 const LOG_PAD_RADIUS := 1.35
-const LOG_PILE_OFFSET := Vector3(3.75, 0.26, -2.6)
+## 荷台（板敷きの床と板・丸太の山）の奥行き。製材所の作業列と同じにして、板のコンベアをまっすぐ平行に通す
+const DECK_Z := Sawmill.ROW_Z
+const LOG_PILE_OFFSET := Vector3(3.75, 0.26, DECK_Z)
 ## 荷台の板の山の位置
-const STOCK_PILE_OFFSET := Vector3(-0.65, 0.26, -2.6)
+const STOCK_PILE_OFFSET := Vector3(-0.65, 0.26, DECK_Z)
 ## 販売のトラックを停める位置（荷台の奥。正面は +X で、拠点の外へ向かう）
-const TRUCK_OFFSET := Vector3(2.0, 0, -4.4)
+const TRUCK_OFFSET := Vector3(2.0, 0, DECK_Z - 1.8)
 
 var sawmill: Sawmill
 ## 荷台に積まれてトラックを待っている板（木のID）
@@ -47,11 +49,11 @@ func _ready() -> void:
 	_log_zone.position = LOG_PAD_OFFSET
 	add_child(_log_zone)
 	# 木の桟橋風の床（左に板、右に丸太を積む）と、出荷待ちの荷物
-	add_child(Fx.box(Vector3(6.6, 0.14, 1.6), Color("#c99a5e"), Vector3(1.65, 0.07, -2.6), "wood"))
+	add_child(Fx.box(Vector3(6.6, 0.14, 1.6), Color("#c99a5e"), Vector3(1.65, 0.07, DECK_Z), "wood"))
 	for i in 14:
-		add_child(Fx.box(Vector3(0.03, 0.02, 1.6), Color("#9a7040"), Vector3(-1.5 + i * 0.48, 0.15, -2.6)))
-	add_child(Fx.box(Vector3(1.9, 0.12, 1.3), Color("#b07f48"), Vector3(STOCK_PILE_OFFSET.x, 0.2, -2.6), "wood"))
-	add_child(Fx.box(Vector3(1.6, 0.12, 1.3), Color("#b07f48"), Vector3(LOG_PILE_OFFSET.x, 0.2, -2.6), "wood"))
+		add_child(Fx.box(Vector3(0.03, 0.02, 1.6), Color("#9a7040"), Vector3(-1.5 + i * 0.48, 0.15, DECK_Z)))
+	add_child(Fx.box(Vector3(1.9, 0.12, 1.3), Color("#b07f48"), Vector3(STOCK_PILE_OFFSET.x, 0.2, DECK_Z), "wood"))
+	add_child(Fx.box(Vector3(1.6, 0.12, 1.3), Color("#b07f48"), Vector3(LOG_PILE_OFFSET.x, 0.2, DECK_Z), "wood"))
 	# 板の山: 板2枚を縦に並べ、奥行きに4枚（1段8枚）。数は stock と同じ
 	_stock_pile = ItemPile.new(func(id: String) -> MeshInstance3D: return Sawmill._plank_mesh(id))
 	_stock_pile.cols = 2
@@ -70,15 +72,14 @@ func _ready() -> void:
 	_log_pile.position = LOG_PILE_OFFSET
 	add_child(_log_pile)
 	var c1 := Props.crate(0.6)
-	c1.position = Vector3(1.55, 0.14, -2.75)
+	c1.position = Vector3(1.55, 0.14, DECK_Z - 0.15)
 	add_child(c1)
 	var c2 := Props.crate(0.45, Color("#d8ab6a"))
-	c2.position = Vector3(1.6, 0.74, -2.75)
+	c2.position = Vector3(1.6, 0.74, DECK_Z - 0.15)
 	c2.rotation_degrees.y = 20.0
 	add_child(c2)
 	var signboard := Props.signboard("出荷場", Color("#3b8fe0"))
-	# 看板は板のコンベアの手前に立てる（コンベアに重ならないように）
-	signboard.position = Vector3(-2.8, 0, -1.1)
+	signboard.position = Vector3(-2.6, 0, -1.9)
 	signboard.rotation_degrees.y = 20.0
 	add_child(signboard)
 	# 販売のトラック（プレイヤーが乗る機械とは別。乗れない）
@@ -125,7 +126,7 @@ func _build_belt() -> void:
 		return
 	var from := sawmill.output_pile_position() - global_position
 	var to := _stock_pile.position
-	# 製材所の板置き場の右から荷台の左まで、曲げずに1本の斜めのベルトでつなぐ
+	# 製材所の板置き場の右から荷台の左まで、曲げずに1本のまっすぐなベルトでつなぐ（同じ奥行きなので平行）
 	var start := Vector3(from.x + 1.3, 0, from.z)
 	var path: Array[Vector3] = [start, Vector3(to.x - 1.15, 0, to.z)]
 	belt = Conveyor.new()
