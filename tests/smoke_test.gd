@@ -364,6 +364,18 @@ func _run() -> void:
 	_check(player.stack.count("plank") == 0, "出荷場に%d枚あっても板を置ける" % MANY)
 	_empty_hands()
 
+	# 21a. 走り去っている間に積み込みは貯めず、戻ってきたトラックにも1個ずつ積む
+	frames = 0
+	while main.dock.truck.is_parked() and frames < 60 * 30:
+		await get_tree().physics_frame
+		frames += 1
+	while not main.dock.truck.is_parked() and frames < 60 * 40:
+		await get_tree().physics_frame
+		frames += 1
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(main.dock.truck.is_parked() and main.dock.truck.cargo.size() <= 1 and not main.dock.stock.is_empty(), "戻ってきたトラックには一度にまとめて積まず1個ずつ積む (%d個)" % main.dock.truck.cargo.size())
+
 	# 21b. 販売のトラックと、丸太をそのまま売る枠
 	main.dock.stock.clear()
 	main.dock._rebuild_stock()
