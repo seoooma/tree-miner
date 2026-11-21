@@ -143,6 +143,8 @@ func _shot_upgrades_chop() -> void:
 	main.hud._set_sheet(true)
 	main.hud._select_tab(GameData.upgrade_group_of("axe_power"))
 	await _wait(0.5)
+	main.hud._scroll.scroll_vertical = 100000
+	await _wait(0.3)
 
 
 ## 拠点全体を高い所から見下ろす（配置の確認用。名前を指定したときだけ撮る: overview。カメラを外すので最後に撮る）

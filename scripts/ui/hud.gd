@@ -65,6 +65,8 @@ var _sheet_open := false
 var _sheet_tween: Tween
 var _roles_box: HFlowContainer
 var _roles_title: Label
+var _target_box: HFlowContainer
+var _target_title: Label
 var _rows: Dictionary = {}
 var _groups: Array = []
 var _tabs: Dictionary = {}  # グループの id -> {button, dot}
@@ -124,6 +126,8 @@ func _ready() -> void:
 		_refresh()
 		_rebuild_roles())
 	GameState.lumberjack_role_changed.connect(func(_i: int, _r: String) -> void: _rebuild_roles())
+	GameState.lumberjack_target_changed.connect(func(_id: String) -> void: _rebuild_roles())
+	GameState.area_unlocked.connect(func(_i: int) -> void: _rebuild_roles())
 	_refresh()
 	_rebuild_roles()
 
@@ -477,6 +481,12 @@ func _build_sheet() -> void:
 	_roles_box.add_theme_constant_override("h_separation", 12)
 	_roles_box.add_theme_constant_override("v_separation", 12)
 	roles_page.add_child(_roles_box)
+	_target_title = UiKit.label("伐採員が狙う木（このグレード以上を優先）", 26)
+	roles_page.add_child(_target_title)
+	_target_box = HFlowContainer.new()
+	_target_box.add_theme_constant_override("h_separation", 12)
+	_target_box.add_theme_constant_override("v_separation", 12)
+	roles_page.add_child(_target_box)
 	for g in _groups:
 		var bottom_pad := Control.new()
 		bottom_pad.custom_minimum_size = Vector2(0, 30)
@@ -865,6 +875,64 @@ func _rebuild_roles() -> void:
 			Audio.play("ui", -4.0)
 			GameState.set_lumberjack_role(idx, "haul" if GameState.lumberjack_role(idx) == "chop" else "chop"))
 		_roles_box.add_child(chip)
+	_rebuild_targets(count > 0)
+
+
+## 伐採員が狙う木のグレード。開放済みエリアに生える木だけを並べる（全員共通の設定）
+func _rebuild_targets(show: bool) -> void:
+	if _target_box == null:
+		return
+	for child in _target_box.get_children():
+		child.queue_free()
+	_target_title.visible = show
+	_target_box.visible = show
+	if not show:
+		return
+	var grown: Dictionary = {}
+	for a in GameState.unlocked_area_count:
+		var weights: Dictionary = GameData.areas[a].get("weights", {})
+		for id in weights:
+			if float(weights[id]) > 0.0:
+				grown[str(id)] = true
+	# いちばん安い木の「以上」は「すべて」と同じなので並べない
+	var options: Array[String] = [""]
+	for t in GameData.trees.slice(1):
+		var id := str(t["id"])
+		if grown.has(id) or id == GameState.lumberjack_target:
+			options.append(id)
+	var top_id := str(GameData.trees.back()["id"])
+	for id in options:
+		var text := "すべて"
+		if id != "":
+			text = GameData.tree_name(id) + ("" if id == top_id else "以上")
+		var selected := id == GameState.lumberjack_target
+		var color := Color("#4e9e34") if selected else Color("#5b5f66")
+		var chip := Button.new()
+		chip.custom_minimum_size = Vector2(150, 84)
+		chip.focus_mode = Control.FOCUS_NONE
+		chip.text = ("● " if selected else "") + text
+		var normal := UiKit.flat_box(color, 42, 3, Color("#ffe27a") if selected else color.lightened(0.35))
+		normal.border_width_bottom = 7
+		normal.border_color = color.darkened(0.35)
+		normal.content_margin_left = 18
+		normal.content_margin_right = 18
+		var pressed := normal.duplicate() as StyleBoxFlat
+		pressed.border_width_bottom = 2
+		pressed.content_margin_top = 6
+		chip.add_theme_stylebox_override("normal", normal)
+		chip.add_theme_stylebox_override("hover", normal)
+		chip.add_theme_stylebox_override("pressed", pressed)
+		chip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		chip.add_theme_constant_override("outline_size", 8)
+		chip.add_theme_color_override("font_outline_color", UiKit.OUTLINE_DARK)
+		chip.add_theme_font_size_override("font_size", 28)
+		var target_id := id
+		chip.pressed.connect(func() -> void:
+			if _tap_suppressed() or target_id == GameState.lumberjack_target:
+				return
+			Audio.play("ui", -4.0)
+			GameState.set_lumberjack_target(target_id))
+		_target_box.add_child(chip)
 
 
 # ================================================================ ワールド表示（頭上のバー・画面端の案内）

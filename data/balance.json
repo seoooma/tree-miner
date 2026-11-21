@@ -91,11 +91,11 @@
 	},
 
 	"trees": [
-		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 6,  "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#b07d50" },
-		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 8,  "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#9a6438" },
-		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 10, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8a5530" },
-		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 12, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#74492a" },
-		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 15, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428" }
+		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 18, "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#b07d50" },
+		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 24, "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#9a6438" },
+		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 30, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8a5530" },
+		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 36, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#74492a" },
+		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428" }
 	],
 
 	"areas": [
