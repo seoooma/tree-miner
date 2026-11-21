@@ -30,8 +30,6 @@ const STAT_NAMES := {
 	"harvester": "伐採力",
 	"hauler": "積載量",
 	"truck_capacity": "積める数",
-	"truck_speed": "走る速さ",
-	"truck_price": "売値",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -48,8 +46,6 @@ const BADGES := {
 	"harvester": "badge_power",
 	"hauler": "badge_capacity",
 	"truck_capacity": "badge_capacity",
-	"truck_speed": "badge_speed",
-	"truck_price": "badge_power",
 }
 
 var player: Player

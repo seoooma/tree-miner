@@ -425,19 +425,14 @@ func _run() -> void:
 		frames += 1
 	_check(max_cargo == cap and main.dock.stock.size() == 4, "トラックは%d個で満載になり、残りは次のトラックを待つ (%d個積んで、残り%d個)" % [cap, max_cargo, main.dock.stock.size()])
 	main.dock.stock.clear()
-	# 販売のトラックは乗り物タブで強化できる（荷台・速さ・取引先）
-	for tid in ["truck_capacity", "truck_speed", "truck_price"]:
-		_check(GameData.upgrade_group_of(tid) == "vehicle", "%s は乗り物タブにある" % tid)
+	# 販売のトラックは乗り物タブの1枚のカードで強化する（積める数と走る速さが一緒に上がる）
+	var truck_cards := GameData.upgrades.filter(func(u: Dictionary) -> bool: return str(u["id"]).begins_with("truck_"))
+	_check(truck_cards.size() == 1 and GameData.upgrade_group_of("truck_capacity") == "vehicle", "販売のトラックの強化は乗り物タブの1枚だけ")
 	var truck_cap0 := ShipDock.truck_capacity()
 	var truck_speed0: float = main.dock.truck.max_speed()
-	var truck_price0 := ShipDock.cargo_price({"kind": "plank", "tree": "oak"})
-	for tid in ["truck_capacity", "truck_speed", "truck_price"]:
-		GameState.money = maxi(GameState.money, GameState.next_cost(tid))
-		GameState.buy_upgrade(tid)
-	_check(ShipDock.truck_capacity() > truck_cap0, "トラックの荷台を強化すると積める数が増える (%d → %d)" % [truck_cap0, ShipDock.truck_capacity()])
-	_check(main.dock.truck.max_speed() > truck_speed0, "トラックの速さを強化すると速く走る (%.1f → %.1f)" % [truck_speed0, main.dock.truck.max_speed()])
-	_check(ShipDock.cargo_price({"kind": "plank", "tree": "oak"}) >= truck_price0, "トラックの取引先を強化すると売値が下がらない (¥%d → ¥%d)" % [truck_price0, ShipDock.cargo_price({"kind": "plank", "tree": "oak"})])
-	_check(is_equal_approx(GameState.value("truck_price"), 105.0), "取引先 Lv1 で売値 105%")
+	GameState.money = maxi(GameState.money, GameState.next_cost("truck_capacity"))
+	GameState.buy_upgrade("truck_capacity")
+	_check(ShipDock.truck_capacity() > truck_cap0 and main.dock.truck.max_speed() > truck_speed0, "販売のトラックを強化すると積める数と速さが上がる (%d → %d個, %.1f → %.1f m/秒)" % [truck_cap0, ShipDock.truck_capacity(), truck_speed0, main.dock.truck.max_speed()])
 	main.dock.stock.append("pine")
 
 	# 22. 在庫はセーブに入る

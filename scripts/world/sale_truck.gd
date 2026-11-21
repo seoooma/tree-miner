@@ -12,7 +12,7 @@ enum State { PARKED, LEAVING, AWAY, ARRIVING }
 
 ## 停める位置から、見えなくなる位置までの距離（+X 方向）
 const EXIT_DISTANCE := 18.0
-## 走る速さは強化『トラックの速さ』（m/秒）。速いほど見えない間（AWAY_SEC）も短くなる
+## 走る速さは強化『販売のトラック』のレベルで上がる（m/秒）。速いほど見えない間（AWAY_SEC）も短くなる
 const BASE_SPEED := 9.0
 const AWAY_SEC := 0.6
 ## 荷台（ローカル座標）。板は荷台の長さ方向に4枚、横に4枚並べて積む
@@ -45,8 +45,8 @@ func _ready() -> void:
 
 
 func max_speed() -> float:
-	var v := GameState.value("truck_speed")
-	return v if v > 0.0 else BASE_SPEED
+	# 強化『販売のトラック』のレベルで速くなる（積める数と一緒に上がる）
+	return float(GameData.dock.get("truck_speed", BASE_SPEED)) + float(GameData.dock.get("truck_speed_per_level", 1.0)) * GameState.level("truck_capacity")
 
 
 func is_parked() -> bool:

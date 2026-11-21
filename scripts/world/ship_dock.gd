@@ -3,7 +3,7 @@ extends Station
 ## 出荷場。製材ライン開放後、板をここに運ぶと荷台に積まれ、販売のトラックに積み込まれていく。
 ## - 隣の「丸太を売る」枠に置いた丸太も同じトラックで売れる（板より安い。製材所が追いつかないときの逃がし先）
 ## - 積み込む速さは強化『出荷のペース』（個/秒）。荷台に置ける数に上限はない
-## - トラックの積める数・走る速さ・売値の上乗せは、乗り物タブの強化（トラックの荷台・速さ・取引先）
+## - トラックの積める数と走る速さは、乗り物タブの強化『販売のトラック』
 ## - トラックが満載になるか、積む物がしばらく無くなると、積み荷の代金が入ってトラックが拠点の外へ走り去る。
 ##   すぐに空のトラックが戻ってくる。戻ってきたトラックにも最初から1個ずつ積む
 ## - 強化『板のコンベア』を開放すると、製材所の出口の板がコンベアで荷台へ自動で運ばれる
@@ -115,7 +115,7 @@ func _on_saving() -> void:
 	GameState.stock["dock_truck"] = cargo
 
 
-## トラック1台に積める数（強化『トラックの荷台』）
+## トラック1台に積める数（強化『販売のトラック』）
 static func truck_capacity() -> int:
 	return maxi(1, roundi(GameState.value("truck_capacity")))
 
@@ -239,10 +239,10 @@ func _depart() -> void:
 	truck.depart()
 
 
-## 積み荷1個の売値。強化『トラックの取引先』の%だけ上乗せする
 static func cargo_price(item: Dictionary) -> int:
-	var base := GameData.log_price(str(item.get("tree", ""))) if item.get("kind", "") == "log" else GameData.plank_price(str(item.get("tree", "")))
-	return maxi(1, roundi(base * GameState.value("truck_price") / 100.0))
+	if item.get("kind", "") == "log":
+		return GameData.log_price(str(item.get("tree", "")))
+	return GameData.plank_price(str(item.get("tree", "")))
 
 
 func _add_stock(tree_id: String) -> void:

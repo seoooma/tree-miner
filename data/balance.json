@@ -71,8 +71,10 @@
 
 	"dock": {
 		"_comment": "出荷場に置いた板と、隣の『丸太を売る』枠に置いた丸太は、強化『出荷のペース』の個/秒で販売のトラックに積まれる。置ける数に上限はない。丸太は丸太の売値（板の半値）で売れる",
-		"_truck_note": "トラック1台に積める数は強化『トラックの荷台』、走る速さは『トラックの速さ』、売値の上乗せは『トラックの取引先』（乗り物タブ）。満載か、積む物が depart_idle_sec 秒無くなると代金が入って走り去り、空のトラックが戻る",
-		"depart_idle_sec": 2.5
+		"_truck_note": "トラック1台に積める数は強化『販売のトラック』（乗り物タブ）。同じ強化で走る速さも truck_speed + truck_speed_per_level x Lv になる。満載か、積む物が depart_idle_sec 秒無くなると代金が入って走り去り、空のトラックが戻る",
+		"depart_idle_sec": 2.5,
+		"truck_speed": 9.0,
+		"truck_speed_per_level": 1.0
 	},
 
 	"camera": {
@@ -115,7 +117,7 @@
 		{ "_comment": "強化画面のタブ。自分 → 仲間（伐採員）→ 乗り物 → 設備（自動で運ぶ・加工する・売るしくみ）の順。items に強化（upgrades の id）や機械（machines のキー）を入れると、そのタブにカードが出る。どこにも入っていないものは「その他」タブに出る" },
 		{ "id": "self",     "name": "自分",   "icon": "icon_axe",    "items": ["axe_power", "capacity", "move_speed"] },
 		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_capacity"] },
-		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler", "truck_capacity", "truck_speed", "truck_price"] },
+		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler", "truck_capacity"] },
 		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock"] }
 	],
 
@@ -130,12 +132,8 @@
 		  "base_value": 0.25, "per_level": 0.25, "base_cost": 150, "cost_growth": 1.7, "max_level": 20, "unit": "本/秒", "decimals": 2, "locked_at_zero": true },
 		{ "id": "dock",       "name": "出荷のペース", "desc": "出荷場の板・丸太を販売のトラックに積む速さ",
 		  "base_value": 0.5, "per_level": 0.3, "base_cost": 120, "cost_growth": 1.6, "max_level": 20, "unit": "個/秒", "decimals": 1, "requires": "sawmill" },
-		{ "id": "truck_capacity", "name": "トラックの荷台", "desc": "販売のトラック1台に積める板・丸太の数",
+		{ "id": "truck_capacity", "name": "販売のトラック", "desc": "積める数が増え、速く走る",
 		  "base_value": 12.0, "per_level": 4.0, "base_cost": 200, "cost_growth": 1.55, "max_level": 13, "unit": "個", "decimals": 0, "requires": "sawmill" },
-		{ "id": "truck_speed", "name": "トラックの速さ", "desc": "販売のトラックが走り去って戻ってくるまでの速さ",
-		  "base_value": 9.0, "per_level": 1.5, "base_cost": 180, "cost_growth": 1.55, "max_level": 12, "unit": "m/秒", "decimals": 1, "requires": "sawmill" },
-		{ "id": "truck_price", "name": "トラックの取引先", "desc": "販売のトラックで売った板・丸太の売値が上がる",
-		  "base_value": 100.0, "per_level": 5.0, "base_cost": 400, "cost_growth": 1.75, "max_level": 10, "unit": "%", "decimals": 0, "requires": "sawmill" },
 		{ "id": "plank_belt", "name": "板のコンベア", "desc": "Lv1で開放。製材所の板を出荷場へ自動で運ぶ。以降は運ぶ速さアップ",
 		  "base_value": 0.2, "per_level": 0.4, "base_cost": 500, "cost_growth": 1.6, "max_level": 12, "unit": "枚/秒", "decimals": 1, "locked_at_zero": true, "requires": "sawmill" },
 		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
