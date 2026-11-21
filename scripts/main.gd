@@ -11,11 +11,11 @@ const SAWMILL_POS := Vector3(-5, 0, 9)
 const DOCK_POS := Vector3(5.5, 0, 9)
 const PLAYER_SPAWN := Vector3(1, 0, 4)
 const FUEL_POS := Vector3(0, 0, 14)
-## 機械の購入パッドと出現位置
-const SHOP_POS := {"harvester": Vector3(-12, 0, 6), "hauler": Vector3(12, 0, 6)}
-const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 11), "hauler": Vector3(12, 0, 11)}
-## 川流し（左端）とトロッコ（右端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
-const LINE_X := {"river": -16.5, "trolley": 16.5}
+## 機械の購入パッドと出現位置（伐採機は、川の集積所から製材所へのコンベアを避けて少し手前）
+const SHOP_POS := {"harvester": Vector3(-12, 0, 8.8), "hauler": Vector3(12, 0, 6)}
+const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 12), "hauler": Vector3(12, 0, 11)}
+## 川流し（左端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
+const LINE_X := {"river": -16.5}
 const LINE_CLEAR_X := 14.6
 
 var player: Player
@@ -23,7 +23,7 @@ var camera: FollowCamera
 var sawmill: Sawmill
 var dock: ShipDock
 var guide: GuideArrows
-var lines: Dictionary = {}  # "river" / "trolley" -> LogLine
+var lines: Dictionary = {}  # "river" -> LogLine
 var hud: Hud
 var lumberjacks: Array[Lumberjack] = []
 var machines: Dictionary = {}  # kind -> Machine
@@ -199,7 +199,6 @@ func _build_facilities() -> void:
 func _build_lines() -> void:
 	for kind in LINE_X:
 		var line := LogLine.new()
-		line.kind = kind
 		line.x = LINE_X[kind]
 		line.far_z = _area_ranges[-1].y + 1.0
 		line.near_z = 3.0
@@ -253,9 +252,10 @@ func _spawn_trees() -> void:
 
 func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool:
 	# 中央の道は空けておく（機械が走りやすいように）
+	# 左右の端も空けておく（左は川。右は配置を変えないよう従来どおり空ける）
 	if absf(pos.x) < 1.8 or absf(pos.x) > LINE_CLEAR_X:
 		return false
-	# 川岸・トロッコ駅の積み込み枠のまわり
+	# 川岸の積み込み枠のまわり（左右対称のまま。木の配置を変えないため）
 	for i in _area_ranges.size():
 		var cz := (_area_ranges[i].x + _area_ranges[i].y) * 0.5
 		if absf(absf(pos.x) - 13.2) < 2.2 and absf(pos.z - cz) < 2.2:
