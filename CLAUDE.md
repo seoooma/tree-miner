@@ -16,6 +16,16 @@ Godot 4.3 製（CI の `.github/workflows/web.yml` の `GODOT_VERSION` が正）
 
 最後に `SMOKE TEST: PASS` が出れば CI と同じ判定で合格。
 
+## 見た目の確認（スクリーンショット）
+
+```bash
+tools/cloud/screenshots.sh /tmp/shots              # home / chop / felled / saw / sell / river を撮る（1 分ほど）
+tools/cloud/screenshots.sh /tmp/shots 720x1280 chop,felled   # 場面を絞る
+```
+
+仮想ディスプレイ上で実際に描画する（セーブデータは書き換えない）。Web 版と同じ Compatibility レンダラーなので、
+グロー・色調補正（Environment の glow / adjustment）は画面が白っぽく色あせる。使わず、光る演出は加算合成のスプライト（`scripts/vfx.gd`）で出す。
+
 ## Godot MCP（.mcp.json の `godot`）
 
 `tools/cloud/godot_mcp.sh` が `@coding-solo/godot-mcp` を起動する。画面が無い環境なので、`GODOT_PATH` には

@@ -35,6 +35,10 @@ var _blade: MeshInstance3D
 var _work_log: Node3D
 var _work_plank: Node3D
 var _work_tree := ""
+## ノコギリから出るおがくず（加工中だけ出す）
+var _sawdust: CPUParticles3D
+var _sawdust_haze: CPUParticles3D
+var _spark_timer := 1.0
 
 
 func _ready() -> void:
@@ -111,6 +115,16 @@ func _build() -> void:
 	body.add_child(shape)
 	add_child(body)
 	_blade = build_bench(self)
+	# おがくずは丸太の入ってくる側（左）の手前へ吹き出す
+	var blade_top := BENCH_OFFSET + Vector3(0, DECK_Y + 0.8, 0.05)
+	_sawdust = Vfx.make_sawdust(Vector3(-0.8, 0.9, 0.5).normalized())
+	_sawdust.position = blade_top
+	_sawdust.emitting = false
+	add_child(_sawdust)
+	_sawdust_haze = Vfx.make_sawdust_haze(Vector3(-0.5, 0.8, 0.6).normalized())
+	_sawdust_haze.position = blade_top
+	_sawdust_haze.emitting = false
+	add_child(_sawdust_haze)
 
 	_input_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.95, 0.8, 0.3, 0.16))
 	_input_zone.position = INPUT_OFFSET
@@ -193,7 +207,21 @@ func _process(delta: float) -> void:
 	var cutting := unlocked and not queue.is_empty() and output.size() < output_max()
 	_blade.rotate_object_local(Vector3.UP, delta * (14.0 if cutting else 1.0))
 	_update_work(cutting)
+	_update_effects(cutting, delta)
 	_update_labels(unlocked)
+
+
+func _update_effects(cutting: bool, delta: float) -> void:
+	if _sawdust.emitting != cutting:
+		_sawdust.emitting = cutting
+		_sawdust_haze.emitting = cutting
+	if not cutting:
+		return
+	# ときどき節に当たって火花が散る
+	_spark_timer -= delta
+	if _spark_timer <= 0.0:
+		_spark_timer = randf_range(0.8, 2.2)
+		Vfx.sparks(self, global_position + BENCH_OFFSET + Vector3(0, DECK_Y + 0.85, 0.1), Vector3(-0.3, 0, 1.0), 5)
 
 
 ## 運ばれてきた丸太が投入口（加工待ちの山）へ飛んでいく演出
@@ -237,7 +265,9 @@ func _process_line(delta: float) -> void:
 	if changed:
 		_rebuild_output()
 		_rebuild_input()
-		Fx.burst(self, global_position + BENCH_OFFSET + Vector3(0, DECK_Y + 0.8, 0), [Color("#e8c99a"), Color("#c99a5b")], 6, 1.6, 0.05, 0.4)
+		var at := global_position + BENCH_OFFSET + Vector3(BENCH_FEED_X, DECK_Y + 0.8, 0)
+		Vfx.wood_chips(self, at, Vector3(1, 0, 0.4), [Color("#f0d6a4"), Color("#d9b47a")], 5)
+		Vfx.dust(self, at, Color("#efdcb5"), 3, 0.45, 0.9)
 
 
 ## 製材台の上の1本を加工の進み具合に合わせて左から右へ流す。ノコギリ（中央）より左は丸太、右は板に見える。

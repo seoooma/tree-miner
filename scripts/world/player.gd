@@ -13,6 +13,7 @@ var stack: CarryStack
 var vehicle: Machine = null
 
 var _chop_timer := 0.0
+var _step_timer := 0.0
 var _visual: Node3D
 var _rig: CharacterRig
 
@@ -76,9 +77,23 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 0.05:
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 12.0))
 	_rig.set_moving(moving, GameState.value("move_speed") / 5.0)
+	_update_steps(moving, delta)
 	Audio.set_loop("walk", moving, -12.0, GameState.value("move_speed") / 5.0)
 	_update_chop(delta)
 	LogDrop.collect_near(self, stack, float(GameData.player.get("pickup_radius", 1.8)))
+
+
+## 歩くと足元に小さな土ぼこりが立つ（拠点の土の上は多め、草地は控えめ）
+func _update_steps(moving: bool, delta: float) -> void:
+	if not moving:
+		_step_timer = 0.0
+		return
+	_step_timer -= delta
+	if _step_timer > 0.0:
+		return
+	_step_timer = 0.3 / maxf(0.6, GameState.value("move_speed") / 5.0)
+	var on_yard := global_position.z > 0.0
+	Vfx.dust(self, global_position + Vector3(0, 0.08, 0) - velocity.normalized() * 0.2, Color("#dccdaa") if on_yard else Color("#cfd2b0"), 2 if on_yard else 1, 0.32, 0.6, false, 0.6)
 
 
 func _keyboard_vector() -> Vector2:

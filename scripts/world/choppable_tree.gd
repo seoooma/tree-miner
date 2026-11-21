@@ -8,7 +8,9 @@ signal felled(tree: ChoppableTree)
 
 ## 見た目のバリエーション数（色と形を少しずつ変える）
 const VARIANTS := 3
-const FALL_SEC := 0.55
+## 倒れ始めの「メキッ」と傾く時間。これと FALL_SEC を足した時間で着地する（以前の 0.55 秒と同じ）
+const CREAK_SEC := 0.1
+const FALL_SEC := 0.45
 
 var tree_id := ""
 var area_index := 0
@@ -121,53 +123,88 @@ static func _build_stump(def: Dictionary, variant: int) -> Mesh:
 
 
 ## 種類とバリエーションごとにメッシュを作ってキャッシュする。
+## 幹は根元が広がり、広葉樹は枝の先にでこぼこした葉のかたまりを5つ、針葉樹は枝先が垂れた段を4つ重ねる。
+## 木は数百本あるので、1本あたり三角形 400 枚ほどに抑えている（MultiMesh でまとめて描く）。
 static func _build_mesh(def: Dictionary, variant: int) -> Mesh:
 	var id := str(def["id"])
 	var s := float(def.get("scale", 1.0)) * (0.9 + 0.1 * variant)
 	var trunk_color := bark_color(def)
 	var leaf := leaf_color(def)
 	leaf = leaf.lightened(0.05 * (variant - 1)) if variant != 1 else leaf
+	var seed_value := float(variant) * 2.3 + float(id.hash() % 97) * 0.1
 	var parts := []
 	var trunk_h := 1.2 * s
+	var cone: bool = def.get("shape", "sphere") == "cone"
 	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.18 * s
-	trunk.bottom_radius = 0.28 * s
+	trunk.top_radius = 0.15 * s if cone else 0.17 * s
+	trunk.bottom_radius = 0.26 * s
 	trunk.height = trunk_h
-	trunk.radial_segments = 6
-	trunk.rings = 1
-	parts.append([trunk, Transform3D(Basis(), Vector3(0, trunk_h * 0.5, 0)), trunk_color])
+	trunk.radial_segments = 7
+	trunk.rings = 2
+	parts.append([Fx.lumpy(trunk, 0.08, seed_value), Transform3D(Basis(), Vector3(0, trunk_h * 0.5, 0)), trunk_color])
+	# 根元の張り出し
+	var flare := CylinderMesh.new()
+	flare.top_radius = 0.24 * s
+	flare.bottom_radius = 0.38 * s
+	flare.height = 0.22 * s
+	flare.radial_segments = 7
+	flare.rings = 1
+	parts.append([Fx.lumpy(flare, 0.18, seed_value + 1.0), Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 0.11 * s, 0)), trunk_color])
 
-	if def.get("shape", "sphere") == "cone":
-		# 針葉樹: 円錐を3段重ねる
-		var y := trunk_h * 0.55
-		for i in 3:
-			var cone := CylinderMesh.new()
-			var r := (1.05 - i * 0.25) * s
-			var h := (1.3 - i * 0.18) * s
-			cone.bottom_radius = r
-			cone.top_radius = 0.0
-			cone.height = h
-			cone.radial_segments = 7
-			cone.rings = 1
-			var rot := Basis(Vector3.UP, 0.4 * i + variant)
-			parts.append([cone, Transform3D(rot, Vector3(0, y + h * 0.5, 0)), leaf.darkened(0.08 * (2 - i))])
-			y += h * 0.45
+	if cone:
+		# 針葉樹: 枝先が垂れた段を4つ重ね、てっぺんに細い先端
+		var y := trunk_h * 0.42
+		for i in 4:
+			var tier := CylinderMesh.new()
+			var r := (1.1 - i * 0.22) * s
+			var h := (1.05 - i * 0.12) * s
+			tier.bottom_radius = r
+			tier.top_radius = 0.0
+			tier.height = h
+			tier.radial_segments = 9
+			tier.rings = 2
+			var rot := Basis(Vector3.UP, 0.5 * i + variant)
+			var shade := 0.1 * (3 - i) / 3.0
+			parts.append([Fx.lumpy(tier, 0.12, seed_value + i * 1.9, 0.16), Transform3D(rot, Vector3(0, y + h * 0.5, 0)), leaf.darkened(shade)])
+			y += h * 0.5
+		var tip := CylinderMesh.new()
+		tip.bottom_radius = 0.22 * s
+		tip.top_radius = 0.0
+		tip.height = 0.55 * s
+		tip.radial_segments = 6
+		tip.rings = 1
+		parts.append([tip, Transform3D(Basis(), Vector3(0, y + 0.22 * s, 0)), leaf.lightened(0.04)])
 	else:
-		# 広葉樹: 角ばった球を3つ寄せる
+		# 広葉樹: 幹から2本の枝を出し、その先と上に葉のかたまり
+		for k in 2:
+			var br := CylinderMesh.new()
+			br.top_radius = 0.05 * s
+			br.bottom_radius = 0.09 * s
+			br.height = 0.75 * s
+			br.radial_segments = 5
+			br.rings = 1
+			var yaw := 0.9 + k * PI + variant * 0.7
+			var branch_basis := Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, 0.75)
+			parts.append([br, Transform3D(branch_basis, Vector3(0, trunk_h * 0.85, 0) + branch_basis.y * 0.3 * s), trunk_color])
 		var blobs := [
-			[Vector3(0, trunk_h + 0.45 * s, 0), 0.85],
-			[Vector3(0.45 * s, trunk_h + 0.2 * s, 0.15 * s), 0.55],
-			[Vector3(-0.35 * s, trunk_h + 0.25 * s, -0.3 * s), 0.6],
+			[Vector3(0, trunk_h + 0.55 * s, 0), 0.78],
+			[Vector3(0.5 * s, trunk_h + 0.25 * s, 0.2 * s), 0.55],
+			[Vector3(-0.45 * s, trunk_h + 0.3 * s, -0.25 * s), 0.58],
+			[Vector3(0.05 * s, trunk_h + 0.2 * s, -0.5 * s), 0.5],
+			[Vector3(-0.2 * s, trunk_h + 0.95 * s, 0.15 * s), 0.45],
 		]
 		for i in blobs.size():
 			var b: Array = blobs[i]
 			var sph := SphereMesh.new()
 			sph.radius = b[1] * s
 			sph.height = b[1] * s * 2.0
-			sph.radial_segments = 7
-			sph.rings = 4
+			sph.radial_segments = 8
+			sph.rings = 5
 			var rot := Basis(Vector3.UP, 0.7 * i + variant * 1.3)
-			parts.append([sph, Transform3D(rot, rot * b[0] if variant == 2 else b[0]), leaf.darkened(0.06 * i)])
+			var at: Vector3 = Basis(Vector3.UP, variant * 2.1) * b[0]
+			# 上のかたまりほど明るく（日が当たる）
+			var tone := leaf.darkened(0.08) if at.y < trunk_h + 0.4 * s else leaf.lightened(0.03)
+			parts.append([Fx.lumpy(sph, 0.16, seed_value + i * 2.7), Transform3D(rot.scaled(Vector3(1.0, 0.86, 1.0)), at), tone])
 	return Fx.merged("tree/%s/%d" % [id, variant], parts)
 
 
@@ -231,13 +268,18 @@ func hit(damage: float, from := Vector3.INF) -> bool:
 	if not alive:
 		return false
 	hp -= damage
-	_shake()
+	var away := _away_from(from)
+	_shake(away)
 	var trunk_color := Color(_def.get("trunk_color", "#8a5a33"))
-	# 木くず（明るい木口の色と樹皮の色）
-	Fx.burst(self, global_position + Vector3(0, 0.7, 0), [trunk_color.lightened(0.35), Color("#e8c99a"), trunk_color.darkened(0.2)], 12, 3.2, 0.07, 0.55)
+	# 木くずは切っている側（切った人の方）へ飛ぶ。明るい木口の色と樹皮の色
+	var cut := global_position + Vector3(0, 0.55, 0) - away * radius
+	Vfx.wood_chips(self, cut, -away + away.cross(Vector3.UP) * randf_range(-0.6, 0.6), [Color("#f0d9a8"), Color("#e2bd85"), trunk_color.lightened(0.15), trunk_color.darkened(0.2)], 9)
+	Vfx.dust(self, cut, Color("#efe2c4"), 2, 0.35, 0.8)
+	# 揺れた拍子に葉が数枚落ちる
+	Vfx.leaves(self, global_position + Vector3(0, _canopy_height(), 0), _leaf_tint(), 3, 0.6 * _scale, 0.6)
 	Audio.play("chop", -4.0)
 	if hp <= 0.0:
-		_fell(from)
+		_fell(away)
 		return true
 	_bar_root.visible = true
 	_bar_timer = 2.5
@@ -245,18 +287,45 @@ func hit(damage: float, from := Vector3.INF) -> bool:
 	return false
 
 
-func _shake() -> void:
+## 切った人から見て木の向こう側（水平・正規化）。わからなければランダム
+func _away_from(from: Vector3) -> Vector3:
+	var dir := Vector3(randf_range(-1, 1), 0, randf_range(-1, 1))
+	if from != Vector3.INF:
+		dir = Vector3(global_position.x - from.x, 0, global_position.z - from.z)
+	if dir.length() < 0.01:
+		dir = Vector3.FORWARD
+	return dir.normalized()
+
+
+func _canopy_height() -> float:
+	return 1.75 * _scale
+
+
+func _leaf_tint() -> Color:
+	var c := Color(_def.get("leaf_color", "#4f9f4f"))
+	c.s *= 0.85
+	c.v *= 0.9
+	return c
+
+
+## 斧が当たった向きに少し傾いて、しなって戻る
+func _shake(away: Vector3) -> void:
 	if _shake_tween:
 		_shake_tween.kill()
+	var axis := Vector3.UP.cross(away).normalized()
 	var tween := create_tween()
 	_shake_tween = tween
-	tween.tween_property(_visual, "rotation_degrees:z", 5.0, 0.05)
-	tween.tween_property(_visual, "rotation_degrees:z", -3.0, 0.07)
-	tween.tween_property(_visual, "rotation_degrees:z", 0.0, 0.06)
-	_animate(0.2)
+	tween.tween_method(func(a: float) -> void:
+		_visual.transform = Transform3D(Basis(axis, deg_to_rad(a)), Vector3.ZERO), 0.0, 6.0, 0.05).set_ease(Tween.EASE_OUT)
+	tween.tween_method(func(a: float) -> void:
+		_visual.transform = Transform3D(Basis(axis, deg_to_rad(a)), Vector3.ZERO), 6.0, -2.5, 0.12).set_trans(Tween.TRANS_SINE)
+	tween.tween_method(func(a: float) -> void:
+		_visual.transform = Transform3D(Basis(axis, deg_to_rad(a)), Vector3.ZERO), -2.5, 0.0, 0.1).set_trans(Tween.TRANS_SINE)
+	_animate(0.3)
 
 
-func _fell(from: Vector3) -> void:
+## 切った人と反対側へ倒す。根元を軸に、ゆっくり傾き始めてから加速し、地面で小さく跳ねる。
+func _fell(dir: Vector3) -> void:
 	alive = false
 	claimed_by = null
 	if _shake_tween:
@@ -265,34 +334,38 @@ func _fell(from: Vector3) -> void:
 	_stump.visible = true
 	_shape.set_deferred("disabled", true)
 	felled.emit(self)
-	# 切った人と反対側へ倒す
-	var dir := Vector3(randf_range(-1, 1), 0, randf_range(-1, 1))
-	if from != Vector3.INF:
-		dir = Vector3(global_position.x - from.x, 0, global_position.z - from.z)
-	if dir.length() < 0.01:
-		dir = Vector3.FORWARD
-	dir = dir.normalized()
 	var axis := Vector3.UP.cross(dir).normalized()
-	_visual.rotation = Vector3.ZERO
-	var start := _visual.transform
+	var rot := func(deg: float) -> void:
+		_visual.transform = Transform3D(Basis(axis, deg_to_rad(deg)), Vector3.ZERO)
+	_visual.scale = Vector3.ONE
 	var tween := create_tween()
-	tween.tween_method(func(t: float) -> void:
-		_visual.transform = Transform3D(Basis(axis, t * PI * 0.5), Vector3.ZERO) * start, 0.0, 1.0, FALL_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	# メキッと少し傾く → 倒れる（重力のように加速）→ 着地で跳ね返る
+	tween.tween_method(rot, 0.0, 7.0, CREAK_SEC).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+	tween.tween_method(rot, 7.0, 90.0, FALL_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_callback(func() -> void: _on_landed(dir))
-	tween.tween_property(_visual, "scale", Vector3.ONE * 0.01, 0.3).set_delay(0.15)
+	tween.tween_method(rot, 90.0, 82.0, 0.09).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tween.tween_method(rot, 82.0, 90.0, 0.11).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	# 土ぼこりの中で小さくなって消える（丸太に変わる）
+	tween.tween_property(_visual, "scale", Vector3.ONE * 0.01, 0.32).set_delay(0.12).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BACK)
 	tween.tween_callback(func() -> void:
 		_visual.visible = false
 		_push_visual())
-	_animate(FALL_SEC + 0.5)
+	_animate(CREAK_SEC + FALL_SEC + 0.2 + 0.5)
+	# 倒れ始めに葉がこぼれる
+	Vfx.leaves(self, global_position + Vector3(0, _canopy_height(), 0), _leaf_tint(), 5, 0.7 * _scale, 0.5)
 	Audio.play("tree_fall", -3.0)
 
 
 func _on_landed(dir: Vector3) -> void:
-	var leaf := Color(_def.get("leaf_color", "#4f9f4f"))
-	var land := global_position + dir * 1.6 * _scale
-	Fx.burst(self, land + Vector3(0, 0.4, 0), [leaf, leaf.lightened(0.2)], 16, 3.5, 0.12, 0.8)
-	Fx.burst(self, global_position + Vector3(0, 0.1, 0), [Color("#cbb48a")], 8, 1.5, 0.15, 0.6, -2.0)
-	Fx.shake(self, 0.08)
+	var leaf := _leaf_tint()
+	var reach := _canopy_height()
+	var crown := global_position + dir * reach
+	# 樹冠が地面に打ちつけられて葉が舞い、幹に沿って土ぼこりが立つ
+	Vfx.leaves(self, crown + Vector3(0, 0.4, 0), leaf, 14, 0.8 * _scale, 2.2)
+	Vfx.dust(self, crown + Vector3(0, 0.15, 0), Color("#d9cdb0"), 7, 0.9 * _scale, 2.4, true, 1.0)
+	Vfx.dust(self, global_position + dir * reach * 0.45 + Vector3(0, 0.1, 0), Color("#d9cdb0"), 4, 0.7 * _scale, 1.6, true, 0.9)
+	Vfx.wood_chips(self, global_position + Vector3(0, 0.25, 0), -dir, [Color("#f0d9a8"), Color("#e2bd85")], 6)
+	Fx.shake(self, 0.1)
 	LogDrop.spawn_from_tree(self, tree_id, dir)
 	get_tree().create_timer(_respawn_sec).timeout.connect(_respawn)
 

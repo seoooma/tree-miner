@@ -36,6 +36,8 @@ var _visual: Node3D
 var _points: Array[LoadingPoint] = []
 var _time := 0.0
 var _water_mat: ShaderMaterial
+## 水門の白い水しぶき
+var _gate_splash: CPUParticles3D
 
 
 func _ready() -> void:
@@ -77,6 +79,8 @@ func conveyor_active() -> bool:
 
 func _refresh() -> void:
 	visible = is_active()
+	if _gate_splash:
+		_gate_splash.emitting = visible
 	belt.set_active(is_active() and conveyor_active())
 	for p in _points:
 		p.refresh()
@@ -99,6 +103,7 @@ func launch(tree_id: String, from: LoadingPoint) -> void:
 		item["node"] = _make_item_visual(tree_id)
 		_visual.add_child(item["node"])
 	_items.append(item)
+	Vfx.splash(self, Vector3(x, 0.1, from.global_position.z))
 
 
 ## このLoadingPoint から出て、まだ集積所から運び出されていない数（川・集積所の合計）
@@ -270,6 +275,9 @@ func _build_end() -> void:
 	for side in [-1.5, 1.5]:
 		_visual.add_child(Fx.box(Vector3(0.3, 1.4, 0.3), Color("#7a5a3a"), Vector3(x + side, 0.7, near_z + 0.4), "wood"))
 	_visual.add_child(Fx.box(Vector3(3.3, 0.25, 0.3), Color("#7a5a3a"), Vector3(x, 1.35, near_z + 0.4), "wood"))
+	_gate_splash = Vfx.make_splash(2.4)
+	_gate_splash.position = Vector3(x, 0.08, near_z + 0.2)
+	_visual.add_child(_gate_splash)
 	# 集積所の床（丸太の山の下の板敷き）
 	var yp := yard_position()
 	_visual.add_child(Fx.box(Vector3(1.9, 0.08, 1.6), Color("#8a6a45"), yp + Vector3(0, 0.04, 0), "wood"))
@@ -323,15 +331,26 @@ void fragment() {
 	float n1 = texture(noise_tex, uv + vec2(0.0, -flow)).r;
 	float n2 = texture(noise_tex, uv * 1.7 + vec2(0.31, -flow * 1.4)).r;
 	float n = n1 * 0.6 + n2 * 0.4;
-	vec3 deep = vec3(0.12, 0.3, 0.33);
-	vec3 shallow = vec3(0.28, 0.5, 0.5);
-	float edge = smoothstep(0.0, 0.18, min(UV.x, 1.0 - UV.x));
-	ALBEDO = mix(shallow, deep, edge) * (0.85 + 0.3 * n);
-	ROUGHNESS = 0.12 + 0.2 * n;
+	// 流れに沿って伸びる筋
+	float streak = texture(noise_tex, vec2(wpos.x * 0.9, wpos.z * 0.08 - flow * 0.7)).r;
+	vec3 deep = vec3(0.1, 0.27, 0.31);
+	vec3 shallow = vec3(0.3, 0.52, 0.5);
+	float d = min(UV.x, 1.0 - UV.x);
+	float edge = smoothstep(0.0, 0.2, d);
+	vec3 col = mix(shallow, deep, edge) * (0.85 + 0.3 * n);
+	// 岸ぎわの白い泡と、流れの筋の泡
+	float foam = (1.0 - smoothstep(0.02, 0.1, d + (n2 - 0.5) * 0.07)) * 0.85;
+	foam += smoothstep(0.72, 0.86, streak * 0.65 + n1 * 0.35) * 0.45;
+	col = mix(col, vec3(0.9, 0.95, 0.95), clamp(foam, 0.0, 1.0));
+	// 浅い角度ほど空が映る
+	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
+	col += vec3(0.45, 0.6, 0.72) * fres * 0.5;
+	ALBEDO = col;
+	ROUGHNESS = mix(0.08 + 0.15 * n, 0.7, clamp(foam, 0.0, 1.0));
 	METALLIC = 0.0;
-	SPECULAR = 0.7;
-	NORMAL_MAP = normalize(vec3((n1 - 0.5) * 0.8, (n2 - 0.5) * 0.8, 1.0)) * 0.5 + 0.5;
-	ALPHA = 0.88 * edge + 0.1;
+	SPECULAR = 0.75;
+	NORMAL_MAP = normalize(vec3((n1 - 0.5) * 0.9, (n2 - 0.5) * 0.9, 1.0)) * 0.5 + 0.5;
+	ALPHA = max(0.86 * edge + 0.12, clamp(foam, 0.0, 1.0));
 }
 """
 	var m := ShaderMaterial.new()

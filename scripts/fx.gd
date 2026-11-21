@@ -95,6 +95,34 @@ static func merged(key: String, parts: Array) -> Mesh:
 		return out)
 
 
+## 球や円錐の表面をなめらかなノイズででこぼこにする（木の葉のかたまりを自然な形にする）。
+## 頂点の位置だけで決まるので、継ぎ目で同じ位置にある頂点は同じだけ動き、すき間はできない。
+## droop を付けると、外側に張り出した所ほど少し下に垂れる（針葉樹の枝先）。
+static func lumpy(mesh: Mesh, amount: float, seed_value: float, droop := 0.0) -> ArrayMesh:
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var out := PackedVector3Array()
+	out.resize(verts.size())
+	for i in verts.size():
+		var v := verts[i]
+		var d := v.normalized() if v.length() > 0.0001 else Vector3.UP
+		var n := sin(d.x * 3.1 + seed_value) * 0.5 + sin(d.y * 4.3 + d.z * 2.2 + seed_value * 1.7) * 0.35 \
+			+ sin(d.z * 5.7 - d.x * 3.3 + seed_value * 2.9) * 0.25
+		var radial := Vector3(v.x, 0, v.z)
+		var w := v + radial * n * amount + Vector3(0, v.y, 0) * n * amount * 0.5
+		if droop != 0.0:
+			w.y -= radial.length() * droop * (0.6 + 0.4 * n)
+		out[i] = w
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = out
+	if arrays[Mesh.ARRAY_INDEX] != null:
+		arr[Mesh.ARRAY_INDEX] = arrays[Mesh.ARRAY_INDEX]
+	var result := ArrayMesh.new()
+	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return result
+
+
 static func _cached(key: String, make: Callable) -> Mesh:
 	if not _meshes.has(key):
 		_meshes[key] = make.call()
@@ -181,39 +209,13 @@ static func model(path: String) -> Node3D:
 # ---- 演出 ----
 
 ## 小さな破片を飛び散らせる（木くず・葉っぱ・砂ぼこり・紙吹雪など）。
+## 色が3色以上で勢いがあるもの（購入・開放のお祝い）は、ひらひら舞う紙吹雪にする。
 static func burst(context: Node, world_pos: Vector3, colors: Array, amount := 10, speed := 3.0, size := 0.09, lifetime := 0.7, gravity := -9.0) -> void:
-	var scene := context.get_tree().current_scene
-	if scene == null:
-		return
-	for color in colors:
-		var p := CPUParticles3D.new()
-		p.one_shot = true
-		p.emitting = false
-		p.amount = maxi(1, floori(float(amount) / colors.size()))
-		p.lifetime = lifetime
-		p.explosiveness = 0.95
-		p.direction = Vector3.UP
-		p.spread = 70.0
-		p.initial_velocity_min = speed * 0.5
-		p.initial_velocity_max = speed
-		p.gravity = Vector3(0, gravity, 0)
-		p.angular_velocity_min = -360.0
-		p.angular_velocity_max = 360.0
-		p.scale_amount_min = 0.6
-		p.scale_amount_max = 1.2
-		var curve := Curve.new()
-		curve.add_point(Vector2(0, 1))
-		curve.add_point(Vector2(0.7, 0.9))
-		curve.add_point(Vector2(1, 0))
-		p.scale_amount_curve = curve
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3.ONE * size
-		mesh.material = material(color)
-		p.mesh = mesh
-		scene.add_child(p)
-		p.global_position = world_pos
-		p.emitting = true
-		p.get_tree().create_timer(lifetime + 0.2).timeout.connect(p.queue_free)
+	var confetti := colors.size() >= 3 and speed >= 5.0
+	Vfx.burst(context, world_pos, colors, amount, speed, size, lifetime + (0.6 if confetti else 0.0), gravity * (0.45 if confetti else 1.0), confetti)
+	if confetti:
+		Vfx.sparkles(context, world_pos + Vector3(0, 0.4, 0), Color("#fff0b0"), 10, 4.0)
+		Vfx.flash(context, world_pos, Color("#fff2c0"), 2.6)
 
 
 ## 受け渡しのとき、品物が放物線を描いて飛んでいく演出（見た目だけ）。node は新しく作った見た目のノード。
@@ -231,20 +233,27 @@ static func fly_item(context: Node, node: Node3D, from: Vector3, to: Vector3, du
 	tween.tween_callback(node.queue_free)
 
 
-## コインが跳ねて消える演出（売却時）。
+## コインが跳ねて消える演出（売却時）。回りながら跳ね上がり、てっぺんでキラッと光って消える。
 static func coin_pop(context: Node, world_pos: Vector3) -> void:
 	var scene := context.get_tree().current_scene
 	if scene == null:
 		return
 	var coin := model("res://assets/kenney/platformer/coin.glb")
 	scene.add_child(coin)
-	coin.global_position = world_pos + Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3))
-	coin.scale = Vector3.ONE * 0.55
+	var start := world_pos + Vector3(randf_range(-0.3, 0.3), 0.9, randf_range(-0.3, 0.3))
+	coin.global_position = start
+	coin.scale = Vector3.ONE * 0.2
+	var peak := start + Vector3(0, 1.5, 0)
 	var tween := coin.create_tween().set_parallel()
-	tween.tween_property(coin, "position:y", coin.position.y + 1.4, 0.5).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(coin, "rotation:y", TAU * 2.0, 0.6)
-	tween.tween_property(coin, "scale", Vector3.ZERO, 0.2).set_delay(0.45)
+	tween.tween_property(coin, "scale", Vector3.ONE * 0.6, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(coin, "global_position", peak, 0.42).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(coin, "rotation:y", TAU * 2.5, 0.6).set_ease(Tween.EASE_OUT)
+	tween.tween_property(coin, "scale", Vector3.ZERO, 0.16).set_delay(0.46).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tween.chain().tween_callback(coin.queue_free)
+	Vfx.flash(context, start, Color("#ffd75a"), 1.3)
+	coin.get_tree().create_timer(0.4).timeout.connect(func() -> void:
+		if is_instance_valid(coin):
+			Vfx.sparkles(coin, peak, Color("#ffe38a"), 7, 2.2))
 
 
 ## カメラを軽く揺らす（木が倒れたときなど）。

@@ -100,6 +100,7 @@ func _land(target: Vector3) -> void:
 	var up := create_tween()
 	up.tween_property(self, "global_position:y", 1.6, SPAWN_SEC * 0.4).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	up.tween_property(self, "global_position:y", target.y, SPAWN_SEC * 0.6).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	up.tween_callback(func() -> void: Vfx.dust(self, global_position, Color("#d9cdb0"), 2, 0.4, 0.8, true, 0.6))
 	up.tween_property(self, "global_position:y", target.y + 0.35, 0.12).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	up.tween_property(self, "global_position:y", target.y, 0.12).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	up.tween_property(self, "global_position:y", target.y + 0.1, 0.07).set_ease(Tween.EASE_OUT)

@@ -113,6 +113,14 @@ func _build_environment() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 0.88
 	env.tonemap_white = 6.0
+	# 遠くの森がうっすら霞む（奥行きが出る）。霧の色は空の地平線に合わせる
+	env.fog_enabled = true
+	env.fog_light_color = Color("#c4d3d6")
+	env.fog_light_energy = 1.0
+	env.fog_density = 0.006
+	env.fog_sky_affect = 0.0
+	# グロー・色調補正は Web 版（Compatibility レンダラー）だと画面全体が白っぽく色あせるので使わない。
+	# 光る演出は加算合成のスプライト（Vfx）で出している
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
@@ -132,6 +140,32 @@ func _build_environment() -> void:
 	# 影の範囲をカメラに映る範囲にぴったり合わせて、2048px の影マップをくっきり使う
 	sun.directional_shadow_max_distance = 18.0
 	add_child(sun)
+	_build_vignette()
+
+
+## 画面の四隅をほんのり暗くして、中央（プレイヤーのまわり）に目が行くようにする。
+## ポストエフェクトではなく半透明の画像を1枚重ねるだけなので、スマホでも軽い。
+func _build_vignette() -> void:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	g.colors = PackedColorArray([Color(0.08, 0.06, 0.04, 0.0), Color(0.08, 0.06, 0.04, 0.0), Color(0.08, 0.06, 0.04, 0.32)])
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.08, 0.5)
+	tex.width = 128
+	tex.height = 128
+	var rect := TextureRect.new()
+	rect.texture = tex
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var layer := CanvasLayer.new()
+	layer.layer = 0
+	layer.add_child(rect)
+	add_child(layer)
 
 
 func _build_ground() -> void:

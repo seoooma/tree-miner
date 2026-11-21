@@ -53,9 +53,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 				var arr: Array[Transform3D] = []
 				chunks[c] = arr
 			(chunks[c] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), p))
-		var grass_mat := StandardMaterial3D.new()
-		grass_mat.albedo_color = Color("#5d8a3c")
-		grass_mat.roughness = 0.9
+		var grass_mat := Mats.foliage(Color("#5d8a3c"))
 		for c in chunks:
 			_multimesh(parent, grass_mesh, chunks[c], grass_mat, false)
 
@@ -72,7 +70,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			if absf(p.x) < 1.5:
 				continue
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
-		_multimesh(parent, head, xf, null, false)
+		_multimesh(parent, head, xf, Mats.foliage(), false)
 
 	# 石（Kenney Survival Kit の岩を2種類）
 	var rocks: Array[Mesh] = []
