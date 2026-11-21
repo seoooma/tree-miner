@@ -20,6 +20,8 @@ var _output_pile: Node3D
 var _input_pile: Node3D
 const INPUT_PILE_OFFSET := Vector3(-3.0, 0, -3.6)
 const PILE_VISIBLE := 48
+## 建物の縮尺。給油所の屋根や出荷場と同じくらいの大きさにそろえる（受け渡しの枠と丸太置き場の位置は変えない）
+const HOUSE_SCALE := 0.75
 var _blade: MeshInstance3D
 
 
@@ -55,13 +57,16 @@ func _build() -> void:
 	body.collision_layer = 1
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(3.6, 2.4, 3.0)
+	box.size = Vector3(3.6, 2.4, 3.0) * HOUSE_SCALE
 	shape.shape = box
-	shape.position.y = 1.2
+	shape.position.y = 1.2 * HOUSE_SCALE
 	body.add_child(shape)
 	add_child(body)
-	_blade = build_house(self)
-	_title = Fx.label3d("製材所", Vector3(0, 3.6, 0), 56)
+	var house := Node3D.new()
+	house.scale = Vector3.ONE * HOUSE_SCALE
+	add_child(house)
+	_blade = build_house(house)
+	_title = Fx.label3d("製材所", Vector3(0, 3.6 * HOUSE_SCALE, 0), 56)
 	add_child(_title)
 
 	_input_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.95, 0.8, 0.3, 0.16))
