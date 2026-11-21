@@ -132,6 +132,20 @@ func _render(id: String) -> Texture2D:
 				subject.add_child(item)
 			look = Vector3(0, 0.3, 0)
 			dist = 4.2
+		"truck_capacity", "truck_speed", "truck_price":
+			# 販売のトラック（荷台に板を積んだ姿。速さは向きを変え、取引先は小判を載せる）
+			var truck := SaleTruck.new()
+			truck.rotation_degrees.y = -25.0 if id != "truck_speed" else 25.0
+			subject.add_child(truck)
+			if id != "truck_speed":
+				for i in (12 if id == "truck_capacity" else 4):
+					truck.add_cargo("plank", "pine")
+			if id == "truck_price":
+				var coin := Fx.cylinder(0.5, 0.12, Color("#ffd84a"), Vector3(0, 2.6, 0), -1.0, 20, false, "metal")
+				coin.rotation_degrees.x = 90.0
+				subject.add_child(coin)
+			look = Vector3(0, 1.0, 0)
+			dist = 13.5
 		"harvester", "hauler":
 			var car := Fx.model("res://assets/kenney/car/%s.glb" % Machine.MODELS[id][0])
 			car.rotation_degrees.y = -20.0
