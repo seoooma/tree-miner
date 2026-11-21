@@ -72,11 +72,16 @@ func _render(id: String) -> Texture2D:
 			dist = 3.4
 		"sawmill":
 			var house := Node3D.new()
-			Sawmill.build_house(house)
+			Sawmill.build_bench(house)
+			house.position = -Sawmill.BENCH_OFFSET
 			house.rotation_degrees.y = 200.0
 			subject.add_child(house)
-			look = Vector3(0, 1.2, 0)
-			dist = 11.0
+			for i in 3:
+				var lg := LogDrop.make_log_mesh("pine", 90.0)
+				lg.position = Vector3(-2.6, 0.2 + (i % 2) * 0.2, (i - 1) * 0.25)
+				house.add_child(lg)
+			look = Vector3(0, 0.7, 0)
+			dist = 6.5
 		"lumberjack_capacity":
 			var rig := CharacterRig.new(1.0)
 			rig.set_hat(Color("#f2c230"))

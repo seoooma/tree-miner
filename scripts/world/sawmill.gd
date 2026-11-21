@@ -1,28 +1,38 @@
 class_name Sawmill
 extends Station
-## 製材所。
+## 製材所。出荷場と同じく屋根のない作業場で、左に丸太置き場・中央に製材台・右に板置き場が横一列に並ぶ。
+## 手前の左の枠で丸太を渡し、右の枠で板を受け取る。製材台の上では丸太がノコギリを通って板になるのが見える。
 ## - 製材ライン未開放: 投入口に置いた丸太をその場で売却する。
 ## - 製材ライン開放後: 丸太を板に加工し、出口に積む。板は出荷場で売る（売値 x plank_multiplier）。
 
-const INPUT_OFFSET := Vector3(0, 0, -3.0)
-const OUTPUT_OFFSET := Vector3(3.6, 0, 0.6)
+## 受け渡しの枠（手前）。左が丸太の投入口、右が板の出口
+const INPUT_OFFSET := Vector3(-2.6, 0, -0.8)
+const OUTPUT_OFFSET := Vector3(2.6, 0, -0.8)
+## 奥の作業列（z が小さいほど森側）。丸太置き場・製材台・板置き場の位置
+const ROW_Z := -3.6
+const BENCH_OFFSET := Vector3(0, 0, ROW_Z)
+const OUTPUT_PILE_OFFSET := Vector3(2.6, 0, ROW_Z)
+## 製材台の上を丸太が流れる範囲（ノコギリは x=0）
+const BENCH_FEED_X := 0.95
+const DECK_Y := 0.08
 
 var queue: Array[String] = []
 var output: Array[String] = []
 var _progress := 0.0
 
-var _title: Label3D
 var _input_zone: Zone
 var _output_zone: Zone
 var _output_root: Node3D
 var _output_pile: Node3D
-## 投入口の左前（森側。投入口に立っても屋根に隠れない位置）に積み上がる、加工待ちの丸太置き場。数は queue と同じ
+## 作業列の左にある、加工待ちの丸太置き場。数は queue と同じ
 var _input_pile: Node3D
-const INPUT_PILE_OFFSET := Vector3(-3.0, 0, -3.6)
+const INPUT_PILE_OFFSET := Vector3(-2.6, 0, ROW_Z)
 const PILE_VISIBLE := 48
-## 建物の縮尺。給油所の屋根や出荷場と同じくらいの大きさにそろえる（受け渡しの枠と丸太置き場の位置は変えない）
-const HOUSE_SCALE := 0.75
 var _blade: MeshInstance3D
+## 製材台の上で加工中の1本（ノコギリの手前は丸太、過ぎると板の見た目）
+var _work_log: Node3D
+var _work_plank: Node3D
+var _work_tree := ""
 
 
 func _ready() -> void:
@@ -48,26 +58,28 @@ func output_position() -> Vector3:
 	return global_position + OUTPUT_OFFSET
 
 
+## 板置き場（出口で受け取った板はここから飛んでくる）
+func output_pile_position() -> Vector3:
+	return global_position + OUTPUT_PILE_OFFSET
+
+
 func _pad_radius() -> float:
 	return float(GameData.sawmill.get("pad_radius", 1.6))
 
 
 func _build() -> void:
+	# 当たり判定は製材台だけ（丸太置き場・板置き場は通り抜けられる）
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
+	body.position = BENCH_OFFSET
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(3.6, 2.4, 3.0) * HOUSE_SCALE
+	box.size = Vector3(2.4, 1.2, 1.0)
 	shape.shape = box
-	shape.position.y = 1.2 * HOUSE_SCALE
+	shape.position.y = 0.6
 	body.add_child(shape)
 	add_child(body)
-	var house := Node3D.new()
-	house.scale = Vector3.ONE * HOUSE_SCALE
-	add_child(house)
-	_blade = build_house(house)
-	_title = Fx.label3d("製材所", Vector3(0, 3.6 * HOUSE_SCALE, 0), 56)
-	add_child(_title)
+	_blade = build_bench(self)
 
 	_input_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.95, 0.8, 0.3, 0.16))
 	_input_zone.position = INPUT_OFFSET
@@ -79,37 +91,49 @@ func _build() -> void:
 	_output_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.55, 0.8, 0.95, 0.16))
 	_output_root.add_child(_output_zone)
 	_output_pile = Node3D.new()
-	_output_root.add_child(_output_pile)
+	_output_pile.position = OUTPUT_PILE_OFFSET + Vector3(0, DECK_Y, 0)
+	add_child(_output_pile)
 	_input_pile = Node3D.new()
-	_input_pile.position = INPUT_PILE_OFFSET
+	_input_pile.position = INPUT_PILE_OFFSET + Vector3(0, DECK_Y, 0)
 	add_child(_input_pile)
 
+	_work_log = Node3D.new()
+	add_child(_work_log)
+	_work_plank = Node3D.new()
+	add_child(_work_plank)
 
-## 製材所の建物の見た目（当たり判定・受け渡しの印は含まない）。強化画面のサムネイルでも使う。回転するノコギリを返す。
-static func build_house(root: Node3D) -> MeshInstance3D:
-	# 土台・板壁・切妻屋根
-	root.add_child(Fx.box(Vector3(3.9, 0.16, 3.3), Color("#9b9a92"), Vector3(0, 0.08, 0)))
-	var wall := Props.plank_wall(Vector3(3.5, 1.7, 2.9), Color("#b9784a"))
-	wall.position.y = 0.16
-	root.add_child(wall)
-	var roof := Props.gable_roof(3.9, 3.4, 1.1, Color("#b8452f"))
-	roof.position.y = 1.86
-	root.add_child(roof)
-	root.add_child(Fx.box(Vector3(3.95, 0.1, 0.12), Color("#7a2f22"), Vector3(0, 2.95, 0), "metal"))
-	# 正面（森側）の作業口とノコギリ、ベルトコンベア
-	root.add_child(Fx.box(Vector3(1.6, 1.1, 0.05), Color("#3a2618"), Vector3(0, 0.75, -1.47)))
-	root.add_child(Fx.box(Vector3(1.8, 0.12, 0.12), Color("#7a4a2a"), Vector3(0, 1.36, -1.5), "wood"))
-	var blade := Fx.cylinder(0.5, 0.05, Color("#c9ced3"), Vector3(0, 0.75, -1.52), -1.0, 16, false, "metal")
+
+## 製材所の見た目（板敷きの床・製材台・ノコギリ・看板。当たり判定・受け渡しの印・在庫の山は含まない）。
+## 強化画面のサムネイルでも使う。回転するノコギリを返す。
+static func build_bench(root: Node3D) -> MeshInstance3D:
+	# 作業列の下の板敷きの床（出荷場の桟橋と同じ色）
+	root.add_child(Fx.box(Vector3(7.0, DECK_Y, 1.7), Color("#a8834f"), Vector3(0, DECK_Y * 0.5, ROW_Z), "wood"))
+	for i in 15:
+		root.add_child(Fx.box(Vector3(0.03, 0.02, 1.7), Color("#7a5a33"), Vector3(-3.5 + i * 0.5, DECK_Y + 0.005, ROW_Z)))
+	# 製材台（脚付きの台と、台を貫く丸ノコ）
+	var bench := Node3D.new()
+	bench.position = BENCH_OFFSET + Vector3(0, DECK_Y, 0)
+	root.add_child(bench)
+	bench.add_child(Fx.box(Vector3(2.3, 0.12, 0.8), Color("#7a4a2a"), Vector3(0, 0.66, 0), "wood"))
+	bench.add_child(Fx.box(Vector3(2.3, 0.06, 0.06), Color("#5a3820"), Vector3(0, 0.75, -0.37), "wood"))
+	bench.add_child(Fx.box(Vector3(2.3, 0.06, 0.06), Color("#5a3820"), Vector3(0, 0.75, 0.37), "wood"))
+	for x in [-1.0, 1.0]:
+		for z in [-0.32, 0.32]:
+			bench.add_child(Fx.box(Vector3(0.1, 0.6, 0.1), Color("#5a3820"), Vector3(x, 0.3, z), "wood"))
+	# モーターの箱
+	bench.add_child(Fx.box(Vector3(0.5, 0.42, 0.5), Color("#3d4247"), Vector3(0, 0.3, 0), "metal"))
+	var blade := Fx.cylinder(0.32, 0.04, Color("#c9ced3"), Vector3(0, 0.72, 0), -1.0, 16, false, "metal")
 	blade.rotation_degrees.z = 90.0
 	blade.rotation_degrees.y = 90.0
-	root.add_child(blade)
-	root.add_child(Fx.box(Vector3(0.9, 0.12, 1.4), Color("#3d4247"), Vector3(0, 0.45, -2.15), "metal"))
-	for i in 4:
-		root.add_child(Fx.box(Vector3(0.95, 0.05, 0.08), Color("#8c939a"), Vector3(0, 0.53, -1.6 - i * 0.33), "metal"))
-	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(-0.4, 0.2, -2.7)))
-	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(0.4, 0.2, -2.7)))
-	# 煙突（丸太の山は飾りを置かず、実際の加工待ちの数だけ _input_pile に積む）
-	root.add_child(Fx.cylinder(0.14, 1.0, Color("#5b5f63"), Vector3(1.1, 2.7, 0.6), -1.0, 10, false, "metal"))
+	bench.add_child(blade)
+	# ノコギリの上のカバー（黄色）と、奥から支える柱
+	bench.add_child(Fx.box(Vector3(0.78, 0.12, 0.14), Color("#e0b52a"), Vector3(0, 1.1, 0), "metal"))
+	bench.add_child(Fx.box(Vector3(0.08, 0.5, 0.08), Color("#e0b52a"), Vector3(0, 0.95, -0.36), "metal"))
+	bench.add_child(Fx.box(Vector3(0.08, 0.08, 0.36), Color("#e0b52a"), Vector3(0, 1.16, -0.2), "metal"))
+	# 看板（出荷場と同じ形）
+	var sign := Props.signboard("製材所")
+	sign.position = BENCH_OFFSET + Vector3(0, 0, -1.2)
+	root.add_child(sign)
 	return blade
 
 
@@ -132,11 +156,36 @@ func _process(delta: float) -> void:
 			if not output.is_empty() and not stack.is_full() and tick(carrier, "out", delta):
 				var tree_id: String = output.pop_back()
 				stack.add({"kind": "plank", "tree": tree_id})
-				Fx.fly_item(self, _plank_mesh(tree_id), output_position() + Vector3(0, 0.6, 0), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
+				Fx.fly_item(self, _plank_mesh(tree_id), output_pile_position() + Vector3(0, 0.6, 0), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
 				_rebuild_output()
 
-	_blade.rotate_object_local(Vector3.UP, delta * (12.0 if unlocked and not queue.is_empty() else 1.0))
+	_blade.rotate_object_local(Vector3.UP, delta * (14.0 if unlocked and not queue.is_empty() else 1.0))
+	_update_work(unlocked)
 	_update_labels(unlocked)
+
+
+## 製材台の上の1本を加工の進み具合に合わせて左から右へ流す。ノコギリ（中央）より左は丸太、右は板に見える。
+func _update_work(unlocked: bool) -> void:
+	var working := unlocked and not queue.is_empty() and output.size() < int(GameData.sawmill.get("output_max", 60))
+	if not working:
+		_work_log.visible = false
+		_work_plank.visible = false
+		return
+	var tree_id: String = queue[0]
+	if tree_id != _work_tree:
+		_work_tree = tree_id
+		for child in _work_log.get_children():
+			child.queue_free()
+		for child in _work_plank.get_children():
+			child.queue_free()
+		_work_log.add_child(LogDrop.make_log_mesh(tree_id))
+		_work_plank.add_child(_plank_mesh(tree_id))
+	var x := lerpf(-BENCH_FEED_X, BENCH_FEED_X, clampf(_progress, 0.0, 1.0))
+	var top := BENCH_OFFSET + Vector3(0, DECK_Y + 0.72, 0)
+	_work_log.visible = x < 0.0
+	_work_plank.visible = x >= 0.0
+	_work_log.position = top + Vector3(x, 0.11, 0)
+	_work_plank.position = top + Vector3(x, 0.08, 0)
 
 
 ## 運ばれてきた丸太が投入口（加工待ちの山）へ飛んでいく演出
@@ -180,7 +229,7 @@ func _process_line(delta: float) -> void:
 		_rebuild_input()
 
 
-## 出口の板の山（4枚ずつ互い違いに積む）
+## 板置き場の板の山（4枚ずつ互い違いに積む）
 func _rebuild_output() -> void:
 	for child in _output_pile.get_children():
 		child.queue_free()
@@ -193,7 +242,7 @@ func _rebuild_output() -> void:
 		_output_pile.add_child(plank)
 
 
-## 投入口の左前の加工待ちの丸太の山（4本ずつ積む）
+## 丸太置き場の加工待ちの丸太の山（4本ずつ積む）
 func _rebuild_input() -> void:
 	for child in _input_pile.get_children():
 		child.queue_free()
