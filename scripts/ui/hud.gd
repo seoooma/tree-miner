@@ -3,7 +3,8 @@ extends CanvasLayer
 ## 画面UI。
 ## - 左上: 設定（ギア）。BGM / 効果音のオン・オフはここから開く
 ## - 右上: 所持金のピル
-## - 下: 乗る／降りる・強化のタイルボタン
+## - 下: 乗る／降りる・移動・強化のタイルボタン
+## - 移動メニュー: 「移動」で開き、行き先（製材所・川の積み場・乗り物など）を選ぶと自動で歩く。動いている間は上に「〜へ移動中」の帯が出て、タップかスティックでやめる
 ## - 強化画面: 下からせり上がるシート。上のタブ（自分・仲間・乗り物・設備。balance.json の upgrade_groups）で切り替え、カード・サムネイル・おすすめ・伐採員の役割チップを出す
 ## - ワールド表示: プレイヤー頭上の積荷バー、機械の燃料・積荷バー、案内先が画面外のときの端のインジケーター
 ## 表示だけを担当し、ゲームの数値や処理は GameState / 各ノードが持つ。
@@ -54,6 +55,8 @@ const BADGES := {
 
 var player: Player
 var guide: GuideArrows
+## 自動移動の行き先の一覧を返す関数（main.gd の travel_destinations）
+var destinations: Callable
 
 var _root: Control
 var _money_label: Label
@@ -61,6 +64,10 @@ var _money_pill: Control
 var _board_button: Button
 var _discard_button: Button
 var _upgrade_button: Button
+var _travel_button: Button
+var _travel_menu: PanelContainer
+var _travel_grid: GridContainer
+var _travel_banner: Button
 var _gear: TextureButton
 var _settings: Control
 var _music_button: Button
@@ -122,6 +129,7 @@ func _ready() -> void:
 	_build_world_overlay()
 	_build_top_bar()
 	_build_bottom_tiles()
+	_build_travel()
 	_build_settings()
 	_build_sheet()
 	joystick.is_blocked = _is_over_ui
@@ -141,6 +149,7 @@ func _ready() -> void:
 func bind_player(p: Player) -> void:
 	player = p
 	player.carry_changed.connect(_on_carry_changed)
+	player.auto_move_changed.connect(_on_auto_move_changed)
 
 
 # ================================================================ 上部
@@ -268,10 +277,142 @@ func _build_bottom_tiles() -> void:
 	_root.add_child(_upgrade_button)
 
 
+# ================================================================ 自動移動
+
+const TRAVEL_COLOR := Color("#4fae2e")
+
+
+func _build_travel() -> void:
+	# 強化ボタンの上に「移動」タイル
+	_travel_button = UiKit.tile_button("icon_arrow", "移動", Vector2(140, 140), TRAVEL_COLOR)
+	_travel_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_travel_button.offset_left = -164
+	_travel_button.offset_top = -324
+	_travel_button.offset_right = -24
+	_travel_button.offset_bottom = -184
+	_travel_button.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		if player and player.is_auto_moving():
+			player.stop_auto_move()
+		else:
+			_set_travel_menu(not _travel_menu.visible))
+	_root.add_child(_travel_button)
+
+	# 行き先を選ぶメニュー（タイルの上に、画面幅いっぱいのカードで出す）
+	_travel_menu = PanelContainer.new()
+	var style := UiKit.flat_box(Color(0.12, 0.12, 0.13, 0.94), 26, 3, Color(1, 1, 1, 0.25))
+	style.set_content_margin_all(20)
+	_travel_menu.add_theme_stylebox_override("panel", style)
+	_travel_menu.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_travel_menu.offset_left = 24
+	_travel_menu.offset_right = -24
+	_travel_menu.offset_bottom = -344
+	_travel_menu.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_travel_menu.visible = false
+	_root.add_child(_travel_menu)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	_travel_menu.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var title := UiKit.label("どこへ行く？", 36, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(title)
+	var close := UiKit.icon_button("icon_close", 72)
+	close.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		_set_travel_menu(false))
+	head.add_child(close)
+	_travel_grid = GridContainer.new()
+	_travel_grid.columns = 2
+	_travel_grid.add_theme_constant_override("h_separation", 14)
+	_travel_grid.add_theme_constant_override("v_separation", 14)
+	box.add_child(_travel_grid)
+
+	# 移動中の帯（タップでやめる）
+	_travel_banner = Button.new()
+	_travel_banner.focus_mode = Control.FOCUS_NONE
+	UiKit.flat_skin(_travel_banner, TRAVEL_COLOR, 30)
+	_travel_banner.add_theme_font_override("font", UiKit.font(true))
+	_travel_banner.add_theme_font_size_override("font_size", 30)
+	_travel_banner.add_theme_constant_override("outline_size", 8)
+	_travel_banner.add_theme_color_override("font_outline_color", UiKit.OUTLINE_DARK)
+	_travel_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_travel_banner.offset_left = -230
+	_travel_banner.offset_right = 230
+	_travel_banner.offset_top = 124
+	_travel_banner.offset_bottom = 200
+	_travel_banner.visible = false
+	_travel_banner.pressed.connect(func() -> void:
+		Audio.play("ui", -4.0)
+		if player:
+			player.stop_auto_move())
+	_root.add_child(_travel_banner)
+
+
+func _set_travel_menu(open: bool) -> void:
+	if open:
+		_rebuild_travel_menu()
+	_travel_menu.visible = open
+
+
+## 開くたびに、いま行ける行き先でボタンを作り直す
+func _rebuild_travel_menu() -> void:
+	for c in _travel_grid.get_children():
+		c.queue_free()
+	if not destinations.is_valid():
+		return
+	for dest in destinations.call():
+		var d: Dictionary = dest
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(0, 104)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		UiKit.flat_skin(b, Color("#3b8fe0") if d.has("machine") else TRAVEL_COLOR, 22)
+		var row := HBoxContainer.new()
+		row.set_anchors_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 14
+		row.offset_right = -10
+		row.add_theme_constant_override("separation", 10)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(row)
+		var ic := TextureRect.new()
+		ic.texture = UiKit.icon(str(d.get("icon", "icon_arrow")))
+		ic.custom_minimum_size = Vector2(64, 64)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(ic)
+		var l := UiKit.label(str(d["name"]), 30, true)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.size_flags_vertical = Control.SIZE_FILL
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		row.add_child(l)
+		b.button_down.connect(func() -> void: row.position.y = 6)
+		b.button_up.connect(func() -> void: row.position.y = 0)
+		b.pressed.connect(func() -> void:
+			Audio.play("ui", -4.0)
+			_set_travel_menu(false)
+			if player:
+				player.start_auto_move(d))
+		_travel_grid.add_child(b)
+
+
+func _on_auto_move_changed(dest_name: String) -> void:
+	_travel_banner.visible = dest_name != ""
+	_travel_banner.text = "%sへ移動中　タップでやめる" % dest_name
+	UiKit.set_tile_text(_travel_button, "やめる" if dest_name != "" else "移動")
+
+
 func _process(delta: float) -> void:
 	_update_fling(delta)
 	if player == null:
 		return
+	_travel_button.visible = player.vehicle == null and not _sheet_open
+	if not _travel_button.visible and _travel_menu.visible:
+		_travel_menu.visible = false
 	if player.vehicle:
 		_board_button.visible = true
 		UiKit.set_tile_text(_board_button, "降りる")
@@ -365,7 +506,7 @@ func _toggle_board() -> void:
 func _is_over_ui(pos: Vector2) -> bool:
 	if _sheet_open:
 		return true
-	for c in [_upgrade_button, _board_button, _discard_button, _gear, _settings]:
+	for c in [_upgrade_button, _board_button, _discard_button, _gear, _settings, _travel_button, _travel_menu, _travel_banner]:
 		var ctl := c as Control
 		if ctl.visible and ctl.get_global_rect().has_point(pos):
 			return true

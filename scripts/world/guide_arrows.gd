@@ -4,6 +4,7 @@ extends Node3D
 ## - 積荷が満杯: いちばん近い届け先（製材所の投入口か、川の積み込み枠）。板を持っていれば出荷場
 ## - 拠点にいて手ぶらのとき: 製材所の板（板のコンベアが未開放なら）、川の集積所の丸太（集積所コンベアが未開放なら）
 ## - それ以外: いちばん近い木
+## - 自動移動中: 行き先までの経路に沿って並べる
 ## 案内先は HUD の画面端インジケーター（goal / goal_kind）でも使う。表示だけでゲームの処理には影響しない。
 
 const COLOR := Color("#6BD13A")
@@ -46,6 +47,21 @@ func _process(delta: float) -> void:
 		goal = Vector3.INF
 		_mm.visible_instance_count = 0
 		return
+	_scroll = fmod(_scroll + delta * SCROLL_SPEED, SPACING)
+	if player.is_auto_moving():
+		_search_timer = 0.0
+		var path := player.auto_path
+		if path.size() < 2:
+			goal = Vector3.INF
+			_mm.visible_instance_count = 0
+			return
+		goal = path[-1]
+		goal_kind = "home"
+		var pts := PackedVector3Array([player.global_position])
+		for i in range(maxi(1, player._auto_index), path.size()):
+			pts.append(path[i])
+		_layout_path(pts, 1.0)
+		return
 	_search_timer -= delta
 	if _search_timer <= 0.0:
 		_search_timer = 0.25
@@ -54,7 +70,6 @@ func _process(delta: float) -> void:
 		if not _tree_goal.alive:
 			_search_timer = 0.0
 		goal = _tree_goal.global_position
-	_scroll = fmod(_scroll + delta * SCROLL_SPEED, SPACING)
 	_layout()
 
 
@@ -120,6 +135,35 @@ func _layout() -> void:
 		var fade := clampf(minf(d - start, end - d) / 0.8, 0.0, 1.0)
 		var s := 0.35 + 0.65 * fade
 		_mm.set_instance_transform(count, Transform3D(arrow_basis.scaled(Vector3.ONE * s), Vector3(from.x, 0.05, from.z) + dir * d))
+		count += 1
+		d += SPACING
+	_mm.visible_instance_count = count
+
+
+## 折れ線 pts に沿って矢印を並べる（最後の点の end_margin 手前まで）
+func _layout_path(pts: PackedVector3Array, end_margin: float) -> void:
+	var total := 0.0
+	for i in range(1, pts.size()):
+		total += Fx.xz_distance(pts[i - 1], pts[i])
+	var start := 1.0
+	var end := total - end_margin
+	var count := 0
+	var d := start + _scroll
+	var seg := 1
+	var seg_start := 0.0
+	while d < end and count < MAX_ARROWS and seg < pts.size():
+		var a := Vector3(pts[seg - 1].x, 0, pts[seg - 1].z)
+		var b := Vector3(pts[seg].x, 0, pts[seg].z)
+		var seg_len := a.distance_to(b)
+		if d > seg_start + seg_len or seg_len < 0.01:
+			seg_start += seg_len
+			seg += 1
+			continue
+		var dir := (b - a) / seg_len
+		var fade := clampf(minf(d - start, end - d) / 0.8, 0.0, 1.0)
+		var s := 0.35 + 0.65 * fade
+		var pos := a + dir * (d - seg_start)
+		_mm.set_instance_transform(count, Transform3D(Basis.looking_at(-dir, Vector3.UP).scaled(Vector3.ONE * s), Vector3(pos.x, 0.05, pos.z)))
 		count += 1
 		d += SPACING
 	_mm.visible_instance_count = count

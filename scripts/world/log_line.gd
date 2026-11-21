@@ -65,6 +65,11 @@ func _ready() -> void:
 	_refresh()
 
 
+## 川岸の積み場（エリアごとに1つ）
+func points() -> Array[LoadingPoint]:
+	return _points
+
+
 ## 川の積み場を1つでも開放していれば流れる
 func is_active() -> bool:
 	return GameState.is_river_open()

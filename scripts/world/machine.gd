@@ -30,6 +30,8 @@ var _cut_fx: CPUParticles3D
 
 func _ready() -> void:
 	add_to_group("machines")
+	add_to_group("nav_boxes")
+	set_meta("nav_size", Vector2(1.6, 2.4))
 	collision_layer = 1
 	collision_mask = 1
 	var shape := CollisionShape3D.new()

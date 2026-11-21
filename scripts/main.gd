@@ -75,6 +75,7 @@ func _ready() -> void:
 	hud.guide = guide
 	add_child(hud)
 	hud.bind_player(player)
+	hud.destinations = travel_destinations
 	_sync_lumberjacks()
 	GameState.upgrade_changed.connect(func(id: String, _l: int) -> void:
 		if id == "lumberjack":
@@ -330,7 +331,68 @@ func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool
 func _spawn_player() -> void:
 	player = Player.new()
 	player.position = PLAYER_SPAWN
+	var far: float = _area_ranges[-1].y if not _area_ranges.is_empty() else 0.0
+	var near := float(GameData.world.get("base_depth", 18))
+	player.nav_rect = Rect2(-_width() * 0.5, far, _width(), near - far)
 	add_child(player)
+
+
+## 自動移動の行き先の一覧（いま行ける所だけ）。HUD の「移動」メニューに並ぶ。
+## 各要素: {id, name, icon, target: Callable -> Vector3（無くなったら Vector3.INF）, arrive（この距離まで来たら到着）, machine?（着いたら乗る）}
+func travel_destinations() -> Array[Dictionary]:
+	var list: Array[Dictionary] = []
+	var pad := 0.5
+	list.append({"id": "sawmill", "name": "製材所", "icon": "icon_log",
+		"target": func() -> Vector3: return sawmill.input_position(), "arrive": pad})
+	if sawmill.is_line_unlocked() and GameState.level("plank_belt") == 0:
+		list.append({"id": "planks", "name": "板置き場", "icon": "icon_home",
+			"target": func() -> Vector3: return sawmill.output_position(), "arrive": pad})
+	# 板を持っていれば板の出荷枠、それ以外は丸太を売る枠
+	list.append({"id": "dock", "name": "出荷場", "icon": "icon_money",
+		"target": func() -> Vector3:
+			if player.stack.count("plank") > 0 and sawmill.is_line_unlocked():
+				return dock.global_position
+			return dock.global_position + ShipDock.LOG_PAD_OFFSET, "arrive": pad})
+	var river: LogLine = lines.get("river")
+	if river and _nearest_river_point(player.global_position) != Vector3.INF:
+		list.append({"id": "river_point", "name": "川の積み場", "icon": "icon_arrow",
+			"target": func() -> Vector3: return _nearest_river_point(player.global_position), "arrive": pad})
+	if river and river.is_active():
+		list.append({"id": "river_yard", "name": "川の集積所", "icon": "icon_log",
+			"target": func() -> Vector3: return river.yard_pad_position(), "arrive": pad})
+	list.append({"id": "fuel", "name": "給油所", "icon": "icon_fuel",
+		"target": func() -> Vector3: return FUEL_POS, "arrive": pad})
+	for kind in machines:
+		var m: Machine = machines[kind]
+		list.append({"id": "machine_" + str(kind), "name": m.display_name(), "icon": "icon_truck", "machine": m,
+			"target": func() -> Vector3: return m.global_position if is_instance_valid(m) and m.driver == null else Vector3.INF,
+			"arrive": float(GameData.player.get("board_range", 3.0)) - 0.6})
+	# 近くの木: 最初に選んだ木へ向かい、その木が倒れたらまた近くの木を選び直す
+	var aimed: Array[ChoppableTree] = [null]
+	list.append({"id": "forest", "name": "近くの木", "icon": "icon_tree",
+		"target": func() -> Vector3:
+			if not is_instance_valid(aimed[0]) or not aimed[0].alive:
+				aimed[0] = guide._nearest_tree() if guide else null
+			return aimed[0].global_position if aimed[0] else Vector3.INF,
+		"arrive": float(GameData.player.get("chop_range", 1.3))})
+	return list
+
+
+## いちばん近い川の積み場（開放済みか、支払い待ちのもの。無ければ Vector3.INF）
+func _nearest_river_point(from: Vector3) -> Vector3:
+	var river: LogLine = lines.get("river")
+	var best := Vector3.INF
+	var best_d := INF
+	if river == null:
+		return best
+	for p in river.points():
+		if not (p.is_active() or p.is_for_sale()):
+			continue
+		var d := Fx.xz_distance(p.global_position, from)
+		if d < best_d:
+			best_d = d
+			best = p.global_position
+	return best
 
 
 func _build_camera() -> void:

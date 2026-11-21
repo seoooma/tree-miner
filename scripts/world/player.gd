@@ -5,6 +5,15 @@ extends CharacterBody3D
 ## 売却ポイント等の上に立つと積荷が自動で受け渡される。
 
 signal carry_changed(count: int, capacity: int)
+## 自動移動を始めた・やめた（name は行き先の名前。やめたときは ""）
+signal auto_move_changed(name: String)
+
+## 手で動かしたら自動移動をやめる、スティック・キーの強さ
+const AUTO_CANCEL_INPUT := 0.3
+## 経路を引き直す間隔（木が切られたり生え直したりするので）
+const AUTO_REPATH_SEC := 1.2
+## 何度引き直しても進めないときは、あきらめて止まる
+const AUTO_MAX_STUCK := 4
 
 ## HUD のバーチャルスティックから入力される（-1..1）
 var joystick_vector := Vector2.ZERO
@@ -21,6 +30,18 @@ var _pending_hit := 0.0
 var _step_timer := 0.0
 var _visual: Node3D
 var _rig: CharacterRig
+
+## 自動移動の行き先（空なら手動）。{id, name, target: Callable -> Vector3, arrive, machine?}
+var auto_dest: Dictionary = {}
+## 自動移動で歩く経路（XZ の折れ線）。GuideArrows がこれに沿って矢印を出す
+var auto_path := PackedVector3Array()
+## 歩ける範囲。main が設定する（未設定なら自動移動しない）
+var nav_rect := Rect2()
+var _nav: NavGrid
+var _auto_index := 0
+var _auto_repath := 0.0
+var _auto_stuck_time := 0.0
+var _auto_stuck_count := 0
 
 
 func _ready() -> void:
@@ -60,7 +81,18 @@ func _build_body() -> void:
 
 
 ## スティック＋キーボードの移動入力（-1..1）。乗車中は機械がこれを読む。
+## 自動移動中は経路に沿った向きを返す（手で動かすと自動移動をやめる）。
 func move_input() -> Vector2:
+	var input := _manual_vector()
+	if not auto_dest.is_empty() and vehicle == null:
+		if input.length() >= AUTO_CANCEL_INPUT:
+			stop_auto_move()
+		else:
+			return _auto_vector()
+	return input
+
+
+func _manual_vector() -> Vector2:
 	var input := _keyboard_vector() + joystick_vector
 	return input.normalized() if input.length() > 1.0 else input
 
@@ -75,6 +107,7 @@ func _physics_process(delta: float) -> void:
 		Audio.set_loop("engine", vehicle.fuel > 0.0, -6.0 if driving else -13.0, 1.15 if driving else 0.8)
 		return
 	Audio.set_loop("engine", false)
+	_update_auto(delta)
 	var input := move_input()
 	var dir := Vector3(input.x, 0.0, input.y)
 	velocity = dir * GameState.value("move_speed")
@@ -188,6 +221,7 @@ func nearby_machine() -> Machine:
 func board(machine: Machine) -> void:
 	if vehicle or machine == null or machine.driver != null:
 		return
+	stop_auto_move()
 	vehicle = machine
 	machine.driver = self
 	# 持っている燃料缶はすべて機械に注いで手放す（入りきらない分は捨てる）
@@ -232,6 +266,104 @@ func discard_fuel() -> int:
 		Fx.burst(self, global_position + Vector3(0, 0.8, 0), [Color("#c43a2e"), Color("#5a5a5a")], 10, 2.5, 0.1, 0.5)
 		Audio.play("drop", -6.0)
 	return cans
+
+
+# ---- 自動移動 ----
+
+func is_auto_moving() -> bool:
+	return not auto_dest.is_empty()
+
+
+## 行き先へ自動で歩き始める。dest: {id, name, target: Callable -> Vector3, arrive, machine?}
+func start_auto_move(dest: Dictionary) -> bool:
+	if vehicle or nav_rect.size == Vector2.ZERO:
+		return false
+	var to: Vector3 = (dest["target"] as Callable).call()
+	if to == Vector3.INF:
+		return false
+	auto_dest = dest
+	_auto_stuck_count = 0
+	_auto_stuck_time = 0.0
+	_repath()
+	auto_move_changed.emit(str(dest.get("name", "")))
+	return true
+
+
+func stop_auto_move() -> void:
+	if auto_dest.is_empty():
+		return
+	auto_dest = {}
+	auto_path = PackedVector3Array()
+	auto_move_changed.emit("")
+
+
+func _repath() -> void:
+	_auto_repath = AUTO_REPATH_SEC
+	auto_path = PackedVector3Array()
+	_auto_index = 1
+	var to: Vector3 = (auto_dest["target"] as Callable).call()
+	if to == Vector3.INF:
+		return
+	if _nav == null:
+		_nav = NavGrid.new(nav_rect)
+	_nav.refresh(get_tree(), auto_dest.get("machine"))
+	auto_path = _nav.find_path(global_position, to)
+
+
+func _auto_goal() -> Vector3:
+	return auto_path[-1] if auto_path.size() > 0 else global_position
+
+
+func _update_auto(delta: float) -> void:
+	if auto_dest.is_empty():
+		return
+	var to: Vector3 = (auto_dest["target"] as Callable).call()
+	if to == Vector3.INF:
+		# 行き先が無くなった（機械が消えた・木が全部倒れた など）
+		stop_auto_move()
+		return
+	if Fx.xz_distance(global_position, to) <= float(auto_dest.get("arrive", 0.6)):
+		_arrive()
+		return
+	_auto_repath -= delta
+	# 行き先が動いた（狙っていた木が倒れて次の木に変わった など）・時間が経った ときは引き直す
+	if _auto_repath <= 0.0 or auto_path.is_empty() or Fx.xz_distance(_auto_goal(), to) > 1.0:
+		_repath()
+	# 引っかかって進めないときも引き直す
+	if get_real_velocity().length() < 0.4:
+		_auto_stuck_time += delta
+		if _auto_stuck_time > 0.6:
+			_auto_stuck_time = 0.0
+			_auto_stuck_count += 1
+			if _auto_stuck_count > AUTO_MAX_STUCK:
+				Fx.popup(self, global_position, "ここからは行けません", Color("#ff9a7a"))
+				stop_auto_move()
+				return
+			_repath()
+	else:
+		_auto_stuck_time = 0.0
+
+
+func _arrive() -> void:
+	var machine := auto_dest.get("machine") as Machine
+	stop_auto_move()
+	if machine and is_instance_valid(machine):
+		board(machine)
+
+
+## 経路の次の点へ向かう入力（-1..1）
+func _auto_vector() -> Vector2:
+	while _auto_index < auto_path.size() - 1 and Fx.xz_distance(global_position, auto_path[_auto_index]) < 0.3:
+		_auto_index += 1
+	if _auto_index >= auto_path.size():
+		return Vector2.ZERO
+	var p := auto_path[_auto_index]
+	var v := Vector2(p.x - global_position.x, p.z - global_position.z)
+	if v.length() < 0.05:
+		return Vector2.ZERO
+	# 最後の点の手前では、行き過ぎないように少しゆるめる
+	var last := _auto_index == auto_path.size() - 1
+	return v.normalized() * (clampf(v.length() / 0.6, 0.35, 1.0) if last else 1.0)
 
 
 # ---- 運搬（売却ポイント等から呼ばれる）----

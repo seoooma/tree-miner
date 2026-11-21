@@ -440,6 +440,46 @@ func _run() -> void:
 	_check(is_equal_approx(GameState.value("truck_price"), 105.0), "取引先 Lv1 で売値 105%")
 	main.dock.stock.append("pine")
 
+	# 21c. 自動移動: 「移動」メニューで行き先を選ぶと、木や柵をよけて歩いて行く。手で動かすとやめる
+	if player.vehicle:
+		player.exit_vehicle()
+	await _empty_hands()
+	main.hud._set_travel_menu(true)
+	var names: Array = []
+	for d in main.travel_destinations():
+		names.append(d["name"])
+	_check(main.hud._travel_menu.visible and main.hud._travel_grid.get_child_count() == names.size(), "移動メニューに行き先が並ぶ (%s)" % ", ".join(names))
+	_check("製材所" in names and "川の積み場" in names and "出荷場" in names and "給油所" in names, "製材所・川の積み場・出荷場・給油所へ行ける")
+	player.global_position = Vector3(6, 0, -12)  # 森の中から
+	await _travel("川の積み場", 50.0)
+	_check(Fx.xz_distance(player.global_position, main._nearest_river_point(player.global_position)) < 0.8, "森の中から川の積み場まで自動で歩ける")
+	await _travel("製材所", 50.0)
+	_check(Fx.xz_distance(player.global_position, main.sawmill.input_position()) < 0.8 and not player.is_auto_moving(), "製材所まで自動で歩いて止まる")
+	await _travel("近くの木", 20.0)
+	var near_tree := _nearest_tree(player.global_position)
+	_check(near_tree != null and Fx.xz_distance(player.global_position, near_tree.global_position) <= float(GameData.player.get("chop_range", 1.3)) + near_tree.radius, "近くの木まで歩くと、そのまま切れる位置に着く")
+	var tractor: Machine = main.machines["harvester"]
+	await _travel(tractor.display_name(), 40.0)
+	_check(player.vehicle == tractor, "乗り物を選ぶと、そこまで歩いて乗る")
+	main.hud._process(0.0)
+	_check(not main.hud._travel_button.visible, "乗っている間は「移動」ボタンを出さない")
+	player.exit_vehicle()
+	await get_tree().physics_frame
+	main.hud._set_travel_menu(true)
+	_press_travel("給油所")
+	await _wait(0.3)
+	_check(player.is_auto_moving() and main.hud._travel_banner.visible, "移動中は「〜へ移動中」の帯が出る")
+	player.joystick_vector = Vector2(1, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player.joystick_vector = Vector2.ZERO
+	_check(not player.is_auto_moving() and not main.hud._travel_banner.visible, "スティックを動かすと自動移動をやめる")
+	main.hud._set_travel_menu(true)
+	_press_travel("給油所")
+	await _wait(0.2)
+	main.hud._travel_banner.pressed.emit()
+	_check(not player.is_auto_moving(), "帯をタップしても自動移動をやめる")
+
 	# 22. 在庫はセーブに入る
 	GameState.saving.emit()
 	_check((GameState.stock.get("dock", []) as Array).size() > 0 and GameState.stock.has("yard") and GameState.stock.has("sawmill_queue"), "集積所・製材所・出荷場の在庫がセーブに入る")
@@ -454,6 +494,28 @@ func _run() -> void:
 
 
 # ---- ヘルパー ----
+
+## 移動メニューで name のボタンを押す
+func _press_travel(name: String) -> void:
+	for b in main.hud._travel_grid.get_children():
+		if b.is_queued_for_deletion():
+			continue
+		var l := (b as Control).find_children("*", "Label", true, false)
+		if not l.is_empty() and (l[0] as Label).text == name:
+			(b as Button).pressed.emit()
+			return
+	print("  (no travel button: ", name, ")")
+
+
+## 移動メニューから name を選び、着く（自動移動が終わる）まで待つ
+func _travel(name: String, timeout: float) -> void:
+	main.hud._set_travel_menu(true)
+	_press_travel(name)
+	var frames := 0
+	while player.is_auto_moving() and frames < int(timeout * 60):
+		await get_tree().physics_frame
+		frames += 1
+	print("    %s まで %.1f 秒 (%s)" % [name, frames / 60.0, player.global_position])
 
 ## 製材所の出口（板を拾ってしまう）を避けて、右側から給油所へ向かう
 func _go_to_fuel_station() -> void:

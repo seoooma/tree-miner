@@ -23,6 +23,9 @@ func _ready() -> void:
 	shape.shape = box
 	shape.position.y = 1.0
 	fence.add_child(shape)
+	# 自動移動の経路探索でも通れない所として扱う
+	fence.add_to_group("nav_boxes")
+	fence.set_meta("nav_size", Vector2(width, 0.4))
 	add_child(fence)
 	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#b8946a"), Vector3(0, 0.5, 0), "wood"))
 	fence.add_child(Fx.box(Vector3(width, 0.12, 0.08), Color("#b8946a"), Vector3(0, 0.95, 0), "wood"))
