@@ -1,0 +1,27 @@
+# Tree Miner 開発メモ（Claude 向け）
+
+Godot 4.3 製（CI の `.github/workflows/web.yml` の `GODOT_VERSION` が正）。開発はクラウドのセッションで行う。
+
+## クラウドでの Godot
+
+- セッション開始時に `.claude/hooks/session-start.sh` が Godot（Linux 版、CI と同じバージョン）を `~/godot/godot` に入れ、初回は `--import` まで済ませる。入っていれば一瞬で終わる
+- 手で入れ直すとき: `tools/cloud/install_godot.sh`（Web 書き出しもするなら `--web-templates`。約1GB）
+
+## テスト
+
+```bash
+~/godot/godot --headless --path . --import   # アセットを変えたとき
+~/godot/godot --headless --fixed-fps 60 --path . res://tests/smoke_test.tscn 2>&1 | grep -E "ok|FAIL|SMOKE"
+```
+
+最後に `SMOKE TEST: PASS` が出れば CI と同じ判定で合格。
+
+## Godot MCP（.mcp.json の `godot`）
+
+`tools/cloud/godot_mcp.sh` が `@coding-solo/godot-mcp` を起動する。画面が無い環境なので、`GODOT_PATH` には
+`tools/cloud/godot_display.sh`（DISPLAY が無ければ仮想ディスプレイ Xvfb :99 を立ててから Godot を実行）を渡している。描画は CPU の OpenGL（llvmpipe）。
+
+- 使える: `get_godot_version` / `get_project_info` / `list_projects` / `run_project` → `get_debug_output` → `stop_project`（実際に描画しながらゲームを動かし、GDScript の警告やエラーを取れる。描画が遅いので数十秒待ってから出力を読む）/ `create_scene` / `add_node` / `load_sprite` / `save_scene` / `export_mesh_library`
+- 使えない: `get_uid` / `update_project_uids`（Godot 4.4 以上が必要）
+- 使わない: `launch_editor`（見えない画面でエディタが立ち上がるだけで、`project.godot` を書き直してしまう）
+- `get_debug_output` の `ERROR: '...'` の多くは GDScript の警告（変数名の重複など）で、ゲームは止まらない
