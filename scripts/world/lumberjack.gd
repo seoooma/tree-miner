@@ -96,7 +96,7 @@ func _process_chop(delta: float) -> void:
 			# 振り下ろした瞬間にダメージを与える
 			if _hit_timer > 0.0:
 				_hit_timer -= delta
-				if _hit_timer <= 0.0 and _target_tree.hit(float(GameData.lumberjack.get("axe_power", 1.0)), global_position):
+				if _hit_timer <= 0.0 and _target_tree.hit(GameState.value("lumberjack_axe"), global_position):
 					_release_targets()
 					state = State.IDLE
 					return

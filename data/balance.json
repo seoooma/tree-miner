@@ -57,11 +57,10 @@
 
 	"lumberjack": {
 		"_comment": "伐採員は役割ごとに動く。chop = 木を切って丸太を落とす / haul = 落ちている丸太を拾って製材所へ運ぶ",
-		"_capacity_note": "積載量は強化の lumberjack_capacity で決まる",
+		"_capacity_note": "積載量は強化の lumberjack_capacity、1回のダメージは強化の lumberjack_axe で決まる",
 		"pickup_radius": 1.5,
 		"move_speed": 3.2,
-		"axe_power": 1.0,
-		"chop_interval": 0.6
+				"chop_interval": 0.6
 	},
 
 	"sawmill": {
@@ -92,12 +91,13 @@
 		"tree_min_spacing": 1.5
 	},
 
+	"_trees_note": "hardness = 倒すのに必要なダメージ（売値も比例）。saw_time = 製材所で1本を板にする時間の倍率（硬い木ほど時間がかかる。製材ラインの本/秒はこの倍率が1の木の速さ）",
 	"trees": [
-		{ "id": "sapling", "name": "若木",     "hardness": 3,  "respawn_sec": 18, "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#b07d50", "end_color": "#f1dfb4", "grade_color": "#a9d97a" },
-		{ "id": "pine",    "name": "マツ",     "hardness": 6,  "respawn_sec": 24, "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#9a6438", "end_color": "#efc684", "grade_color": "#6fb4e0" },
-		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "respawn_sec": 30, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8a5530", "end_color": "#f0cfae", "grade_color": "#f0a95a" },
-		{ "id": "oak",     "name": "カシ",     "hardness": 24, "respawn_sec": 36, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#74492a", "end_color": "#d2a46c", "grade_color": "#d97a6a" },
-		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428", "end_color": "#8a6a5a", "grade_color": "#a98ad6" }
+		{ "id": "sapling", "name": "若木",     "hardness": 3, "saw_time": 1.0,  "respawn_sec": 18, "scale": 0.8, "shape": "sphere", "leaf_color": "#96d45f", "trunk_color": "#b07d50", "end_color": "#f1dfb4", "grade_color": "#a9d97a" },
+		{ "id": "pine",    "name": "マツ",     "hardness": 6, "saw_time": 1.0,  "respawn_sec": 24, "scale": 1.0, "shape": "cone",   "leaf_color": "#3f9e5c", "trunk_color": "#9a6438", "end_color": "#efc684", "grade_color": "#6fb4e0" },
+		{ "id": "maple",   "name": "カエデ",   "hardness": 12, "saw_time": 1.2, "respawn_sec": 30, "scale": 1.1, "shape": "sphere", "leaf_color": "#f7a23e", "trunk_color": "#8a5530", "end_color": "#f0cfae", "grade_color": "#f0a95a" },
+		{ "id": "oak",     "name": "カシ",     "hardness": 24, "saw_time": 1.5, "respawn_sec": 36, "scale": 1.3, "shape": "sphere", "leaf_color": "#4e9a46", "trunk_color": "#74492a", "end_color": "#d2a46c", "grade_color": "#d97a6a" },
+		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "saw_time": 2.0, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428", "end_color": "#8a6a5a", "grade_color": "#a98ad6" }
 	],
 
 	"areas": [
@@ -116,19 +116,19 @@
 	"upgrade_groups": [
 		{ "_comment": "強化画面のタブ。自分 → 仲間（伐採員）→ 乗り物 → 設備（自動で運ぶ・加工する・売るしくみ）の順。items に強化（upgrades の id）や機械（machines のキー）を入れると、そのタブにカードが出る。どこにも入っていないものは「その他」タブに出る" },
 		{ "id": "self",     "name": "自分",   "icon": "icon_axe",    "items": ["axe_power", "capacity", "move_speed"] },
-		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_capacity"] },
+		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_axe", "lumberjack_capacity"] },
 		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler", "truck_capacity"] },
 		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock"] }
 	],
 
 	"upgrades": [
 		{ "id": "axe_power",  "name": "斧の威力",   "desc": "1回の伐採で与えるダメージ",
-		  "base_value": 1.0, "per_level": 1.0,  "base_cost": 15,  "cost_growth": 1.55, "max_level": 40, "unit": "",      "decimals": 0 },
+		  "base_value": 1.0, "per_level": 1.0,  "base_cost": 15,  "cost_growth": 1.55, "max_level": 24, "unit": "",      "decimals": 0 },
 		{ "id": "capacity",   "name": "運搬容量",   "desc": "一度に運べる丸太・板の数",
 		  "base_value": 5.0, "per_level": 2.0,  "base_cost": 20,  "cost_growth": 1.5,  "max_level": 30, "unit": "本",    "decimals": 0 },
 		{ "id": "move_speed", "name": "移動速度",   "desc": "歩く速さ",
 		  "base_value": 5.0, "per_level": 0.4,  "base_cost": 25,  "cost_growth": 1.6,  "max_level": 15, "unit": "m/秒",  "decimals": 1 },
-		{ "id": "sawmill",    "name": "製材ライン", "desc": "Lv1で開放。丸太を板(売値x2)に加工。以降は加工速度アップ",
+		{ "id": "sawmill",    "name": "製材ライン", "desc": "Lv1で開放。丸太を板(売値x2)に加工。硬い木ほど時間がかかる。以降は加工速度アップ",
 		  "base_value": 0.25, "per_level": 0.25, "base_cost": 150, "cost_growth": 1.7, "max_level": 20, "unit": "本/秒", "decimals": 2, "locked_at_zero": true },
 		{ "id": "dock",       "name": "出荷のペース", "desc": "出荷場の板・丸太を販売のトラックに積む速さ",
 		  "base_value": 0.5, "per_level": 0.3, "base_cost": 120, "cost_growth": 1.6, "max_level": 20, "unit": "個/秒", "decimals": 1, "requires": "sawmill" },
@@ -138,6 +138,8 @@
 		  "base_value": 0.2, "per_level": 0.4, "base_cost": 500, "cost_growth": 1.6, "max_level": 12, "unit": "枚/秒", "decimals": 1, "locked_at_zero": true, "requires": "sawmill" },
 		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
+		{ "id": "lumberjack_axe", "name": "伐採員の斧", "desc": "伐採員が1回の伐採で与えるダメージ",
+		  "base_value": 1.0, "per_level": 1.0,  "base_cost": 400, "cost_growth": 1.6,  "max_level": 15, "unit": "",      "decimals": 0 },
 		{ "id": "lumberjack_capacity", "name": "伐採員の積載量", "desc": "伐採員が一度に運べる丸太の数",
 		  "base_value": 4.0, "per_level": 2.0,  "base_cost": 250, "cost_growth": 1.6,  "max_level": 15, "unit": "本",    "decimals": 0 },
 		{ "id": "river",      "name": "川の流れ",   "desc": "川の積み場（各エリアの川岸の枠。その場で支払って開放）に置いた丸太が流れる速さ。流れた丸太は集積所に積まれる",

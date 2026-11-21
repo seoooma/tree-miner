@@ -261,12 +261,16 @@ func _process_line(delta: float) -> void:
 	if queue.is_empty():
 		_progress = 0.0
 		return
-	_progress += GameState.value("sawmill") * delta
+	# 進み具合は 0〜1（1本ぶん）。硬い木ほど saw_time 倍の時間がかかる
+	_progress += GameState.value("sawmill") * delta / GameData.saw_time(queue.back())
 	var changed := false
 	while _progress >= 1.0 and not queue.is_empty():
 		_progress -= 1.0
 		output.append(queue.pop_back())
 		changed = true
+		if not queue.is_empty():
+			# 余った進み具合は次の木の硬さで換算し直す
+			_progress *= GameData.saw_time(output.back()) / GameData.saw_time(queue.back())
 	if changed:
 		_rebuild_output()
 		_rebuild_input()

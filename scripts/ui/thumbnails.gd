@@ -82,6 +82,19 @@ func _render(id: String) -> Texture2D:
 				house.add_child(lg)
 			look = Vector3(0, 0.7, 0)
 			dist = 6.5
+		"lumberjack_axe":
+			var rig := CharacterRig.new(1.0)
+			rig.set_hat(Color("#f2c230"))
+			rig.rotation_degrees.y = 30.0
+			rig.position = Vector3(-0.45, 0, 0)
+			subject.add_child(rig)
+			var axe := CharacterRig.make_axe()
+			axe.rotation_degrees = Vector3(-60, 90, 0)
+			axe.scale = Vector3.ONE * 1.6
+			axe.position = Vector3(0.55, 0.1, 0.1)
+			subject.add_child(axe)
+			look = Vector3(0, 0.55, 0)
+			dist = 4.4
 		"lumberjack_capacity":
 			var rig := CharacterRig.new(1.0)
 			rig.set_hat(Color("#f2c230"))

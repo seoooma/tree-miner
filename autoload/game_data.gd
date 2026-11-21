@@ -82,6 +82,11 @@ func tree_grade(id: String) -> int:
 	return -1
 
 
+## 製材所で1本を板にする時間の倍率（硬い木ほど大きい）。
+func saw_time(id: String) -> float:
+	return maxf(0.1, float(tree_def(id).get("saw_time", 1.0)))
+
+
 ## 丸太の売値。硬さに比例する。
 func log_price(id: String) -> int:
 	var hardness := float(tree_def(id).get("hardness", 1))
