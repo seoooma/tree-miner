@@ -132,9 +132,10 @@ func _build_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	# 暖色の太陽を画面の左上から。影は濃すぎないようにして、環境光の青紫を残す
+	# 暖色の太陽をカメラ側の左上から当てる（見えている面が明るく、影は画面の奥・右へ落ちる）。
+	# 影は濃すぎないようにして、環境光の青紫を残す
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -140, 0)
+	sun.rotation_degrees = Vector3(-52, -30, 0)
 	sun.light_color = Color("#fff0d6")
 	sun.light_energy = 0.45
 	sun.light_angular_distance = 1.0
