@@ -80,7 +80,7 @@ func _pick_goal() -> void:
 func _manual_pickup() -> Vector3:
 	if sawmill and dock and GameState.level("plank_belt") == 0 and not sawmill.output.is_empty():
 		return sawmill.output_position()
-	if river and river.visible and not river.conveyor_active() and river.yard_count() > 0:
+	if river and river.is_active() and not river.conveyor_active() and river.yard_count() > 0:
 		return river.yard_pad_position()
 	return Vector3.INF
 

@@ -1,8 +1,9 @@
 class_name LogLine
 extends Node3D
-## 遠くの丸太を製材所まで自動で運ぶ川流し。強化で開放し、レベルで流れが速くなる。
-## - マップの左端に、奥から拠点まで1本流れている
-## - 各エリアの岸にある枠に丸太を置くと、川を流れて拠点へ向かう
+## 遠くの丸太を製材所まで自動で運ぶ川流し。強化「川の流れ」のレベルで流れが速くなる。
+## - マップの左端に、奥から拠点まで1本流れている（川そのものは最初から見えている）
+## - 各エリアの岸にある川の積み場は、その場で支払って開放する（1つ開放すると集積所も使えるようになる）
+## - 開放した積み場の枠に丸太を置くと、川を流れて拠点へ向かう
 ## - 拠点の端まで流れ着いた丸太は、いったん岸の集積所に積まれる
 ## - 集積所の丸太は、最初はプレイヤー（か運搬車）が枠に立って拾い、製材所まで運ぶ
 ## - 強化『集積所コンベア』を開放すると、ベルトコンベアで製材所の丸太置き場へ自動で運ばれる
@@ -60,11 +61,13 @@ func _ready() -> void:
 		if id == UPGRADE_ID or id == CONVEYOR_ID:
 			_refresh())
 	GameState.area_unlocked.connect(func(_i: int) -> void: _refresh())
+	GameState.river_point_unlocked.connect(func(_i: int) -> void: _refresh())
 	_refresh()
 
 
+## 川の積み場を1つでも開放していれば流れる
 func is_active() -> bool:
-	return GameState.level(UPGRADE_ID) > 0
+	return GameState.is_river_open()
 
 
 func speed() -> float:
@@ -76,9 +79,11 @@ func conveyor_active() -> bool:
 
 
 func _refresh() -> void:
-	visible = is_active()
+	# 川は最初から見せておき（積み場の支払い枠の場所がわかるように）、集積所の枠は開放してから出す
 	if _gate_splash:
-		_gate_splash.emitting = visible
+		_gate_splash.emitting = is_active()
+	if _yard_zone:
+		_yard_zone.visible = is_active()
 	belt.set_active(is_active() and conveyor_active())
 	for p in _points:
 		p.refresh()
@@ -192,7 +197,7 @@ func take_from_yard() -> String:
 
 ## 集積所の枠に立ったプレイヤー・運搬車が丸太を拾う
 func _process_yard_pickup(delta: float) -> void:
-	if _yard.is_empty() or not visible:
+	if _yard.is_empty() or not is_active():
 		return
 	for carrier in _yard_station.carriers_near(yard_pad_position(), YARD_RADIUS, "plank_carriers"):
 		var stack: CarryStack = carrier.stack

@@ -754,13 +754,14 @@ func _refresh() -> void:
 		button.add_theme_font_size_override("font_size", 34)
 		button.add_theme_font_override("font", UiKit.font(true))
 		if not is_machine and not GameState.is_available(id):
-			# 先に開放が必要な強化がある（例: 集積所コンベアは川流しのあと）
+			# 先に開放が必要なものがある（例: 集積所コンベアは川の積み場のあと）
 			(cells[1] as Label).visible = false
 			(cells[2] as Label).text = ""
 			(cells[4] as Label).visible = false
 			(cells[5] as Label).text = ""
 			var req := str(GameData.upgrade_def(id).get("requires", ""))
-			button.text = "%sが先" % str(GameData.upgrade_def(req).get("name", req))
+			var req_name := "川の積み場" if req == GameState.RIVER_REQ else str(GameData.upgrade_def(req).get("name", req))
+			button.text = "%sが先" % req_name
 			button.icon = null
 			button.disabled = true
 			# 見出し用フォントは数字と一部の文字しか入っていないので、本文用のフォントで出す

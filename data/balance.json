@@ -99,15 +99,15 @@
 	],
 
 	"areas": [
-		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0,     "tree_count": 80, "ground_color": "#76b052",
+		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0, "river_cost": 900,     "tree_count": 80, "ground_color": "#76b052",
 		  "weights": { "sapling": 80, "pine": 17, "maple": 3 } },
-		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150,   "tree_count": 88, "ground_color": "#68a64c",
+		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150, "river_cost": 2500,   "tree_count": 88, "ground_color": "#68a64c",
 		  "weights": { "sapling": 20, "pine": 60, "maple": 17, "oak": 3 } },
-		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200,  "tree_count": 92, "ground_color": "#8fa84a",
+		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200, "river_cost": 8000,  "tree_count": 92, "ground_color": "#8fa84a",
 		  "weights": { "sapling": 5, "pine": 20, "maple": 55, "oak": 17, "ebony": 3 } },
-		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000,  "tree_count": 96, "ground_color": "#5a8f45",
+		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000, "river_cost": 25000,  "tree_count": 96, "ground_color": "#5a8f45",
 		  "weights": { "pine": 5, "maple": 20, "oak": 60, "ebony": 15 } },
-		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "tree_count": 100, "ground_color": "#4f6e46",
+		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "river_cost": 80000, "tree_count": 100, "ground_color": "#4f6e46",
 		  "weights": { "maple": 5, "oak": 25, "ebony": 70 } }
 	],
 
@@ -142,9 +142,9 @@
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
 		{ "id": "lumberjack_capacity", "name": "伐採員の積載量", "desc": "伐採員が一度に運べる丸太の数",
 		  "base_value": 4.0, "per_level": 2.0,  "base_cost": 250, "cost_growth": 1.6,  "max_level": 15, "unit": "本",    "decimals": 0 },
-		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて集積所に積まれる。そこから製材所へは運ぶ（集積所コンベアで自動化）。以降は流れが速くなる",
-		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true },
+		{ "id": "river",      "name": "川の流れ",   "desc": "川の積み場（各エリアの川岸の枠。その場で支払って開放）に置いた丸太が流れる速さ。流れた丸太は集積所に積まれる",
+		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 1400, "cost_growth": 1.6,  "max_level": 11, "unit": "m/秒",  "decimals": 1, "requires": "river_point" },
 		{ "id": "conveyor",   "name": "集積所コンベア", "desc": "Lv1で開放。川流しの集積所の丸太を製材所へ自動で運ぶ。以降は運ぶ速さアップ",
-		  "base_value": 0.2, "per_level": 0.4, "base_cost": 1200, "cost_growth": 1.6, "max_level": 12, "unit": "本/秒", "decimals": 1, "locked_at_zero": true, "requires": "river" }
+		  "base_value": 0.2, "per_level": 0.4, "base_cost": 1200, "cost_growth": 1.6, "max_level": 12, "unit": "本/秒", "decimals": 1, "locked_at_zero": true, "requires": "river_point" }
 	]
 }

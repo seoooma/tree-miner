@@ -19,6 +19,7 @@ func _ready() -> void:
 	seed(4)
 	# 施設が一通り動いている状態にする（ゲームの数値は変えない）
 	GameState.add_money(500000)
+	GameState.unlock_river_point(0)
 	for id in ["sawmill", "river", "conveyor", "lumberjack", "lumberjack", "dock"]:
 		GameState.buy_upgrade(id)
 	main = load("res://scenes/main.tscn").instantiate()
@@ -121,6 +122,15 @@ func _shot_river() -> void:
 		line.launch("pine", line._points[0])
 	_place(Vector3(-13, 0, -6))
 	await _wait(3.0)
+
+
+## 開放前の川の積み場の支払い枠（名前を指定したときだけ撮る: river_pay）
+func _shot_river_pay() -> void:
+	var line: LogLine = main.lines["river"]
+	GameState.river_points.erase("0")
+	line._refresh()
+	_place(line._points[0].global_position + Vector3(0.5, 0, 3.0))
+	await _wait(1.5)
 
 
 ## 給油所（名前を指定したときだけ撮る: fuel）
