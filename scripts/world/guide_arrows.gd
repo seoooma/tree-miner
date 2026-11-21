@@ -112,14 +112,14 @@ func _layout() -> void:
 		_mm.visible_instance_count = 0
 		return
 	var dir := to_goal / dist
-	var basis := Basis.looking_at(-dir, Vector3.UP)
+	var arrow_basis := Basis.looking_at(-dir, Vector3.UP)
 	var count := 0
 	var d := start + _scroll
 	while d < end and count < MAX_ARROWS:
 		# 両端は小さくしてふわっと出入りさせる
 		var fade := clampf(minf(d - start, end - d) / 0.8, 0.0, 1.0)
 		var s := 0.35 + 0.65 * fade
-		_mm.set_instance_transform(count, Transform3D(basis.scaled(Vector3.ONE * s), Vector3(from.x, 0.05, from.z) + dir * d))
+		_mm.set_instance_transform(count, Transform3D(arrow_basis.scaled(Vector3.ONE * s), Vector3(from.x, 0.05, from.z) + dir * d))
 		count += 1
 		d += SPACING
 	_mm.visible_instance_count = count

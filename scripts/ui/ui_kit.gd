@@ -147,9 +147,9 @@ class Bar:
 	var track := Color(0.08, 0.08, 0.08, 0.82)
 	var radius := 8
 
-	func _init(p_color := Color("#F2C230"), size := Vector2(200, 30)) -> void:
+	func _init(p_color := Color("#F2C230"), p_size := Vector2(200, 30)) -> void:
 		color = p_color
-		custom_minimum_size = size
+		custom_minimum_size = p_size
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:

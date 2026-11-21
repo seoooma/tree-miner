@@ -282,11 +282,11 @@ func _build_end() -> void:
 	_visual.add_child(_yard_zone)
 	_yard_station = Station.new()
 	add_child(_yard_station)
-	var sign := Props.signboard("川流し 集積所")
-	sign.position = Vector3(x - 1.6, 0, near_z + 3.2)
-	sign.rotation_degrees.y = 30.0
-	sign.scale = Vector3.ONE * 0.9
-	_visual.add_child(sign)
+	var signboard := Props.signboard("川流し 集積所")
+	signboard.position = Vector3(x - 1.6, 0, near_z + 3.2)
+	signboard.rotation_degrees.y = 30.0
+	signboard.scale = Vector3.ONE * 0.9
+	_visual.add_child(signboard)
 
 
 ## 集積所から製材所の丸太置き場までのベルトコンベア（強化で開放するまでは隠しておく）
