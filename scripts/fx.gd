@@ -198,6 +198,79 @@ static func label3d(text: String, pos: Vector3, size := 48) -> Label3D:
 	return label
 
 
+## glb モデルの全パーツを、頂点カラーの1つのメッシュにまとめる（Kenney の Nature Kit の木・切り株など）。
+## 色は color_for(マテリアル名, 元の色) -> Color で決める（木の幹・葉・切り口を JSON の色に塗り替えるため）。
+## 法線は面ごと（フラットシェーディング）。xf でモデル全体を拡大・回転する。
+static func model_merged(key: String, path: String, color_for: Callable, xf := Transform3D()) -> Mesh:
+	return _cached(key, func() -> Mesh:
+		var verts := PackedVector3Array()
+		var normals := PackedVector3Array()
+		var colors := PackedColorArray()
+		var root := model(path)
+		var stack: Array = [[root, Transform3D()]]
+		while not stack.is_empty():
+			var item: Array = stack.pop_back()
+			var node: Node3D = item[0]
+			var node_xf: Transform3D = item[1] * node.transform if node != root else Transform3D()
+			for child in node.get_children():
+				if child is Node3D:
+					stack.append([child, node_xf])
+			if not node is MeshInstance3D:
+				continue
+			var mesh := (node as MeshInstance3D).mesh
+			for si in mesh.get_surface_count():
+				var mat := mesh.surface_get_material(si)
+				var base := Color.WHITE
+				if mat is BaseMaterial3D:
+					base = (mat as BaseMaterial3D).albedo_color
+				var color: Color = color_for.call(mat.resource_name if mat else "", base)
+				var arrays := mesh.surface_get_arrays(si)
+				var pv: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+				var order: PackedInt32Array = idx
+				if order.is_empty():
+					order = PackedInt32Array(range(pv.size()))
+				var full := xf * node_xf
+				for t in range(0, order.size() - 2, 3):
+					var a := full * pv[order[t]]
+					var b := full * pv[order[t + 1]]
+					var c := full * pv[order[t + 2]]
+					# Godot の表面は時計回り。面の法線は (c - a) x (b - a)
+					var n := (c - a).cross(b - a).normalized()
+					for v in [a, b, c]:
+						verts.append(v)
+						normals.append(n)
+						colors.append(color)
+		root.free()
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = verts
+		arr[Mesh.ARRAY_NORMAL] = normals
+		arr[Mesh.ARRAY_COLOR] = colors
+		var out := ArrayMesh.new()
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(0, vertex_color_material())
+		return out)
+
+
+## モデルの高さ（y の最大値）。拡大率を決めるのに使う。
+static func model_height(path: String) -> float:
+	var root := model(path)
+	var h := 0.0
+	var stack: Array = [[root, Transform3D()]]
+	while not stack.is_empty():
+		var item: Array = stack.pop_back()
+		var node: Node3D = item[0]
+		var node_xf: Transform3D = item[1] * node.transform if node != root else Transform3D()
+		for child in node.get_children():
+			if child is Node3D:
+				stack.append([child, node_xf])
+		if node is MeshInstance3D:
+			h = maxf(h, (node_xf * (node as MeshInstance3D).mesh.get_aabb()).end.y)
+	root.free()
+	return h
+
+
 ## glb などのモデルを読み込んでインスタンス化する。
 static func model(path: String) -> Node3D:
 	if not _scenes.has(path):

@@ -53,3 +53,4 @@ func _process(delta: float) -> void:
 	else:
 		h_offset = 0.0
 		v_offset = 0.0
+	Mats.set_focus(global_position, target.global_position + Vector3(0, 0.8, 0))

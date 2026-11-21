@@ -101,131 +101,75 @@ func _animate(sec: float) -> void:
 	_anim_left = maxf(_anim_left, sec + 0.05)
 
 
-## 切り株と切り口。種類とバリエーションごとにキャッシュする。
+const NATURE := "res://assets/kenney/nature/"
+## 木の種類ごとの見た目（Kenney Nature Kit のモデル。バリエーションごとに形を変える）。色は JSON の leaf_color / trunk_color で塗る
+const MODELS := {
+	"sapling": ["tree_small", "tree_default", "tree_small"],
+	"pine": ["tree_pineRoundA", "tree_pineRoundC", "tree_pineRoundE"],
+	"maple": ["tree_default", "tree_detailed", "tree_default"],
+	"oak": ["tree_oak", "tree_plateau", "tree_detailed"],
+	"ebony": ["tree_pineTallA_detailed", "tree_pineTallB_detailed", "tree_pineTallD_detailed"],
+}
+const MODELS_BY_SHAPE := {
+	"sphere": ["tree_default", "tree_fat", "tree_oak"],
+	"cone": ["tree_pineRoundA", "tree_pineRoundC", "tree_pineRoundE"],
+}
+## 木の高さ（scale 1 のとき、m）。人物は約 1.1m
+const TREE_HEIGHT := 2.9
+
+
+static func _model_path(def: Dictionary, variant: int) -> String:
+	var list: Array = MODELS.get(str(def["id"]), MODELS_BY_SHAPE.get(def.get("shape", "sphere"), MODELS_BY_SHAPE["sphere"]))
+	return NATURE + str(list[variant % list.size()]) + ".glb"
+
+
+## モデルのマテリアル名から、幹（a=0）・切り口（a=0.5）・葉（a=1）の色を決める。
+static func _part_color(def: Dictionary, variant: int) -> Callable:
+	var bark := bark_color(def)
+	var leaf := leaf_color(def)
+	leaf = leaf.lightened(0.05) if variant == 0 else (leaf.darkened(0.05) if variant == 2 else leaf)
+	return func(mat_name: String, _base: Color) -> Color:
+		var n := mat_name.to_lower()
+		if n.contains("inner"):
+			return Color(0.93, 0.8, 0.6, 0.5)
+		if n.contains("leaf") or n.contains("leaves"):
+			return leaf
+		return bark
+
+
+## 切り株。種類とバリエーションごとにキャッシュする。
 static func _build_stump(def: Dictionary, variant: int) -> Mesh:
 	var r := 0.28 * float(def.get("scale", 1.0)) * (0.9 + 0.1 * variant)
-	var base := CylinderMesh.new()
-	base.bottom_radius = r * 1.15
-	base.top_radius = r
-	base.height = 0.22
-	base.radial_segments = 7
-	base.rings = 1
-	var face := CylinderMesh.new()
-	face.bottom_radius = r * 0.95
-	face.top_radius = r * 0.95
-	face.height = 0.02
-	face.radial_segments = 7
-	face.rings = 1
-	return Fx.merged("stump/%s/%d" % [def["id"], variant], [
-		[base, Transform3D(Basis(), Vector3(0, 0.11, 0)), bark_color(def).darkened(0.1)],
-		[face, Transform3D(Basis(), Vector3(0, 0.225, 0)), Color(0.85, 0.72, 0.52, 0.5)],
-	])
+	# stump_roundDetailed は半径約 0.2・高さ約 0.2
+	var k := r / 0.2
+	return Fx.model_merged("stump/%s/%d" % [def["id"], variant], NATURE + "stump_roundDetailed.glb", _part_color(def, variant),
+		Transform3D(Basis.from_scale(Vector3(k, k * 0.9, k)), Vector3.ZERO))
 
 
-## 種類とバリエーションごとにメッシュを作ってキャッシュする。
-## 幹は根元が広がり、広葉樹は枝の先にでこぼこした葉のかたまりを5つ、針葉樹は枝先が垂れた段を4つ重ねる。
-## 木は数百本あるので、1本あたり三角形 400 枚ほどに抑えている（MultiMesh でまとめて描く）。
+## 種類とバリエーションごとにメッシュを作ってキャッシュする（Kenney Nature Kit のモデルを塗り替えて1メッシュに）。
 static func _build_mesh(def: Dictionary, variant: int) -> Mesh:
-	var id := str(def["id"])
 	var s := float(def.get("scale", 1.0)) * (0.9 + 0.1 * variant)
-	var trunk_color := bark_color(def)
-	var leaf := leaf_color(def)
-	leaf = leaf.lightened(0.05 * (variant - 1)) if variant != 1 else leaf
-	var seed_value := float(variant) * 2.3 + float(id.hash() % 97) * 0.1
-	var parts := []
-	var trunk_h := 1.2 * s
-	var cone: bool = def.get("shape", "sphere") == "cone"
-	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.15 * s if cone else 0.17 * s
-	trunk.bottom_radius = 0.26 * s
-	trunk.height = trunk_h
-	trunk.radial_segments = 7
-	trunk.rings = 2
-	parts.append([Fx.lumpy(trunk, 0.08, seed_value), Transform3D(Basis(), Vector3(0, trunk_h * 0.5, 0)), trunk_color])
-	# 根元の張り出し
-	var flare := CylinderMesh.new()
-	flare.top_radius = 0.24 * s
-	flare.bottom_radius = 0.38 * s
-	flare.height = 0.22 * s
-	flare.radial_segments = 7
-	flare.rings = 1
-	parts.append([Fx.lumpy(flare, 0.18, seed_value + 1.0), Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 0.11 * s, 0)), trunk_color])
-
-	if cone:
-		# 針葉樹: 枝先が垂れた段を4つ重ね、てっぺんに細い先端
-		var y := trunk_h * 0.42
-		for i in 4:
-			var tier := CylinderMesh.new()
-			var r := (1.1 - i * 0.22) * s
-			var h := (1.05 - i * 0.12) * s
-			tier.bottom_radius = r
-			tier.top_radius = 0.0
-			tier.height = h
-			tier.radial_segments = 9
-			tier.rings = 2
-			var rot := Basis(Vector3.UP, 0.5 * i + variant)
-			var shade := 0.1 * (3 - i) / 3.0
-			parts.append([Fx.lumpy(tier, 0.12, seed_value + i * 1.9, 0.16), Transform3D(rot, Vector3(0, y + h * 0.5, 0)), leaf.darkened(shade)])
-			y += h * 0.5
-		var tip := CylinderMesh.new()
-		tip.bottom_radius = 0.22 * s
-		tip.top_radius = 0.0
-		tip.height = 0.55 * s
-		tip.radial_segments = 6
-		tip.rings = 1
-		parts.append([tip, Transform3D(Basis(), Vector3(0, y + 0.22 * s, 0)), leaf.lightened(0.04)])
-	else:
-		# 広葉樹: 幹から2本の枝を出し、その先と上に葉のかたまり
-		for k in 2:
-			var br := CylinderMesh.new()
-			br.top_radius = 0.05 * s
-			br.bottom_radius = 0.09 * s
-			br.height = 0.75 * s
-			br.radial_segments = 5
-			br.rings = 1
-			var yaw := 0.9 + k * PI + variant * 0.7
-			var branch_basis := Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, 0.75)
-			parts.append([br, Transform3D(branch_basis, Vector3(0, trunk_h * 0.85, 0) + branch_basis.y * 0.3 * s), trunk_color])
-		var blobs := [
-			[Vector3(0, trunk_h + 0.55 * s, 0), 0.78],
-			[Vector3(0.5 * s, trunk_h + 0.25 * s, 0.2 * s), 0.55],
-			[Vector3(-0.45 * s, trunk_h + 0.3 * s, -0.25 * s), 0.58],
-			[Vector3(0.05 * s, trunk_h + 0.2 * s, -0.5 * s), 0.5],
-			[Vector3(-0.2 * s, trunk_h + 0.95 * s, 0.15 * s), 0.45],
-		]
-		for i in blobs.size():
-			var b: Array = blobs[i]
-			var sph := SphereMesh.new()
-			sph.radius = b[1] * s
-			sph.height = b[1] * s * 2.0
-			sph.radial_segments = 8
-			sph.rings = 5
-			var rot := Basis(Vector3.UP, 0.7 * i + variant * 1.3)
-			var at: Vector3 = Basis(Vector3.UP, variant * 2.1) * b[0]
-			# 上のかたまりほど明るく（日が当たる）
-			var tone := leaf.darkened(0.08) if at.y < trunk_h + 0.4 * s else leaf.lightened(0.03)
-			parts.append([Fx.lumpy(sph, 0.16, seed_value + i * 2.7), Transform3D(rot.scaled(Vector3(1.0, 0.86, 1.0)), at), tone])
-	return Fx.merged("tree/%s/%d" % [id, variant], parts)
+	var path := _model_path(def, variant)
+	var k := TREE_HEIGHT * s / maxf(0.1, Fx.model_height(path))
+	return Fx.model_merged("tree/%s/%d" % [def["id"], variant], path, _part_color(def, variant),
+		Transform3D(Basis.from_scale(Vector3.ONE * k), Vector3.ZERO))
 
 
-## 樹皮の色（頂点カラーの a = 0 は「樹皮テクスチャを貼る」の印）。元の色より少し彩度を落とす。
+## 幹の色（頂点カラーの a = 0 は「幹」の印）。
 static func bark_color(def: Dictionary) -> Color:
 	var c := Color(def.get("trunk_color", "#8a5a33"))
-	c.s *= 0.8
 	return Color(c.r, c.g, c.b, 0.0)
 
 
-## 葉の色（a = 1 は「葉」の印）。おもちゃっぽく見えないよう、彩度と明るさを落とした自然な色にする。
+## 葉の色（a = 1 は「葉」の印）。
 static func leaf_color(def: Dictionary) -> Color:
 	var c := Color(def.get("leaf_color", "#4f9f4f"))
-	c.s *= 0.78
-	c.v *= 0.8
 	return Color(c.r, c.g, c.b, 1.0)
 
 
 func _build_hp_bar() -> void:
 	_bar_root = Node3D.new()
-	_bar_root.position = Vector3(0, 2.6 * _scale + 0.4, 0)
+	_bar_root.position = Vector3(0, TREE_HEIGHT * _scale + 0.35, 0)
 	_bar_root.visible = false
 	add_child(_bar_root)
 	var bg := MeshInstance3D.new()

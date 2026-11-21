@@ -1,7 +1,7 @@
 class_name Decor
 ## 地面の飾り（草・花・石・道・マップ外の森）。当たり判定は無く、MultiMesh でまとめて描画する。
 
-const GRASS_MODEL := "res://assets/kenney/platformer/grass-small.glb"
+const NATURE := "res://assets/kenney/nature/"
 const ROCK_MODELS := ["res://assets/kenney/survival/rock-a.glb", "res://assets/kenney/survival/rock-c.glb"]
 
 
@@ -14,7 +14,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	# マップの外側まで続く地面
 	var outer := PlaneMesh.new()
 	outer.size = Vector2(width + 60, base_depth - far + 60)
-	outer.material = Mats.ground("grass", Color("#b8c8a0"))
+	outer.material = Mats.ground("outer")
 	var outer_mi := MeshInstance3D.new()
 	outer_mi.mesh = outer
 	outer_mi.position = Vector3(0, -0.02, (base_depth + far) * 0.5)
@@ -29,45 +29,37 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	road_mi.position = Vector3(0, 0.008, far * 0.5 + 1.0)
 	road_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(road_mi)
-	# 作業場（土）と草地の境目をぼかす帯
-	var seam := PlaneMesh.new()
-	seam.size = Vector2(width, 2.4)
-	seam.material = Mats.strip("yard", 1)
-	var seam_mi := MeshInstance3D.new()
-	seam_mi.mesh = seam
-	seam_mi.position = Vector3(0, 0.004, -1.2 + 0.001)
-	seam_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(seam_mi)
+	# 草と花（Kenney Nature Kit。色はパレットに合わせて塗り替える）
+	var tufts: Array[Mesh] = []
+	for n in ["grass_large", "grass_leafs", "grass_leafsLarge"]:
+		tufts.append(Fx.model_merged("decor/" + n, NATURE + n + ".glb",
+			func(_m: String, _b: Color) -> Color: return Color("#78b84a"),
+			Transform3D(Basis.from_scale(Vector3.ONE * 1.3), Vector3.ZERO)))
+	var chunks: Dictionary = {}
+	for i in 1100:
+		var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
+		if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4):
+			continue
+		var s := rng.randf_range(0.7, 1.3)
+		var key := "%d/%d" % [floori(p.z / 20.0), i % tufts.size()]
+		if not chunks.has(key):
+			var arr: Array[Transform3D] = []
+			chunks[key] = arr
+		(chunks[key] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), p))
+	for key in chunks:
+		_multimesh(parent, tufts[int(key.split("/")[1])], chunks[key], Mats.foliage(), false)
 
-	# 草
-	var grass_mesh := _first_mesh(Fx.model(GRASS_MODEL))
-	if grass_mesh:
-		var chunks: Dictionary = {}
-		for i in 900:
-			var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, 0.0))
-			if absf(p.x) < 1.5:
-				continue
-			var s := rng.randf_range(0.7, 1.3)
-			var c := floori(p.z / 20.0)
-			if not chunks.has(c):
-				var arr: Array[Transform3D] = []
-				chunks[c] = arr
-			(chunks[c] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), p))
-		var grass_mat := Mats.foliage(Color("#5d8a3c"))
-		for c in chunks:
-			_multimesh(parent, grass_mesh, chunks[c], grass_mat, false)
-
-	# 花
-	var flower_colors := [Color("#e8e4d8"), Color("#e0c050"), Color("#d88a9c"), Color("#9c86c8")]
-	for c in flower_colors:
-		var head := Fx.merged("flower/" + c.to_html(), [
-			[_cyl(0.015, 0.22, 4), Transform3D(Basis(), Vector3(0, 0.11, 0)), Color("#4a6e34")],
-			[_sph(0.07, 5, 3), Transform3D(Basis(), Vector3(0, 0.24, 0)), c],
-		])
+	var flower_colors := [Color("#fff4e0"), Color("#ffd23f"), Color("#ff7a9c"), Color("#b18cff")]
+	var flower_models := ["flower_yellowA", "flower_redA", "flower_purpleA", "flower_yellowB"]
+	for fi in flower_colors.size():
+		var petal: Color = flower_colors[fi]
+		var head := Fx.model_merged("decor/flower/%d" % fi, NATURE + flower_models[fi] + ".glb",
+			func(m: String, _b: Color) -> Color: return Color("#5c9a3a") if m.to_lower().contains("grass") or m.to_lower().contains("leaf") else petal,
+			Transform3D(Basis.from_scale(Vector3.ONE * 1.6), Vector3.ZERO))
 		var xf: Array[Transform3D] = []
-		for i in 70:
-			var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, 0))
-			if absf(p.x) < 1.5:
+		for i in 75:
+			var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
+			if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4):
 				continue
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
 		_multimesh(parent, head, xf, Mats.foliage(), false)
@@ -89,7 +81,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			continue
 		(rock_xf[i % rocks.size()] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.5)), p))
 	for k in rocks.size():
-		_multimesh(parent, rocks[k], rock_xf[k], Mats.surface(Color("#a8a296"), "paint", 0.9))
+		_multimesh(parent, rocks[k], rock_xf[k], Mats.surface(Color("#b9bec4"), "paint", 0.9))
 
 	# マップの外側の森（飾り）。左右の外側には生やさず、奥と手前の帯だけ
 	var border: Dictionary = {}

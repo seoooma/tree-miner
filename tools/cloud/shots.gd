@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades は名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / overview は名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -121,4 +121,15 @@ func _shot_upgrades() -> void:
 	main.hud._set_sheet(true)
 	await _wait(0.5)
 	main.hud._scroll.scroll_vertical = 100000
+	await _wait(0.3)
+
+
+## 拠点全体を高い所から見下ろす（配置の確認用。名前を指定したときだけ撮る: overview。カメラを外すので最後に撮る）
+func _shot_overview() -> void:
+	_place(main.PLAYER_SPAWN)
+	await _wait(0.5)
+	var cam: FollowCamera = main.camera
+	cam.target = null
+	cam.global_position = Vector3(0, 30, 24)
+	cam.look_at(Vector3(0, 0, 4), Vector3.UP)
 	await _wait(0.3)
