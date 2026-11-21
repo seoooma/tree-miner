@@ -99,6 +99,8 @@ func _build() -> void:
 	shape.shape = box
 	shape.position.y = 0.6
 	body.add_child(shape)
+	body.add_to_group("nav_boxes")
+	body.set_meta("nav_size", Vector2(box.size.x, box.size.z))
 	add_child(body)
 	_blade = build_bench(self)
 	# おがくずは丸太の入ってくる側（左）の手前へ吹き出す

@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -114,6 +114,23 @@ func _shot_truck() -> void:
 	main.dock._add_stock("maple")
 	_place(main.DOCK_POS + Vector3(5.0, 0, 3.0))
 	await _wait(1.75)
+
+
+## 自動移動の行き先メニュー（名前を指定したときだけ撮る: travel_menu）
+func _shot_travel_menu() -> void:
+	_place(main.PLAYER_SPAWN)
+	main.hud._set_travel_menu(true)
+	await _wait(0.5)
+
+
+## 自動移動中（森から川の積み場へ。経路に沿った矢印と移動中の帯。名前を指定したときだけ撮る: travel）
+func _shot_travel() -> void:
+	main.hud._set_travel_menu(false)
+	_place(Vector3(6, 0, -8))
+	for d in main.travel_destinations():
+		if d["id"] == "river_point":
+			main.player.start_auto_move(d)
+	await _wait(1.0)
 
 
 func _shot_river() -> void:
