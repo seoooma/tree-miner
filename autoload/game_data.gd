@@ -17,6 +17,8 @@ var machines: Dictionary = {}
 var trees: Array = []
 var areas: Array = []
 var upgrades: Array = []
+## 強化画面のタブ（{id, name, icon, items}）。_comment だけの要素は除く
+var upgrade_groups: Array = []
 
 var _tree_index: Dictionary = {}
 var _upgrade_index: Dictionary = {}
@@ -49,6 +51,10 @@ func load_balance() -> void:
 	trees = data.get("trees", [])
 	areas = data.get("areas", [])
 	upgrades = data.get("upgrades", [])
+	upgrade_groups = []
+	for g in data.get("upgrade_groups", []):
+		if g is Dictionary and g.has("id"):
+			upgrade_groups.append(g)
 
 	_tree_index.clear()
 	for t in trees:
@@ -96,6 +102,14 @@ func pick_tree_for_area(area_index: int, rng: RandomNumberGenerator) -> String:
 
 
 # ---- 強化 ----
+
+## 強化（または機械）が入っている強化画面のタブの id。どのタブにも無ければ空文字
+func upgrade_group_of(id: String) -> String:
+	for g in upgrade_groups:
+		if (g.get("items", []) as Array).has(id):
+			return str(g["id"])
+	return ""
+
 
 func upgrade_def(id: String) -> Dictionary:
 	return _upgrade_index.get(id, {})

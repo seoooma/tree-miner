@@ -93,6 +93,16 @@ func _run() -> void:
 	# 6. 伐採機を買う（ほかの強化と同じく、強化画面のカードのボタンで買う）
 	_check(not main.has_node("MachineShop") and get_tree().get_nodes_in_group("machines").is_empty(), "最初は機械が無い")
 	_check(main.hud._rows.has("harvester") and main.hud._rows.has("hauler"), "強化画面に伐採機・運搬車のカードがある")
+	# 強化画面はタブで分ける。すべての強化・機械が upgrade_groups のどれかのタブに入っている
+	var ungrouped: Array = []
+	for id in main.hud._rows:
+		if GameData.upgrade_group_of(id) == "":
+			ungrouped.append(id)
+	_check(ungrouped.is_empty() and main.hud._rows.size() == GameData.upgrades.size() + GameData.machines.keys().filter(func(k: String) -> bool: return not k.begins_with("_")).size(), "強化画面のカードがすべてどれかのタブに入っている%s" % ("" if ungrouped.is_empty() else " (タブ無し: %s)" % ", ".join(ungrouped)))
+	main.hud._select_tab(GameData.upgrade_group_of("harvester"))
+	_check(main.hud._pages[GameData.upgrade_group_of("harvester")].visible, "タブを切り替えると、そのタブのカードが出る")
+	_check(not main.hud._pages[GameData.upgrade_group_of("axe_power")].visible, "ほかのタブのカードは隠れる")
+	main.hud._select_tab(str(GameData.upgrade_groups[0]["id"]))
 	GameState.money = maxi(GameState.money, GameState.machine_next_cost("harvester"))
 	var money_before_machine := GameState.money
 	_press_card("harvester")

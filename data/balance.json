@@ -111,6 +111,15 @@
 		  "weights": { "maple": 5, "oak": 25, "ebony": 70 } }
 	],
 
+	"upgrade_groups": [
+		{ "_comment": "強化画面のタブ。ゲームの流れの順に並べる。items に強化（upgrades の id）や機械（machines のキー）を入れると、そのタブにカードが出る。どこにも入っていないものは「その他」タブに出る" },
+		{ "id": "chop",   "name": "伐採", "icon": "icon_axe",    "items": ["axe_power", "lumberjack", "lumberjack_capacity"] },
+		{ "id": "carry",  "name": "運搬", "icon": "icon_log",    "items": ["capacity", "move_speed", "river", "conveyor"] },
+		{ "id": "saw",    "name": "製材", "icon": "icon_home",   "items": ["sawmill", "plank_belt"] },
+		{ "id": "sell",   "name": "販売", "icon": "icon_money",  "items": ["dock"] },
+		{ "id": "vehicle", "name": "車両", "icon": "icon_truck", "items": ["harvester", "hauler"] }
+	],
+
 	"upgrades": [
 		{ "id": "axe_power",  "name": "斧の威力",   "desc": "1回の伐採で与えるダメージ",
 		  "base_value": 1.0, "per_level": 1.0,  "base_cost": 15,  "cost_growth": 1.55, "max_level": 40, "unit": "",      "decimals": 0 },

@@ -33,7 +33,7 @@ func refresh() -> void:
 func refresh_text() -> void:
 	if _zone == null or line == null:
 		return
-	_zone.set_text("川へ積み込み", "積載量: %d" % line.in_transit_from(self))
+	_zone.set_text("川へ積み込み")
 
 
 func _process(delta: float) -> void:
