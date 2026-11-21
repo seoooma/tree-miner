@@ -5,7 +5,7 @@ extends Station
 ## - 積み込む速さは強化『出荷のペース』（個/秒）。荷台に置ける数に上限はない
 ## - トラックの積める数・走る速さ・売値の上乗せは、乗り物タブの強化（トラックの荷台・速さ・取引先）
 ## - トラックが満載になるか、積む物がしばらく無くなると、積み荷の代金が入ってトラックが拠点の外へ走り去る。
-##   すぐに空のトラックが戻ってくる。トラックがいない間の積み込みは貯めておき、戻ってきたらまとめて積む
+##   すぐに空のトラックが戻ってくる。戻ってきたトラックにも最初から1個ずつ積む
 ## - 強化『板のコンベア』を開放すると、製材所の出口の板がコンベアで荷台へ自動で運ばれる
 
 const PAD_RADIUS := 1.8
@@ -34,7 +34,7 @@ var _log_zone: Zone
 ## 荷台の板の山。数は stock と同じで、トラックに積んだ分だけ消える
 var _stock_pile: ItemPile
 var _log_pile: ItemPile
-## 積み込みの進み具合（1 で1個積む）。トラックがいない間も貯まる（上限はトラック1台分）
+## 積み込みの進み具合（1 で1個積む）。トラックが停まっている間だけ進み、1個分より多くは貯めない
 var _load_progress := 0.0
 ## 積む物が無くなってからの秒数（積み荷があればこの秒数で出発する）
 var _idle_time := 0.0
@@ -182,13 +182,15 @@ func _process(delta: float) -> void:
 func _process_truck(delta: float) -> void:
 	var capacity := truck_capacity()
 	var has_goods := not stock.is_empty() or not log_stock.is_empty()
+	# 積み込みはトラックが停まっている間だけ進め、1個ずつ積む（貯めておいて一度にまとめて積むと、
+	# 戻ってきたトラックの1段目が一瞬で埋まって見えるため）
+	if not truck.is_parked():
+		_load_progress = 0.0
+		return
 	if has_goods:
-		var room := capacity - (truck.cargo.size() if truck.is_parked() else 0)
-		_load_progress = minf(_load_progress + GameState.value(SELL_ID) * delta, maxf(1.0, float(room)))
+		_load_progress = minf(_load_progress + GameState.value(SELL_ID) * delta, 1.0)
 	else:
 		_load_progress = minf(_load_progress, 1.0)
-	if not truck.is_parked():
-		return
 	while _load_progress >= 1.0 and truck.cargo.size() < capacity and (not stock.is_empty() or not log_stock.is_empty()):
 		_load_progress -= 1.0
 		_load_one()
