@@ -13,6 +13,11 @@ var stack: CarryStack
 var vehicle: Machine = null
 
 var _chop_timer := 0.0
+## 木の近くに来てから最初に振るまでの溜め（触れた瞬間に切れないように）
+var _chop_ready := 0.0
+## 振り下ろし中の斧が当たる木と、当たるまでの残り秒数
+var _pending_tree: ChoppableTree
+var _pending_hit := 0.0
 var _step_timer := 0.0
 var _visual: Node3D
 var _rig: CharacterRig
@@ -111,15 +116,34 @@ func _keyboard_vector() -> Vector2:
 
 # ---- 伐採 ----
 
+## 近くの木に向かって斧を振り、振り下ろした瞬間（CharacterRig.swing の戻り値の後）にダメージを与える。
+## 振り終わるまでは次を振らない（chop_interval が1振りの長さ）。
 func _update_chop(delta: float) -> void:
 	_chop_timer = maxf(0.0, _chop_timer - delta)
-	if _chop_timer > 0.0:
-		return
+	if _pending_tree:
+		_pending_hit -= delta
+		if _pending_hit <= 0.0:
+			_land_hit(_pending_tree)
+			_pending_tree = null
 	var tree := _find_tree()
 	if tree == null:
+		_chop_ready = 0.0
 		return
-	_chop_timer = float(GameData.player.get("chop_interval", 0.45))
-	_swing()
+	_chop_ready += delta
+	if _chop_timer > 0.0 or _pending_tree or _chop_ready < float(GameData.player.get("chop_windup", 0.2)):
+		return
+	_chop_timer = float(GameData.player.get("chop_interval", 0.7))
+	_pending_tree = tree
+	_pending_hit = _swing()
+
+
+## 斧が当たる瞬間。振っている間に離れすぎた・倒れた木には当たらない（空振り）
+func _land_hit(tree: ChoppableTree) -> void:
+	if not is_instance_valid(tree) or not tree.alive or vehicle:
+		return
+	var reach := float(GameData.player.get("chop_range", 1.3)) + 0.6
+	if Fx.xz_distance(global_position, tree.global_position) > reach + tree.radius:
+		return
 	tree.hit(GameState.value("axe_power"), global_position)
 
 
@@ -138,8 +162,8 @@ func _find_tree() -> ChoppableTree:
 	return best
 
 
-func _swing() -> void:
-	_rig.swing()
+func _swing() -> float:
+	return _rig.swing()
 
 
 # ---- 機械 ----

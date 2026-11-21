@@ -16,6 +16,8 @@ var state := State.IDLE
 var _target_tree: ChoppableTree
 var _target_drop: LogDrop
 var _chop_timer := 0.0
+## 振り下ろした斧が当たるまでの残り秒数（0 以下なら振っていない）
+var _hit_timer := 0.0
 var _visual: Node3D
 var _rig: CharacterRig
 var _moved := false
@@ -85,16 +87,21 @@ func _process_chop(delta: float) -> void:
 				state = State.CHOP
 		State.CHOP:
 			if not _tree_valid():
+				_hit_timer = 0.0
 				_release_targets()
 				state = State.IDLE
 				return
-			_chop_timer -= delta
-			if _chop_timer <= 0.0:
-				_chop_timer = float(GameData.lumberjack.get("chop_interval", 0.6))
-				_rig.swing()
-				if _target_tree.hit(float(GameData.lumberjack.get("axe_power", 1.0)), global_position):
+			# 振り下ろした瞬間にダメージを与える
+			if _hit_timer > 0.0:
+				_hit_timer -= delta
+				if _hit_timer <= 0.0 and _target_tree.hit(float(GameData.lumberjack.get("axe_power", 1.0)), global_position):
 					_release_targets()
 					state = State.IDLE
+					return
+			_chop_timer -= delta
+			if _chop_timer <= 0.0 and _hit_timer <= 0.0:
+				_chop_timer = float(GameData.lumberjack.get("chop_interval", 0.6))
+				_hit_timer = _rig.swing()
 
 
 func _tree_valid() -> bool:
