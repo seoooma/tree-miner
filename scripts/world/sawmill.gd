@@ -176,9 +176,9 @@ static func build_bench(root: Node3D) -> MeshInstance3D:
 	bench.add_child(Fx.box(Vector3(0.08, 0.5, 0.08), Color("#e0b52a"), Vector3(0, 0.95, -0.36), "metal"))
 	bench.add_child(Fx.box(Vector3(0.08, 0.08, 0.36), Color("#e0b52a"), Vector3(0, 1.16, -0.2), "metal"))
 	# 看板（出荷場と同じ形）
-	var sign := Props.signboard("製材所")
-	sign.position = BENCH_OFFSET + Vector3(0, 0, -1.2)
-	root.add_child(sign)
+	var signboard := Props.signboard("製材所")
+	signboard.position = BENCH_OFFSET + Vector3(0, 0, -1.2)
+	root.add_child(signboard)
 	return blade
 
 

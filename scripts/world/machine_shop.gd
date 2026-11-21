@@ -15,9 +15,9 @@ var _wait_leave := false
 func _ready() -> void:
 	_zone = Zone.new(Vector2.ONE * PAD_RADIUS * 2.0, Color(0.7, 0.5, 0.9, 0.18))
 	add_child(_zone)
-	var sign := Props.signboard(GameData.machine_name(kind) + "ショップ", Color("#6a4fa0"))
-	sign.position = Vector3(0, 0, -1.9)
-	add_child(sign)
+	var signboard := Props.signboard(GameData.machine_name(kind) + "ショップ", Color("#6a4fa0"))
+	signboard.position = Vector3(0, 0, -1.9)
+	add_child(signboard)
 	GameState.machine_changed.connect(func(_k: String, _r: int) -> void: _update_label())
 	_update_label()
 

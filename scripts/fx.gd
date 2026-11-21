@@ -156,7 +156,9 @@ static func cylinder(radius: float, height: float, color: Color, pos := Vector3.
 		m.radial_segments = segments
 		m.rings = 1
 		m.material = material(color, 0.85, kind)
-		return flat(m) if is_flat else m)
+		if is_flat:
+			return flat(m)
+		return m)
 	return _instance(mesh, pos)
 
 
@@ -169,7 +171,9 @@ static func sphere(radius: float, color: Color, pos := Vector3.ZERO, segments :=
 		m.radial_segments = segments
 		m.rings = rings
 		m.material = material(color)
-		return flat(m) if is_flat else m)
+		if is_flat:
+			return flat(m)
+		return m)
 	return _instance(mesh, pos)
 
 

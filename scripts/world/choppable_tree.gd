@@ -184,8 +184,8 @@ static func _build_mesh(def: Dictionary, variant: int) -> Mesh:
 			br.radial_segments = 5
 			br.rings = 1
 			var yaw := 0.9 + k * PI + variant * 0.7
-			var basis := Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, 0.75)
-			parts.append([br, Transform3D(basis, Vector3(0, trunk_h * 0.85, 0) + basis.y * 0.3 * s), trunk_color])
+			var branch_basis := Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, 0.75)
+			parts.append([br, Transform3D(branch_basis, Vector3(0, trunk_h * 0.85, 0) + branch_basis.y * 0.3 * s), trunk_color])
 		var blobs := [
 			[Vector3(0, trunk_h + 0.55 * s, 0), 0.78],
 			[Vector3(0.5 * s, trunk_h + 0.25 * s, 0.2 * s), 0.55],

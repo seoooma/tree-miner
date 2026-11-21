@@ -195,7 +195,10 @@ static func burst(context: Node, pos: Vector3, colors: Array, amount := 10, spee
 	var p := _one_shot(context, pos, amount, lifetime)
 	if p == null:
 		return
-	p.mesh = _confetti_mesh() if confetti else _chip_mesh(Vector3.ONE * 0.09)
+	if confetti:
+		p.mesh = _confetti_mesh()
+	else:
+		p.mesh = _chip_mesh(Vector3.ONE * 0.09)
 	p.direction = Vector3.UP
 	p.spread = 70.0
 	p.initial_velocity_min = speed * 0.5

@@ -39,10 +39,10 @@ func _ready() -> void:
 	c2.position = Vector3(0.75, 0.84, -2.7)
 	c2.rotation_degrees.y = 20.0
 	add_child(c2)
-	var sign := Props.signboard("出荷場")
-	sign.position = Vector3(1.9, 0, -1.6)
-	sign.rotation_degrees.y = -20.0
-	add_child(sign)
+	var signboard := Props.signboard("出荷場")
+	signboard.position = Vector3(1.9, 0, -1.6)
+	signboard.rotation_degrees.y = -20.0
+	add_child(signboard)
 	stock = GameState.stock_list("dock")
 	GameState.saving.connect(func() -> void:
 		var ids := stock.duplicate()
