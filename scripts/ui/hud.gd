@@ -24,7 +24,7 @@ const STAT_NAMES := {
 	"lumberjack": "人数",
 	"lumberjack_capacity": "積載量",
 	"river": "流れの速さ",
-	"dock": "売れる速さ",
+	"dock": "積み込む速さ",
 	"plank_belt": "運ぶ速さ",
 	"conveyor": "運ぶ速さ",
 	"harvester": "伐採力",

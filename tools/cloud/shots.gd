@@ -95,10 +95,24 @@ func _shot_saw() -> void:
 
 
 func _shot_sell() -> void:
-	for i in 8:
+	for i in 10:
 		main.dock._add_stock("pine")
-	_place(main.DOCK_POS + Vector3(0, 0, 3.0))
+	for i in 6:
+		main.dock.add_log("oak")
+	# 販売のトラックにある程度積まれたところ
+	for i in 7:
+		main.dock.truck.add_cargo("plank" if i % 3 else "log", "pine" if i % 3 else "oak")
+	_place(main.DOCK_POS + Vector3(1.5, 0, 3.0))
 	await _wait(1.2)
+
+
+## 販売のトラックが満載で走り去るところ（名前を指定したときだけ撮る: truck）
+func _shot_truck() -> void:
+	for i in ShipDock.truck_capacity() - 1:
+		main.dock.truck.add_cargo("plank", "maple")
+	main.dock._add_stock("maple")
+	_place(main.DOCK_POS + Vector3(5.0, 0, 3.0))
+	await _wait(1.75)
 
 
 func _shot_river() -> void:
@@ -139,4 +153,15 @@ func _shot_overview() -> void:
 	cam.target = null
 	cam.global_position = Vector3(0, 30, 24)
 	cam.look_at(Vector3(0, 0, 4), Vector3.UP)
+	await _wait(0.3)
+
+
+## 販売のトラックの道を真上から（名前を指定したときだけ撮る: road。カメラを外すので最後に撮る）
+func _shot_road() -> void:
+	_place(main.DOCK_POS)
+	await _wait(0.5)
+	var cam: FollowCamera = main.camera
+	cam.target = null
+	cam.global_position = Vector3(13, 22, 12)
+	cam.look_at(Vector3(13, 0, 5), Vector3.UP)
 	await _wait(0.3)
