@@ -10,6 +10,8 @@ signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
 ## 伐採員が狙う木のグレードが変わった（"" = すべて）
 signal lumberjack_target_changed(tree_id: String)
+## 評判が変わった（注文の達成で上がる）
+signal reputation_changed(reputation: int)
 ## セーブの直前。施設（集積所・製材所・出荷場）が在庫を stock に書き込む
 signal saving
 
@@ -37,6 +39,13 @@ var lumberjack_roles: Array = []
 var lumberjack_target := ""
 ## 施設に溜まっている丸太・板（木のIDの配列）。例 {"yard": [...], "sawmill_queue": [...], "sawmill_output": [...], "dock": [...]}
 var stock: Dictionary = {}
+
+## 評判（注文を達成すると上がる。エリアの開放に要る）
+var reputation: int = 0
+## 出ている注文（Orders が管理する。{tree, kind, need, done, time_left, time_total, mult, rep}）
+var orders: Array = []
+## 次の注文が来るまでの秒数
+var order_cooldown := 0.0
 
 ## false にするとセーブしない（テスト用）
 var save_enabled := true
@@ -110,6 +119,14 @@ func buy_upgrade(id: String) -> bool:
 	return true
 
 
+# ---- 評判 ----
+
+func add_reputation(amount: int) -> void:
+	reputation += amount
+	reputation_changed.emit(reputation)
+	save_game()
+
+
 # ---- エリア ----
 
 func is_area_unlocked(index: int) -> bool:
@@ -123,6 +140,8 @@ func gate_remaining(index: int) -> int:
 
 ## エリア開放に向けて最大 amount だけ支払う。実際に払った額を返す。
 func pay_toward_area(index: int, amount: int) -> int:
+	if not has_area_reputation(index):
+		return 0
 	var pay := mini(amount, mini(money, gate_remaining(index)))
 	if pay <= 0:
 		return 0
@@ -131,6 +150,11 @@ func pay_toward_area(index: int, amount: int) -> int:
 	if gate_remaining(index) == 0:
 		unlock_area(index)
 	return pay
+
+
+## エリアの開放に要る評判に届いているか
+func has_area_reputation(index: int) -> bool:
+	return reputation >= GameData.area_rep_required(index)
 
 
 func unlock_area(index: int) -> void:
@@ -270,6 +294,9 @@ func save_game(collect := true) -> void:
 		"lumberjack_roles": lumberjack_roles,
 		"lumberjack_target": lumberjack_target,
 		"stock": stock,
+		"reputation": reputation,
+		"orders": orders,
+		"order_cooldown": order_cooldown,
 	}))
 
 
@@ -311,6 +338,13 @@ func load_game() -> void:
 	var saved_stock: Variant = parsed.get("stock", {})
 	if typeof(saved_stock) == TYPE_DICTIONARY:
 		stock = saved_stock
+	reputation = maxi(0, int(parsed.get("reputation", 0)))
+	order_cooldown = float(parsed.get("order_cooldown", order_cooldown))
+	var saved_orders: Variant = parsed.get("orders", [])
+	if typeof(saved_orders) == TYPE_ARRAY:
+		for o in saved_orders:
+			if typeof(o) == TYPE_DICTIONARY and not GameData.tree_def(str(o.get("tree", ""))).is_empty() and str(o.get("kind", "")) in ["log", "plank"]:
+				orders.append(o)
 
 
 func reset_state() -> void:
@@ -325,6 +359,9 @@ func reset_state() -> void:
 	lumberjack_roles = []
 	lumberjack_target = ""
 	stock = {}
+	reputation = 0
+	orders = []
+	order_cooldown = float(GameData.orders.get("first_delay_sec", 5.0))
 
 
 ## デバッグ用: セーブを消して最初から。

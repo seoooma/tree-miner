@@ -12,6 +12,7 @@ var _failed := false
 func _ready() -> void:
 	GameState.save_enabled = false  # プレイ中のセーブデータを上書きしない
 	GameState.reset_game()
+	Orders.running = false  # 注文は 21d で確かめる。ほかの確認の売上が割増で変わらないように止めておく
 	seed(12345)
 	main = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
@@ -491,6 +492,56 @@ func _run() -> void:
 	await _wait(0.2)
 	main.hud._travel_banner.pressed.emit()
 	_check(not player.is_auto_moving(), "帯をタップしても自動移動をやめる")
+
+	# 21d. 客からの注文と評判
+	GameState.orders.clear()
+	_check(not Orders.candidate_trees().has("ebony") and Orders.candidate_trees().has("pine"), "注文は開放済みエリアによく生える木から出る (%s)" % ", ".join(Orders.candidate_trees()))
+	GameState.order_cooldown = 0.0
+	Orders.tick(0.1)
+	_check(GameState.orders.size() == 1, "空いた枠に注文が来る")
+	Orders.tick(float(GameData.orders.get("cooldown_sec", 20)) + 0.1)
+	_check(GameState.orders.size() == Orders.slot_count(), "枠の数まで注文が出る (%d件)" % GameState.orders.size())
+	_check(GameState.orders[0]["tree"] != GameState.orders[1]["tree"] or GameState.orders[0]["kind"] != GameState.orders[1]["kind"], "同じ品の注文は重ならない")
+	GameState.orders[0]["time_left"] = 0.5
+	var expired: Dictionary = GameState.orders[0]
+	Orders.tick(1.0)
+	_check(not GameState.orders.has(expired), "期限が切れた注文は消える")
+	# 販売のトラックで売ると注文に数えられ、割増の代金と評判が入る
+	GameState.orders.clear()
+	var order := Orders.make_order("pine", "plank")
+	order["need"] = 3
+	GameState.orders.append(order)
+	main.hud.order_board._rebuild()
+	await get_tree().process_frame
+	_check(main.hud.order_board._rows.size() == 1 and (main.hud.order_board._rows[0]["count"] as Label).text == "0/3", "画面の左上に注文が出る")
+	main.dock.stock.clear()
+	frames = 0
+	while not (main.dock.truck.is_parked() and main.dock.truck.cargo.is_empty()) and frames < 60 * 20:
+		await get_tree().physics_frame
+		frames += 1
+	var rep0 := GameState.reputation
+	for i in 3:
+		main.dock.stock.append("pine")
+	main.dock._rebuild_stock()
+	frames = 0
+	while not GameState.orders.is_empty() and frames < 60 * 60:
+		await get_tree().physics_frame
+		frames += 1
+	_check(GameState.reputation == rep0 + int(order["rep"]) and GameState.orders.is_empty(), "販売のトラックで売ると注文に数えられ、そろうと評判が上がる (%d → %d, %.1f秒)" % [rep0, GameState.reputation, frames / 60.0])
+	GameState.orders.append(Orders.make_order("maple", "log"))
+	var extra := Orders.record_sale("log", "maple", GameData.log_price("maple"))
+	_check(extra > 0 and int(GameState.orders[0]["done"]) == 1, "注文の品は割増で売れる (¥%d に +¥%d)" % [GameData.log_price("maple"), extra])
+	_check(Orders.record_sale("plank", "maple", 10) == 0 and Orders.record_sale("log", "pine", 10) == 0, "注文に合わない品は割増にならない")
+	GameState.orders.clear()
+	# エリアの開放には評判が要る
+	GameState.reputation = 0
+	GameState.money = 1000000
+	var gate_area := GameState.unlocked_area_count
+	_check(GameData.area_rep_required(gate_area) > 0 and GameState.pay_toward_area(gate_area, 100) == 0, "評判が足りないと柵に払えない (要る評判 %d)" % GameData.area_rep_required(gate_area))
+	GameState.reputation = GameData.area_rep_required(gate_area)
+	_check(GameState.pay_toward_area(gate_area, 100) == 100, "評判が届くと払える")
+	GameState.gate_paid.erase(str(gate_area))
+	main.dock.stock.append("pine")
 
 	# 22. 在庫はセーブに入る
 	GameState.saving.emit()

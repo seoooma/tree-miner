@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 GameData="*res://autoload/game_data.gd"
 GameState="*res://autoload/game_state.gd"
 Audio="*res://autoload/audio.gd"
+Orders="*res://autoload/orders.gd"
 
 [display]
 

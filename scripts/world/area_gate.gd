@@ -44,6 +44,7 @@ func _ready() -> void:
 	_pad_root.add_child(_zone)
 
 	GameState.area_unlocked.connect(func(_i: int) -> void: _refresh())
+	GameState.reputation_changed.connect(func(_r: int) -> void: _update_label())
 	_refresh()
 
 
@@ -61,6 +62,12 @@ func _refresh() -> void:
 
 func _update_label() -> void:
 	var area_name := str(GameData.areas[area_index].get("name", ""))
+	if not GameState.has_area_reputation(area_index):
+		# 評判が足りないうちは払えない（注文を達成すると上がる）
+		_zone.set_fill(Color(0.3, 0.3, 0.3, 0.2))
+		_zone.set_text("%s を開放" % area_name, "評判 %d / %d が必要" % [GameState.reputation, GameData.area_rep_required(area_index)])
+		return
+	_zone.set_fill(Color(0.95, 0.65, 0.3, 0.18))
 	_zone.set_text("%s を開放" % area_name, "¥%d" % GameState.gate_remaining(area_index))
 
 
@@ -70,7 +77,7 @@ func _process(delta: float) -> void:
 	var cost := float(GameData.areas[area_index].get("unlock_cost", 0))
 	var chunk := maxi(1, ceili(cost / PAY_STEPS))
 	for carrier in carriers_near(global_position + PAD_OFFSET, PAD_RADIUS, "player"):
-		if GameState.money > 0 and tick(carrier, "pay", delta, 0.03):
+		if GameState.money > 0 and GameState.has_area_reputation(area_index) and tick(carrier, "pay", delta, 0.03):
 			GameState.pay_toward_area(area_index, chunk)
 			if is_queued_for_deletion():
 				Audio.play("unlock", 0.0)
