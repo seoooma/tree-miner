@@ -8,7 +8,9 @@
 	},
 
 	"player": {
-		"chop_interval": 0.45,
+		"_comment": "chop_windup: 木に近づいてから最初に斧を振るまでの秒数。chop_interval: 1振りの間隔（斧は振り下ろした瞬間に当たる）",
+		"chop_windup": 0.2,
+		"chop_interval": 0.7,
 		"chop_range": 1.3,
 		"pickup_radius": 1.8,
 		"board_range": 3.0,

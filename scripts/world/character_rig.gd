@@ -16,6 +16,11 @@ var _moving := false
 var _move_anim := "Idle"
 var _swinging := 0.0
 
+## 全身の振り下ろしアニメ（SwordSlash、約1.04秒）の再生速度。
+## アニメの 0.45 秒あたりで拳が体の正面に振り下ろされるので、そこを「当たる瞬間」にする。
+const SWING_ANIM_SPEED := 1.8
+const SWING_IMPACT := 0.45 / SWING_ANIM_SPEED
+
 
 ## variant: 0 = 男性、1 = 女性の作業員
 func _init(model_scale := 1.15, variant := 0) -> void:
@@ -122,15 +127,17 @@ func set_moving(moving: bool, speed_scale := 1.0) -> void:
 
 
 ## 斧を振る。止まっているときは全身の振り下ろしアニメ、歩きながらなら腕の斧だけ振る。
-func swing() -> void:
+## 戻り値は振り始めから斧が当たる瞬間までの秒数。ダメージはこの時間だけ遅らせて与える。
+func swing() -> float:
 	var tween := create_tween()
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", -150.0, 0.08)
+	tween.tween_property(_axe_pivot, "rotation_degrees:x", -150.0, SWING_IMPACT - 0.08)
 	tween.tween_property(_axe_pivot, "rotation_degrees:x", -45.0, 0.08)
-	tween.tween_property(_axe_pivot, "rotation_degrees:x", -90.0, 0.14)
+	tween.tween_property(_axe_pivot, "rotation_degrees:x", -90.0, 0.2)
 	if _anim == null or _moving or not _anim.has_animation("SwordSlash"):
-		return
-	_swinging = 0.4
-	_anim.play("SwordSlash", 0.06, 2.6)
+		return SWING_IMPACT
+	_swinging = _anim.get_animation("SwordSlash").length / SWING_ANIM_SPEED
+	_anim.play("SwordSlash", 0.06, SWING_ANIM_SPEED)
+	return SWING_IMPACT
 
 
 func _process(delta: float) -> void:

@@ -40,9 +40,15 @@ func _run() -> void:
 	# 満杯でも伐採できる
 	tree = _nearest_tree(player.global_position)
 	var hp_before := tree.hp
-	await _walk_to(tree.global_position, 0.6 + tree.radius + 0.4)
-	await _wait(1.0)
-	_check(tree.hp < hp_before or not tree.alive, "積荷が満杯でも木を切れる")
+	# 木の横に立った瞬間には切れず、斧を振り下ろしたところで1回分だけ減る
+	var side := (player.global_position - tree.global_position)
+	side.y = 0.0
+	player.global_position = tree.global_position + side.normalized() * (tree.radius + 0.9)
+	await _wait(0.15)
+	_check(tree.hp == hp_before, "木に触れた瞬間には切れない")
+	await _wait(0.5)
+	_check(tree.hp < hp_before or not tree.alive, "積荷が満杯でも木を切れる（斧を振り下ろした瞬間に当たる）")
+	_check(not tree.alive or tree.hp >= hp_before - GameState.value("axe_power") * 1.01, "1振りで当たるのは1回だけ")
 
 	# 2. 製材所（ライン未開放）で丸太を売る
 	await _walk_to(main.sawmill.input_position(), 0.5)
