@@ -7,15 +7,16 @@ extends Node3D
 signal changed
 
 const ITEM_HEIGHT := 0.2
-## 見た目に積む最大数（それ以上は数だけ増える）
-const MAX_VISIBLE := 25
 
 var items: Array[Dictionary] = []
 ## 見た目の並べ方（運搬車の荷台などで横に並べる）
 var columns := 1
 var rows := 1
 var item_spacing := Vector2(0.0, 0.0)  # (x方向, z方向)
-var max_visible := MAX_VISIBLE
+## 1列に積む段数の上限。超えた分は overflow_step だけずらした隣の列に積む（背中の山が高くなりすぎないように）。
+## 0 なら上限なし。見た目はいつも持っている数と同じだけ積む
+var max_layers := 0
+var overflow_step := Vector3(0, 0, -0.24)
 
 ## 容量を返す関数（強化で変わるため Callable で受け取る）
 var capacity_source: Callable = func() -> int: return 5
@@ -67,7 +68,7 @@ func take(kind: String) -> Dictionary:
 func _rebuild() -> void:
 	for child in get_children():
 		child.queue_free()
-	for i in mini(items.size(), max_visible):
+	for i in items.size():
 		add_child(_make_visual(items[i], i))
 	changed.emit()
 
@@ -75,19 +76,24 @@ func _rebuild() -> void:
 func _make_visual(item: Dictionary, index: int) -> Node3D:
 	var per_layer := columns * rows
 	var layer := floori(index / float(per_layer))
+	var group := 0
+	if max_layers > 0:
+		group = floori(layer / float(max_layers))
+		layer -= group * max_layers
 	var cell := index % per_layer
 	var col := cell % columns
 	var row := floori(cell / float(columns))
 	var pos := Vector3(
 		(col - (columns - 1) * 0.5) * item_spacing.x,
 		layer * ITEM_HEIGHT + ITEM_HEIGHT * 0.5,
-		(row - (rows - 1) * 0.5) * item_spacing.y)
+		(row - (rows - 1) * 0.5) * item_spacing.y) + overflow_step * group
 	if item["kind"] == "fuel":
 		return Fx.box(Vector3(0.36, ITEM_HEIGHT * 0.9, 0.26), Color("#d83a2e"), pos)
-	var def := GameData.tree_def(item.get("tree", ""))
 	if item["kind"] == "plank":
-		var plank_color := Color(def.get("trunk_color", "#a77a4f")).lightened(0.45)
-		return Fx.box(Vector3(0.62, ITEM_HEIGHT * 0.8, 0.3), plank_color, pos)
+		var plank := Sawmill._plank_mesh(item.get("tree", ""))
+		plank.position = pos
+		plank.scale = Vector3(0.75, 1.0, 1.0)
+		return plank
 	var log_mesh := LogDrop.make_log_mesh(item.get("tree", ""))
 	log_mesh.position = pos
 	log_mesh.scale = Vector3.ONE * 0.85

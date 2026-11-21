@@ -3,6 +3,11 @@ class_name Decor
 
 const NATURE := "res://assets/kenney/nature/"
 
+## 草・花・石を置かない縦の帯 Vector2(中心x, 半幅)。川（水面と土手）の上に草が生えないようにする
+static var clear_bands: Array[Vector2] = []
+## 草・花・石を置かない四角 Vector4(中心x, 中心z, 半幅x, 半幅z)。地面の枠（川の積み込み枠・エリア開放の支払い枠）の上に草が載らないようにする
+static var clear_rects: Array[Vector4] = []
+
 
 static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, base_depth: float, seed_value: int) -> void:
 	var rng := RandomNumberGenerator.new()
@@ -27,6 +32,8 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	road_mi.mesh = road
 	road_mi.position = Vector3(0, 0.008, far * 0.5 + 1.0)
 	road_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 道は大きな半透明の板なので、並べ替えでエリア開放の枠などの印より手前に描かれないよう、いつも先に描く
+	road_mi.sorting_offset = -100.0
 	parent.add_child(road_mi)
 	# 草と花（Kenney Nature Kit。色はパレットに合わせて塗り替える）
 	var tufts: Array[Mesh] = []
@@ -37,7 +44,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	var chunks: Dictionary = {}
 	for i in 1100:
 		var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
-		if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4):
+		if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4) or _in_band(p):
 			continue
 		var s := rng.randf_range(0.7, 1.3)
 		var key := "%d/%d" % [floori(p.z / 20.0), i % tufts.size()]
@@ -58,7 +65,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 		var xf: Array[Transform3D] = []
 		for i in 75:
 			var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
-			if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4):
+			if absf(p.x) < 1.5 or Mats.is_sand(p, 0.4) or _in_band(p):
 				continue
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
 		_multimesh(parent, head, xf, Mats.foliage(), false)
@@ -76,7 +83,7 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 	for i in 70:
 		var p := Vector3(rng.randf_range(-half, half), 0, rng.randf_range(far, base_depth))
 		# 拠点の施設まわりと道は避ける
-		if absf(p.x) < 2.0 or (p.z > 0.0 and absf(p.x) < 15.0) or rocks.is_empty():
+		if absf(p.x) < 2.0 or (p.z > 0.0 and absf(p.x) < 15.0) or rocks.is_empty() or _in_band(p, 0.6):
 			continue
 		(rock_xf[i % rocks.size()] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.5)), p))
 	for k in rocks.size():
@@ -100,6 +107,16 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 		for i in xfs.size():
 			mm.set_instance_transform(i, xfs[i])
 			mm.set_instance_color(i, TreeField.random_tint(rng))
+
+
+static func _in_band(p: Vector3, margin := 0.0) -> bool:
+	for b in clear_bands:
+		if absf(p.x - b.x) < b.y + margin:
+			return true
+	for r in clear_rects:
+		if absf(p.x - r.x) < r.z + margin and absf(p.z - r.y) < r.w + margin:
+			return true
+	return false
 
 
 static func _add_border_tree(border: Dictionary, rng: RandomNumberGenerator, pos: Vector3) -> void:

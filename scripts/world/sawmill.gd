@@ -4,7 +4,7 @@ extends Station
 ## 手前の左の枠で丸太を渡し、右の枠で板を受け取る。製材台の上では丸太がノコギリを通って板になるのが見える。
 ## - 製材ライン未開放: 投入口に置いた丸太をその場で売却する。
 ## - 製材ライン開放後: 丸太を板に加工し、出口に積む。板は出荷場で売る（売値 x plank_multiplier）。
-##   丸太置き場・出口に置ける数に上限はない（山の見た目は PILE_VISIBLE 本まで）。
+##   丸太置き場・出口に置ける数に上限はなく、山にはいつも実際の数だけ積む。
 ##   加工は強化『製材ライン』の本/秒で1本ずつ進み、製材台の上を丸太が左から右へ流れていく。
 
 ## 受け渡しの枠（手前）。左が丸太の投入口、右が板の出口
@@ -25,11 +25,10 @@ var _progress := 0.0
 var _input_zone: Zone
 var _output_zone: Zone
 var _output_root: Node3D
-var _output_pile: Node3D
+var _output_pile: ItemPile
 ## 作業列の左にある、加工待ちの丸太置き場。数は queue と同じ
-var _input_pile: Node3D
-const INPUT_PILE_OFFSET := Vector3(-2.6, 0, ROW_Z)
-const PILE_VISIBLE := 48
+var _input_pile: ItemPile
+const INPUT_PILE_OFFSET := Vector3(-2.45, 0, ROW_Z)
 var _blade: MeshInstance3D
 ## 製材台の上で加工中の1本（ノコギリの手前は丸太、過ぎると板の見た目）
 var _work_log: Node3D
@@ -122,10 +121,21 @@ func _build() -> void:
 	add_child(_output_root)
 	_output_zone = Zone.new(Vector2.ONE * _pad_radius() * 2.0, Color(0.55, 0.8, 0.95, 0.16))
 	_output_root.add_child(_output_zone)
-	_output_pile = Node3D.new()
+	# 板置き場: 板2枚を縦に並べ、奥行きに4枚（1段8枚）
+	_output_pile = ItemPile.new(func(id: String) -> MeshInstance3D: return _plank_mesh(id))
+	_output_pile.cols = 2
+	_output_pile.rows = 4
+	_output_pile.step = Vector3(0.86, 0, 0.33)
+	_output_pile.layer_h = 0.17
+	_output_pile.base_y = 0.09
+	_output_pile.layer_twist_deg = 3.0
 	_output_pile.position = OUTPUT_PILE_OFFSET + Vector3(0, DECK_Y, 0)
 	add_child(_output_pile)
-	_input_pile = Node3D.new()
+	# 丸太置き場: 丸太を前後に向けて横に6本（1段6本。上の段は半分ずらす）
+	_input_pile = ItemPile.new(func(id: String) -> MeshInstance3D: return _pile_log(id))
+	_input_pile.cols = 6
+	_input_pile.step = Vector3(0.23, 0, 0)
+	_input_pile.stagger = Vector3(0.115, 0, 0)
 	_input_pile.position = INPUT_PILE_OFFSET + Vector3(0, DECK_Y, 0)
 	add_child(_input_pile)
 
@@ -194,8 +204,8 @@ func _process(delta: float) -> void:
 			if not output.is_empty() and not stack.is_full() and tick(carrier, "out", delta):
 				var tree_id: String = output.pop_back()
 				stack.add({"kind": "plank", "tree": tree_id})
-				Fx.fly_item(self, _plank_mesh(tree_id), output_pile_position() + Vector3(0, 0.6, 0), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
 				_rebuild_output()
+				Fx.fly_item(self, _plank_mesh(tree_id), _output_pile.top_global(), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
 
 	var cutting := unlocked and not queue.is_empty()
 	_blade.rotate_object_local(Vector3.UP, delta * (14.0 if cutting else 1.0))
@@ -221,7 +231,7 @@ func _update_effects(cutting: bool, delta: float) -> void:
 func _fly_in(tree_id: String, from: Vector3) -> void:
 	var target := input_position() + Vector3(0, 0.3, 0)
 	if is_line_unlocked():
-		target = global_position + INPUT_PILE_OFFSET + Vector3(0, 0.2 + floori(mini(queue.size(), PILE_VISIBLE) / 4.0) * 0.2, 0)
+		target = _input_pile.top_global() + Vector3(0, 0.1, 0)
 	Fx.fly_item(self, LogDrop.make_log_mesh(tree_id), from + Vector3(0, 1.0, 0), target, 0.25)
 
 
@@ -283,41 +293,48 @@ func _update_work(cutting: bool) -> void:
 	_work_plank.position = top + Vector3(x, 0.08, 0)
 
 
-## 板置き場の板の山（4枚ずつ互い違いに積む）
+## 板置き場の板の山（数は output と同じ）
 func _rebuild_output() -> void:
-	for child in _output_pile.get_children():
-		child.queue_free()
-	for i in mini(output.size(), PILE_VISIBLE):
-		var col := i % 4
-		var row := floori(i / 4.0)
-		var plank := _plank_mesh(output[i])
-		plank.position = Vector3(0, 0.1 + row * 0.17, (col - 1.5) * 0.32)
-		plank.rotation_degrees.y = 4.0 if row % 2 == 0 else -4.0
-		_output_pile.add_child(plank)
+	_output_pile.show_items(output)
 
 
-## 丸太置き場の加工待ちの丸太の山（4本ずつ積む）
+## 丸太置き場の加工待ちの丸太の山。製材台の上で加工中の1本（queue の先頭）は山から除くので、
+## 山と製材台の丸太を合わせた数が queue と同じになる
 func _rebuild_input() -> void:
-	for child in _input_pile.get_children():
-		child.queue_free()
-	for i in mini(queue.size(), PILE_VISIBLE):
-		var col := i % 4
-		var row := floori(i / 4.0)
-		var log_mesh := LogDrop.make_log_mesh(queue[i], 90.0)
-		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
-		log_mesh.position = Vector3((col - 1.5) * 0.23 + (0.11 if row % 2 == 1 else 0.0), 0.12 + row * 0.2, 0)
-		_input_pile.add_child(log_mesh)
+	var waiting := queue
+	if is_line_unlocked() and not queue.is_empty():
+		waiting = queue.slice(1)
+	_input_pile.show_items(waiting)
 
 
+static func _pile_log(tree_id: String) -> MeshInstance3D:
+	var log_mesh := LogDrop.make_log_mesh(tree_id, 90.0) as MeshInstance3D
+	log_mesh.scale = Vector3(1.5, 1.0, 1.0)
+	return log_mesh
+
+
+## 板の見た目。木の種類ごとの木口の色の板に、両端へ等級の色を塗る（丸太の帯と同じ色）。
 static func _plank_mesh(tree_id: String) -> MeshInstance3D:
 	var def := GameData.tree_def(tree_id)
-	# 板は木の種類の色を明るい黄みの木肌に寄せる（青みの環境光でくすまないように）
-	var color := Color(def.get("trunk_color", "#a77a4f")).lerp(Color("#f6cf8e"), 0.7)
-	return Fx.box(Vector3(0.9, 0.16, 0.3), color, Vector3.ZERO, "wood")
+	var body := LogDrop.end_color(def)
+	var grade := LogDrop.grade_color(def)
+	var box := BoxMesh.new()
+	box.size = Vector3(0.74, 0.16, 0.3)
+	var cap := BoxMesh.new()
+	cap.size = Vector3(0.08, 0.162, 0.302)
+	var mesh := Fx.merged("plank/" + tree_id, [
+		[box, Transform3D.IDENTITY, body],
+		[cap, Transform3D(Basis.IDENTITY, Vector3(0.41, 0, 0)), grade],
+		[cap, Transform3D(Basis.IDENTITY, Vector3(-0.41, 0, 0)), grade],
+	])
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	return mi
 
 
 func _refresh() -> void:
 	_output_root.visible = is_line_unlocked()
+	_rebuild_input()
 
 
 func _update_labels(unlocked: bool) -> void:

@@ -268,7 +268,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 		frames += 1
 	await _wait(2.0)
-	_check(river.yard_count() == 3 and river._yard_pile.get_child_count() == 3, "流れ着いた丸太は集積所に積まれる (%d本)" % river.yard_count())
+	_check(river.yard_count() == 3 and river._yard_pile.shown_count() == 3, "流れ着いた丸太は集積所に積まれる (%d本)" % river.yard_count())
 	_check(not river.belt.visible, "集積所コンベアは最初は無く、丸太は集積所に溜まったまま")
 
 	# 16. 集積所の丸太は手で拾って製材所に運ぶ
@@ -319,7 +319,7 @@ func _run() -> void:
 	await _wait(1.0)
 	_check(player.stack.count("log") == 0, "丸太置き場がたくさんでも投入口で渡せる")
 	_check(main.sawmill.output.size() > MANY, "出口に板がたくさんあっても加工は続く (%d枚)" % main.sawmill.output.size())
-	_check(main.sawmill._input_pile.get_child_count() <= Sawmill.PILE_VISIBLE and main.sawmill._output_pile.get_child_count() <= Sawmill.PILE_VISIBLE, "山の見た目は一定の数まで")
+	_check(main.sawmill._input_pile.shown_count() == maxi(0, main.sawmill.queue.size() - 1) and main.sawmill._output_pile.shown_count() == main.sawmill.output.size(), "山には実際の数だけ積む（丸太置き場 %d本・板 %d枚）" % [main.sawmill._input_pile.shown_count(), main.sawmill._output_pile.shown_count()])
 	_check(not main.sawmill._input_zone._title.text.contains("満杯"), "「満杯」の表示は出ない")
 	_empty_hands()
 
@@ -331,13 +331,13 @@ func _run() -> void:
 	river._yard.clear()
 	river._rebuild_yard()
 	await get_tree().process_frame
-	_check(main.sawmill._input_pile.get_child_count() == 3, "丸太置き場の丸太の数が加工待ちと一致する")
+	_check(main.sawmill._input_pile.shown_count() == 2 and (main.sawmill._work_log.visible or main.sawmill._work_plank.visible), "丸太置き場の丸太と製材台の1本を合わせた数が加工待ちと一致する (山 %d本)" % main.sawmill._input_pile.shown_count())
 	frames = 0
 	while not main.sawmill.queue.is_empty() and frames < 60 * 90:
 		await get_tree().physics_frame
 		frames += 1
 	await get_tree().process_frame
-	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.get_child_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる (%d枚)" % main.sawmill.output.size())
+	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.shown_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる (%d枚)" % main.sawmill.output.size())
 	_check(frames / 60.0 >= 2.0 / GameState.value("sawmill"), "加工には時間がかかる (%.1f秒で3本)" % (frames / 60.0))
 
 	# 20. 板のコンベアを開放すると、製材所の板が出荷場へ運ばれて売れていく
@@ -353,7 +353,7 @@ func _run() -> void:
 	await _wait(float(GameData.dock.get("depart_idle_sec", 2.5)) + 0.5)
 	_check(main.sawmill.output.is_empty() and main.dock.stock.is_empty() and GameState.money > m0, "板のコンベアで出荷場に届き、売れる (+¥%d, %.1f秒)" % [GameState.money - m0, frames / 60.0])
 	await get_tree().process_frame
-	_check(main.dock._stock_pile.get_child_count() == 0, "売れた板は出荷場に残らない")
+	_check(main.dock._stock_pile.shown_count() == 0, "売れた板は出荷場に残らない")
 
 	# 21. 出荷場の荷台にも上限は無い
 	while main.dock.stock.size() < MANY:

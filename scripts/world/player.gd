@@ -45,6 +45,8 @@ func _ready() -> void:
 	stack = CarryStack.new()
 	stack.capacity_source = func() -> int: return roundi(GameState.value("capacity"))
 	stack.position = Vector3(0, 0.55, -0.4)
+	stack.max_layers = 12
+	stack.overflow_step = Vector3(0, 0, -0.24)
 	_visual.add_child(stack)
 	stack.changed.connect(_emit_carry)
 	GameState.upgrade_changed.connect(func(_id: String, _level: int) -> void: _emit_carry())
