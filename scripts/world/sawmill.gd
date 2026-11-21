@@ -319,13 +319,13 @@ static func _plank_mesh(tree_id: String) -> MeshInstance3D:
 	var body := LogDrop.end_color(def)
 	var grade := LogDrop.grade_color(def)
 	var box := BoxMesh.new()
-	box.size = Vector3(0.74, 0.16, 0.3)
+	box.size = Vector3(0.8, 0.16, 0.3)
 	var cap := BoxMesh.new()
-	cap.size = Vector3(0.08, 0.162, 0.302)
+	cap.size = Vector3(0.05, 0.162, 0.302)
 	var mesh := Fx.merged("plank/" + tree_id, [
 		[box, Transform3D.IDENTITY, body],
-		[cap, Transform3D(Basis.IDENTITY, Vector3(0.41, 0, 0)), grade],
-		[cap, Transform3D(Basis.IDENTITY, Vector3(-0.41, 0, 0)), grade],
+		[cap, Transform3D(Basis.IDENTITY, Vector3(0.425, 0, 0)), grade],
+		[cap, Transform3D(Basis.IDENTITY, Vector3(-0.425, 0, 0)), grade],
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh

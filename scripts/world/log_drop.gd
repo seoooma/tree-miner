@@ -64,8 +64,8 @@ func _ready() -> void:
 
 
 ## 丸太の見た目（樹皮の円柱＋両端の木口）。積荷の表示でも使う。
-## 木の種類がひと目でわかるように、樹皮・木口の色を種類ごとに変え、
-## 等級の色（balance.json の grade_color）を真ん中の帯と木口の中心の印に塗る（材木置き場の色付けと同じ）。
+## 木の種類がわかるように、木口の色を種類ごとに変え、等級の色（balance.json の grade_color）を
+## 真ん中の細い帯と木口の中心の小さな印に塗る（材木置き場の色付けと同じ）。樹皮は立ち木の幹と同じ色。
 static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
 	var def := GameData.tree_def(p_tree_id)
 	var bark := ChoppableTree.bark_color(def) if not def.is_empty() else Color(0.55, 0.36, 0.2, 0.0)
@@ -75,8 +75,8 @@ static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
 	var mesh := Fx.merged("log/" + p_tree_id, [
 		[_cyl(0.11, 0.7, 8), along, bark],
 		[_cyl(0.085, 0.72, 8), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
-		[_cyl(0.042, 0.726, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
-		[_cyl(0.118, 0.1, 8), along, Color(grade.r, grade.g, grade.b, 0.0)],
+		[_cyl(0.034, 0.726, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
+		[_cyl(0.114, 0.05, 8), along, Color(grade.r, grade.g, grade.b, 0.0)],
 	])
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
