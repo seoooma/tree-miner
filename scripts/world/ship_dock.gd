@@ -77,7 +77,8 @@ func _ready() -> void:
 	c2.rotation_degrees.y = 20.0
 	add_child(c2)
 	var signboard := Props.signboard("出荷場", Color("#3b8fe0"))
-	signboard.position = Vector3(-2.5, 0, -1.9)
+	# 看板は板のコンベアの手前に立てる（コンベアに重ならないように）
+	signboard.position = Vector3(-2.8, 0, -1.1)
 	signboard.rotation_degrees.y = 20.0
 	add_child(signboard)
 	# 販売のトラック（プレイヤーが乗る機械とは別。乗れない）
@@ -124,9 +125,9 @@ func _build_belt() -> void:
 		return
 	var from := sawmill.output_pile_position() - global_position
 	var to := _stock_pile.position
-	var start := Vector3(from.x + 1.0, 0, from.z)
-	var turn_x := to.x - 2.0
-	var path: Array[Vector3] = [start, Vector3(turn_x, 0, start.z), Vector3(turn_x, 0, to.z), Vector3(to.x - 1.15, 0, to.z)]
+	# 製材所の板置き場の右から荷台の左まで、曲げずに1本の斜めのベルトでつなぐ
+	var start := Vector3(from.x + 1.3, 0, from.z)
+	var path: Array[Vector3] = [start, Vector3(to.x - 1.15, 0, to.z)]
 	belt = Conveyor.new()
 	belt.path = path
 	belt.rate_source = func() -> float: return GameState.value(BELT_ID)
@@ -211,7 +212,7 @@ func _load_one() -> void:
 		Fx.fly_item(self, LogDrop.make_log_mesh(log_id), from, truck.next_slot_position(), 0.3)
 		truck.add_cargo("log", log_id)
 	else:
-		var plank_id: String = stock.pop_front()
+		var plank_id: String = stock.pop_back()
 		var from := _pile_top()
 		_rebuild_stock()
 		Fx.fly_item(self, Sawmill._plank_mesh(plank_id), from, truck.next_slot_position(), 0.3)

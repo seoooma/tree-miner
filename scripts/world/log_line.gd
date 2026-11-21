@@ -223,7 +223,6 @@ func _rebuild_yard() -> void:
 
 func _make_item_visual(tree_id: String) -> Node3D:
 	var log_mesh := LogDrop.make_log_mesh(tree_id)
-	log_mesh.scale = Vector3(1.6, 1.4, 1.4)
 	return log_mesh
 
 
@@ -280,7 +279,6 @@ func _build_end() -> void:
 	# 丸太を左右に向けて奥行きに6本（1段6本。上の段は半分ずらす）。数は待っている丸太と同じ
 	_yard_pile = ItemPile.new(func(id: String) -> MeshInstance3D:
 		var log_mesh := LogDrop.make_log_mesh(id, 0.0) as MeshInstance3D
-		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
 		return log_mesh)
 	_yard_pile.cols = 1
 	_yard_pile.rows = 6

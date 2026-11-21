@@ -95,6 +95,44 @@ static func merged(key: String, parts: Array) -> Mesh:
 		return out)
 
 
+## merged と同じく頂点カラーで1つにまとめるが、法線は面ごと（箱の角で法線を平均しない）。
+## 板のような箱形を merged でまとめると、角の法線が平均されて面が斜めに陰り、黒ずんで見えるため。
+## 各プリミティブは凸形の前提で、法線はそのプリミティブの中心から外向きにそろえる。
+static func merged_flat(key: String, parts: Array) -> Mesh:
+	return _cached(key, func() -> Mesh:
+		var verts := PackedVector3Array()
+		var normals := PackedVector3Array()
+		var colors := PackedColorArray()
+		for part in parts:
+			var prim: Mesh = part[0]
+			var xf: Transform3D = part[1]
+			var color: Color = part[2]
+			var arrays := prim.surface_get_arrays(0)
+			var pv: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			var order: Array = Array(idx) if not idx.is_empty() else range(pv.size())
+			for t in range(0, order.size(), 3):
+				var a := xf * pv[order[t]]
+				var b := xf * pv[order[t + 1]]
+				var c := xf * pv[order[t + 2]]
+				var n := (b - a).cross(c - a).normalized()
+				if n.dot((a + b + c) / 3.0 - xf.origin) < 0.0:
+					n = -n
+				for v in [a, b, c]:
+					verts.append(v)
+					normals.append(n)
+					colors.append(color)
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = verts
+		arr[Mesh.ARRAY_NORMAL] = normals
+		arr[Mesh.ARRAY_COLOR] = colors
+		var out := ArrayMesh.new()
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(0, vertex_color_material())
+		return out)
+
+
 ## 球や円錐の表面をなめらかなノイズででこぼこにする（木の葉のかたまりを自然な形にする）。
 ## 頂点の位置だけで決まるので、継ぎ目で同じ位置にある頂点は同じだけ動き、すき間はできない。
 ## droop を付けると、外側に張り出した所ほど少し下に垂れる（針葉樹の枝先）。

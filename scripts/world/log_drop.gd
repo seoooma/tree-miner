@@ -3,6 +3,8 @@ extends Node3D
 ## 木を倒したときに地面に落ちる丸太。運搬者（プレイヤー・運搬役の伐採員・運搬車）が近づくと吸い寄せられて拾われる。
 
 const SPAWN_SEC := 0.35
+## 丸太の長さ。地面・背中・山・荷台・コンベアのどこでも同じ大きさで見せる（場所ごとに拡大しない）
+const LOG_LENGTH := 0.9
 
 var tree_id := ""
 var collected := false
@@ -73,13 +75,13 @@ static func make_log_mesh(p_tree_id: String, yaw_deg := 0.0) -> Node3D:
 	var grade := grade_color(def)
 	var along := Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3.ZERO)
 	var mesh := _log_mesh("log/" + p_tree_id, [
-		[_cyl(0.11, 0.7, 10), along, bark],
+		[_cyl(0.11, LOG_LENGTH, 10), along, bark],
 		# 木口は樹皮と同じ長さの面に薄く貼る（端が角張った円柱に見えるように）
-		[_cyl(0.092, 0.706, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
+		[_cyl(0.092, LOG_LENGTH + 0.006, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
 		# 年輪（木口の内側の少し濃い輪）
-		[_cyl(0.064, 0.709, 10), along, Color(end_c.darkened(0.14).r, end_c.darkened(0.14).g, end_c.darkened(0.14).b, 0.5)],
-		[_cyl(0.05, 0.71, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
-		[_cyl(0.026, 0.712, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
+		[_cyl(0.064, LOG_LENGTH + 0.009, 10), along, Color(end_c.darkened(0.14).r, end_c.darkened(0.14).g, end_c.darkened(0.14).b, 0.5)],
+		[_cyl(0.05, LOG_LENGTH + 0.01, 10), along, Color(end_c.r, end_c.g, end_c.b, 0.5)],
+		[_cyl(0.026, LOG_LENGTH + 0.012, 6), along, Color(grade.r, grade.g, grade.b, 0.5)],
 		[_cyl(0.114, 0.05, 10), along, Color(grade.r, grade.g, grade.b, 0.0)],
 	])
 	var mi := MeshInstance3D.new()

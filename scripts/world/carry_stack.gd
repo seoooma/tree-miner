@@ -6,7 +6,7 @@ extends Node3D
 
 signal changed
 
-const ITEM_HEIGHT := 0.2
+const ITEM_HEIGHT := 0.22
 
 var items: Array[Dictionary] = []
 ## 見た目の並べ方（運搬車の荷台などで横に並べる）
@@ -96,5 +96,4 @@ func _make_visual(item: Dictionary, index: int) -> Node3D:
 		return plank
 	var log_mesh := LogDrop.make_log_mesh(item.get("tree", ""))
 	log_mesh.position = pos
-	log_mesh.scale = Vector3.ONE * 0.85
 	return log_mesh
