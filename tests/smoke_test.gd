@@ -87,8 +87,9 @@ func _run() -> void:
 	await _wait(1.0)
 	_check(player.stack.count("plank") == 0 and main.dock.stock.size() > 0, "出荷場に板を置ける (%d枚)" % main.dock.stock.size())
 	_check(main.dock.stock.size() < planks_held or GameState.money == money_before, "板はその場では全部売れず、荷台に残る")
-	await _wait(planks_held / GameState.value("dock") + 1.0)
-	_check(GameState.money > money_before and main.dock.stock.is_empty(), "荷台の板が出荷のペースで売れていく (+¥%d)" % (GameState.money - money_before))
+	await _wait(planks_held / GameState.value("dock") + float(GameData.dock.get("depart_idle_sec", 2.5)) + 1.0)
+	_check(GameState.money > money_before and main.dock.stock.is_empty(), "荷台の板がトラックに積まれ、走り去ると売上が入る (+¥%d)" % (GameState.money - money_before))
+	_check(not main.dock.truck.is_parked() or main.dock.truck.cargo.is_empty(), "積み込んだトラックは拠点の外へ走り去る")
 	_check(main.sawmill.queue.size() + main.sawmill.output.size() > 0 or main.lumberjacks[1].stack.size() > 0, "運搬役の伐採員が丸太を運んでいる")
 
 	# 5. 給油所で燃料缶を受け取る
@@ -99,6 +100,16 @@ func _run() -> void:
 	# 6. 伐採機を買う（ほかの強化と同じく、強化画面のカードのボタンで買う）
 	_check(not main.has_node("MachineShop") and get_tree().get_nodes_in_group("machines").is_empty(), "最初は機械が無い")
 	_check(main.hud._rows.has("harvester") and main.hud._rows.has("hauler"), "強化画面に伐採機・運搬車のカードがある")
+	# 強化画面はタブで分ける。すべての強化・機械が upgrade_groups のどれかのタブに入っている
+	var ungrouped: Array = []
+	for id in main.hud._rows:
+		if GameData.upgrade_group_of(id) == "":
+			ungrouped.append(id)
+	_check(ungrouped.is_empty() and main.hud._rows.size() == GameData.upgrades.size() + GameData.machines.keys().filter(func(k: String) -> bool: return not k.begins_with("_")).size(), "強化画面のカードがすべてどれかのタブに入っている%s" % ("" if ungrouped.is_empty() else " (タブ無し: %s)" % ", ".join(ungrouped)))
+	main.hud._select_tab(GameData.upgrade_group_of("harvester"))
+	_check(main.hud._pages[GameData.upgrade_group_of("harvester")].visible, "タブを切り替えると、そのタブのカードが出る")
+	_check(not main.hud._pages[GameData.upgrade_group_of("axe_power")].visible, "ほかのタブのカードは隠れる")
+	main.hud._select_tab(str(GameData.upgrade_groups[0]["id"]))
 	GameState.money = maxi(GameState.money, GameState.machine_next_cost("harvester"))
 	var money_before_machine := GameState.money
 	_press_card("harvester")
@@ -333,6 +344,7 @@ func _run() -> void:
 	while (not main.sawmill.output.is_empty() or main.dock.belt.in_flight() > 0 or not main.dock.stock.is_empty()) and frames < 60 * 40:
 		await get_tree().physics_frame
 		frames += 1
+	await _wait(float(GameData.dock.get("depart_idle_sec", 2.5)) + 0.5)
 	_check(main.sawmill.output.is_empty() and main.dock.stock.is_empty() and GameState.money > m0, "板のコンベアで出荷場に届き、売れる (+¥%d, %.1f秒)" % [GameState.money - m0, frames / 60.0])
 	await get_tree().process_frame
 	_check(main.dock._stock_pile.get_child_count() == 0, "売れた板は出荷場に残らない")
@@ -345,6 +357,45 @@ func _run() -> void:
 	await _wait(0.3)
 	_check(player.stack.count("plank") == 0, "出荷場に%d枚あっても板を置ける" % MANY)
 	_empty_hands()
+
+	# 21b. 販売のトラックと、丸太をそのまま売る枠
+	main.dock.stock.clear()
+	main.dock._rebuild_stock()
+	frames = 0
+	while not (main.dock.truck.is_parked() and main.dock.truck.cargo.is_empty()) and frames < 60 * 20:
+		await get_tree().physics_frame
+		frames += 1
+	_check(main.dock.truck.is_parked() and main.dock.truck.cargo.is_empty(), "トラックは走り去ったあと空で戻ってくる (%.1f秒)" % (frames / 60.0))
+	_check(not main.dock.truck.is_in_group("vehicles") and not main.dock.truck.is_in_group("machines"), "販売のトラックには乗れない（機械とは別）")
+	_check(GameData.log_price("oak") < GameData.plank_price("oak"), "丸太の売値は板より安い")
+	_check(main.dock._log_zone.visible, "製材ライン開放後は「丸太を売る」枠がある")
+	var m_logs := GameState.money
+	for i in 3:
+		player.stack.add({"kind": "log", "tree": "oak"})
+	player.global_position = main.DOCK_POS + ShipDock.LOG_PAD_OFFSET
+	await _wait(0.6)
+	_check(player.stack.count("log") == 0, "「丸太を売る」枠に丸太を置ける")
+	_check(GameState.money == m_logs, "丸太はその場では売れず、トラックを待つ")
+	player.global_position = main.PLAYER_SPAWN
+	await _wait(3.0 / GameState.value("dock") + float(GameData.dock.get("depart_idle_sec", 2.5)) + 0.5)
+	_check(GameState.money - m_logs == GameData.log_price("oak") * 3, "丸太はトラックで丸太の売値で売れる (+¥%d)" % (GameState.money - m_logs))
+	# 満載になると、積む物が残っていても出発する
+	var cap := ShipDock.truck_capacity()
+	frames = 0
+	while not main.dock.truck.is_parked() and frames < 60 * 20:
+		await get_tree().physics_frame
+		frames += 1
+	for i in cap + 4:
+		main.dock.stock.append("pine")
+	frames = 0
+	var max_cargo := 0
+	while main.dock.truck.is_parked() and frames < 60 * 60:
+		await get_tree().process_frame
+		max_cargo = maxi(max_cargo, main.dock.truck.cargo.size())
+		frames += 1
+	_check(max_cargo == cap and main.dock.stock.size() == 4, "トラックは%d個で満載になり、残りは次のトラックを待つ (%d個積んで、残り%d個)" % [cap, max_cargo, main.dock.stock.size()])
+	main.dock.stock.clear()
+	main.dock.stock.append("pine")
 
 	# 22. 在庫はセーブに入る
 	GameState.saving.emit()

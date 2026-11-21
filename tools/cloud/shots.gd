@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / overview は名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / upgrades_chop / overview は名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -95,10 +95,24 @@ func _shot_saw() -> void:
 
 
 func _shot_sell() -> void:
-	for i in 8:
+	for i in 10:
 		main.dock._add_stock("pine")
-	_place(main.DOCK_POS + Vector3(0, 0, 3.0))
+	for i in 6:
+		main.dock.add_log("oak")
+	# 販売のトラックにある程度積まれたところ
+	for i in 7:
+		main.dock.truck.add_cargo("plank" if i % 3 else "log", "pine" if i % 3 else "oak")
+	_place(main.DOCK_POS + Vector3(1.5, 0, 3.0))
 	await _wait(1.2)
+
+
+## 販売のトラックが満載で走り去るところ（名前を指定したときだけ撮る: truck）
+func _shot_truck() -> void:
+	for i in ShipDock.truck_capacity() - 1:
+		main.dock.truck.add_cargo("plank", "maple")
+	main.dock._add_stock("maple")
+	_place(main.DOCK_POS + Vector3(5.0, 0, 3.0))
+	await _wait(1.75)
 
 
 func _shot_river() -> void:
@@ -115,10 +129,19 @@ func _shot_fuel() -> void:
 	await _wait(1.0)
 
 
-## 強化画面の機械のカード（名前を指定したときだけ撮る: upgrades）
+## 強化画面の機械のカード（車両タブ。名前を指定したときだけ撮る: upgrades）
 func _shot_upgrades() -> void:
 	_place(main.PLAYER_SPAWN)
 	main.hud._set_sheet(true)
+	main.hud._select_tab(GameData.upgrade_group_of("harvester"))
+	await _wait(0.5)
+
+
+## 強化画面の最初のタブ（伐採。伐採員の役割チップまで見えるよう下へ送る。名前を指定したときだけ撮る: upgrades_chop）
+func _shot_upgrades_chop() -> void:
+	_place(main.PLAYER_SPAWN)
+	main.hud._set_sheet(true)
+	main.hud._select_tab(GameData.upgrade_group_of("axe_power"))
 	await _wait(0.5)
 	main.hud._scroll.scroll_vertical = 100000
 	await _wait(0.3)
@@ -132,4 +155,15 @@ func _shot_overview() -> void:
 	cam.target = null
 	cam.global_position = Vector3(0, 30, 24)
 	cam.look_at(Vector3(0, 0, 4), Vector3.UP)
+	await _wait(0.3)
+
+
+## 販売のトラックの道を真上から（名前を指定したときだけ撮る: road。カメラを外すので最後に撮る）
+func _shot_road() -> void:
+	_place(main.DOCK_POS)
+	await _wait(0.5)
+	var cam: FollowCamera = main.camera
+	cam.target = null
+	cam.global_position = Vector3(13, 22, 12)
+	cam.look_at(Vector3(13, 0, 5), Vector3.UP)
 	await _wait(0.3)
