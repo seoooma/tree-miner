@@ -142,3 +142,15 @@ func machine_rank(kind: String, rank: int) -> Dictionary:
 
 func machine_name(kind: String) -> String:
 	return str(machines.get(kind, {}).get("name", kind))
+
+
+## 強化画面のカードに出す代表の性能（伐採機は伐採力、運搬車は積載量）。rank 0 は未購入
+func machine_stat(kind: String, rank: int) -> float:
+	var stat := str(machines.get(kind, {}).get("stat", ""))
+	return float(machine_rank(kind, rank).get(stat, 0.0))
+
+
+func format_machine_value(kind: String, rank: int) -> String:
+	if rank <= 0:
+		return "未購入"
+	return "%d%s" % [roundi(machine_stat(kind, rank)), str(machines.get(kind, {}).get("unit", ""))]

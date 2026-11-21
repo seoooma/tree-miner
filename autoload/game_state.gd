@@ -19,8 +19,6 @@ var unlocked_area_count: int = 1
 var gate_paid: Dictionary = {}
 ## 機械のランク（0 = 未購入）。例 {"harvester": 1}
 var machine_ranks: Dictionary = {}
-## 機械購入パッドの支払い途中の金額
-var shop_paid: Dictionary = {}
 ## 機械の燃料・位置（機械自身が毎フレーム書き込む）
 var machine_state: Dictionary = {}
 ## 伐採員ごとの役割 "chop" / "haul"
@@ -144,27 +142,14 @@ func machine_is_maxed(kind: String) -> bool:
 	return machine_rank(kind) >= GameData.machine_rank_count(kind)
 
 
-func shop_remaining(kind: String) -> int:
-	if machine_is_maxed(kind):
-		return 0
-	return maxi(0, machine_next_cost(kind) - int(shop_paid.get(kind, 0)))
-
-
-## 機械の購入に向けて最大 amount だけ支払う。払い終わるとランクが上がる。
-func pay_toward_machine(kind: String, amount: int) -> int:
-	if machine_is_maxed(kind):
-		return 0
-	var pay := mini(amount, mini(money, shop_remaining(kind)))
-	if pay <= 0:
-		return 0
-	spend(pay)
-	shop_paid[kind] = int(shop_paid.get(kind, 0)) + pay
-	if shop_remaining(kind) == 0:
-		shop_paid.erase(kind)
-		machine_ranks[kind] = machine_rank(kind) + 1
-		machine_changed.emit(kind, machine_ranks[kind])
-		save_game()
-	return pay
+## 強化画面から機械を買う／1ランク上げる（ほかの強化と同じく、ボタンで一括払い）
+func buy_machine(kind: String) -> bool:
+	if machine_is_maxed(kind) or not spend(machine_next_cost(kind)):
+		return false
+	machine_ranks[kind] = machine_rank(kind) + 1
+	machine_changed.emit(kind, machine_ranks[kind])
+	save_game()
+	return true
 
 
 # ---- 伐採員の役割 ----
@@ -211,7 +196,6 @@ func save_game(collect := true) -> void:
 		"unlocked_area_count": unlocked_area_count,
 		"gate_paid": gate_paid,
 		"machine_ranks": machine_ranks,
-		"shop_paid": shop_paid,
 		"machine_state": machine_state,
 		"lumberjack_roles": lumberjack_roles,
 		"stock": stock,
@@ -235,7 +219,11 @@ func load_game() -> void:
 	var ranks: Dictionary = parsed.get("machine_ranks", {})
 	for kind in ranks:
 		machine_ranks[kind] = int(ranks[kind])
-	shop_paid = parsed.get("shop_paid", {})
+	# 以前の購入パッドで払い途中だった金額は返す（いまは強化画面で一括払い）
+	var shop_paid: Variant = parsed.get("shop_paid", {})
+	if typeof(shop_paid) == TYPE_DICTIONARY:
+		for kind in shop_paid:
+			money += maxi(0, int(shop_paid[kind]))
 	machine_state = parsed.get("machine_state", {})
 	lumberjack_roles = parsed.get("lumberjack_roles", [])
 	var saved_stock: Variant = parsed.get("stock", {})
@@ -249,7 +237,6 @@ func reset_state() -> void:
 	unlocked_area_count = 1
 	gate_paid = {}
 	machine_ranks = {}
-	shop_paid = {}
 	machine_state = {}
 	lumberjack_roles = []
 	stock = {}

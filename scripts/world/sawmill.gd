@@ -4,7 +4,7 @@ extends Station
 ## 手前の左の枠で丸太を渡し、右の枠で板を受け取る。製材台の上では丸太がノコギリを通って板になるのが見える。
 ## - 製材ライン未開放: 投入口に置いた丸太をその場で売却する。
 ## - 製材ライン開放後: 丸太を板に加工し、出口に積む。板は出荷場で売る（売値 x plank_multiplier）。
-##   丸太置き場（input_max）と出口（output_max）には上限があり、いっぱいだと受け取り・加工が止まる。
+##   丸太置き場・出口に置ける数に上限はない（山の見た目は PILE_VISIBLE 本まで）。
 ##   加工は強化『製材ライン』の本/秒で1本ずつ進み、製材台の上を丸太が左から右へ流れていく。
 
 ## 受け渡しの枠（手前）。左が丸太の投入口、右が板の出口
@@ -52,19 +52,6 @@ func _ready() -> void:
 	_refresh()
 	_rebuild_input()
 	_rebuild_output()
-
-
-func input_max() -> int:
-	return int(GameData.sawmill.get("input_max", 40))
-
-
-func output_max() -> int:
-	return int(GameData.sawmill.get("output_max", 40))
-
-
-## 丸太置き場にまだ置けるか。incoming = コンベアで運んでいる途中の数（ライン未開放ならその場で売るので常に置ける）
-func has_input_room(incoming := 0) -> bool:
-	return not is_line_unlocked() or queue.size() + incoming < input_max()
 
 
 ## 出口の板を1枚取り出す（板のコンベア用）。無ければ空文字
@@ -188,7 +175,7 @@ func _process(delta: float) -> void:
 	# 投入口: 運搬者から丸太を受け取る
 	for carrier in carriers_near(input_position(), _pad_radius()):
 		var stack: CarryStack = carrier.stack
-		if stack.count("log") > 0 and has_input_room() and tick(carrier, "in", delta):
+		if stack.count("log") > 0 and tick(carrier, "in", delta):
 			var item := stack.take("log")
 			_fly_in(item["tree"], (carrier as Node3D).global_position)
 			_accept_log(item["tree"])
@@ -204,7 +191,7 @@ func _process(delta: float) -> void:
 				Fx.fly_item(self, _plank_mesh(tree_id), output_pile_position() + Vector3(0, 0.6, 0), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), 0.22)
 				_rebuild_output()
 
-	var cutting := unlocked and not queue.is_empty() and output.size() < output_max()
+	var cutting := unlocked and not queue.is_empty()
 	_blade.rotate_object_local(Vector3.UP, delta * (14.0 if cutting else 1.0))
 	_update_work(cutting)
 	_update_effects(cutting, delta)
@@ -250,15 +237,12 @@ func _accept_log(tree_id: String) -> void:
 
 
 func _process_line(delta: float) -> void:
-	var out_max := output_max()
-	if queue.is_empty() or output.size() >= out_max:
-		# 出口がいっぱいのときは途中まで進んだ丸太をそのまま止めておく
-		if queue.is_empty():
-			_progress = 0.0
+	if queue.is_empty():
+		_progress = 0.0
 		return
 	_progress += GameState.value("sawmill") * delta
 	var changed := false
-	while _progress >= 1.0 and not queue.is_empty() and output.size() < out_max:
+	while _progress >= 1.0 and not queue.is_empty():
 		_progress -= 1.0
 		output.append(queue.pop_front())
 		changed = true
@@ -297,7 +281,7 @@ func _update_work(cutting: bool) -> void:
 func _rebuild_output() -> void:
 	for child in _output_pile.get_children():
 		child.queue_free()
-	for i in mini(output.size(), 60):
+	for i in mini(output.size(), PILE_VISIBLE):
 		var col := i % 4
 		var row := floori(i / 4.0)
 		var plank := _plank_mesh(output[i])
@@ -331,14 +315,7 @@ func _refresh() -> void:
 
 func _update_labels(unlocked: bool) -> void:
 	if unlocked:
-		var in_full := queue.size() >= input_max()
-		var out_full := output.size() >= output_max()
-		_input_zone.set_text("丸太置き場 満杯" if in_full else "積み込み", "丸太: %d / %d" % [queue.size(), input_max()])
-		var title := "板"
-		if out_full:
-			title = "板 満杯"
-		elif not queue.is_empty():
-			title = "製材中"
-		_output_zone.set_text(title, "板: %d / %d" % [output.size(), output_max()])
+		_input_zone.set_text("積み込み", "丸太: %d" % queue.size())
+		_output_zone.set_text("板" if queue.is_empty() else "製材中", "板: %d" % output.size())
 	else:
 		_input_zone.set_text("丸太を売る", "")
