@@ -17,6 +17,9 @@ const STAT_NAMES := {
 	"lumberjack": "人数",
 	"lumberjack_capacity": "積載量",
 	"river": "流れの速さ",
+	"dock": "売れる速さ",
+	"plank_belt": "運ぶ速さ",
+	"conveyor": "運ぶ速さ",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -27,6 +30,9 @@ const BADGES := {
 	"lumberjack": "badge_capacity",
 	"lumberjack_capacity": "badge_capacity",
 	"river": "badge_speed",
+	"dock": "badge_speed",
+	"plank_belt": "badge_speed",
+	"conveyor": "badge_speed",
 }
 
 var player: Player
@@ -595,7 +601,24 @@ func _refresh() -> void:
 		var button: Button = row["button"]
 		(cells[0] as Label).text = "Lv.%d" % lv
 		(cells[3] as Label).text = GameData.format_upgrade_value(id, lv)
-		if GameState.is_maxed(id):
+		button.add_theme_font_size_override("font_size", 34)
+		button.add_theme_font_override("font", UiKit.font(true))
+		if not GameState.is_available(id):
+			# 先に開放が必要な強化がある（例: 集積所コンベアは川流しのあと）
+			(cells[1] as Label).visible = false
+			(cells[2] as Label).text = ""
+			(cells[4] as Label).visible = false
+			(cells[5] as Label).text = ""
+			var req := str(GameData.upgrade_def(id).get("requires", ""))
+			button.text = "%sが先" % str(GameData.upgrade_def(req).get("name", req))
+			button.icon = null
+			button.disabled = true
+			# 見出し用フォントは数字と一部の文字しか入っていないので、本文用のフォントで出す
+			button.add_theme_font_override("font", UiKit.font(false))
+			button.add_theme_font_size_override("font_size", 24)
+			UiKit.skin_button(button, "btn_gray", "", 18, 10)
+			_price_color(button, Color.WHITE, Color("#555555"))
+		elif GameState.is_maxed(id):
 			(cells[1] as Label).visible = false
 			(cells[2] as Label).text = ""
 			(cells[4] as Label).visible = false
@@ -636,7 +659,7 @@ func _recommended() -> String:
 	var best_score := 0.0
 	for def in GameData.upgrades:
 		var id := str(def["id"])
-		if GameState.is_maxed(id):
+		if GameState.is_maxed(id) or not GameState.is_available(id):
 			continue
 		var cost := GameState.next_cost(id)
 		if cost <= 0 or GameState.money < cost:

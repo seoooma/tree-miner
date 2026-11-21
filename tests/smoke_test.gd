@@ -75,9 +75,13 @@ func _run() -> void:
 	await _wait(2.0)
 	_check(player.stack.count("plank") > 0, "出口で板を受け取れる (%d枚)" % player.stack.count("plank"))
 	var money_before := GameState.money
+	var planks_held := player.stack.count("plank")
 	await _walk_to(main.DOCK_POS, 0.5)
-	await _wait(2.0)
-	_check(GameState.money > money_before, "出荷場で板が売れる (+¥%d)" % (GameState.money - money_before))
+	await _wait(1.0)
+	_check(player.stack.count("plank") == 0 and main.dock.stock.size() > 0, "出荷場に板を置ける (%d枚)" % main.dock.stock.size())
+	_check(main.dock.stock.size() < planks_held or GameState.money == money_before, "板はその場では全部売れず、荷台に残る")
+	await _wait(planks_held / GameState.value("dock") + 1.0)
+	_check(GameState.money > money_before and main.dock.stock.is_empty(), "荷台の板が出荷のペースで売れていく (+¥%d)" % (GameState.money - money_before))
 	_check(main.sawmill.queue.size() + main.sawmill.output.size() > 0 or main.lumberjacks[1].stack.size() > 0, "運搬役の伐採員が丸太を運んでいる")
 
 	# 5. 給油所で燃料缶を受け取る
@@ -149,6 +153,9 @@ func _run() -> void:
 			break
 		await _drive_to(drop.global_position, 1.0)
 	_check(hauler.stack.count("log") > 0, "運搬車で落ちた丸太を拾える (%d本)" % hauler.stack.count("log"))
+	# 製材所の丸太置き場がいっぱいだと降ろせないので空けておく
+	main.sawmill.queue.clear()
+	main.sawmill.output.clear()
 	var queue_before: int = main.sawmill.queue.size()
 	# 木に引っかからないよう、中央の道に置き直してから製材所へ（経路探索はテストの対象外）
 	hauler.fuel = hauler.fuel_max()
@@ -209,6 +216,9 @@ func _run() -> void:
 	_check(point != null, "開放済みエリアに積み込み枠がある")
 	if point == null:
 		return
+	# 運搬役の伐採員が川へ丸太を積むと数が変わるので止めておく
+	for lj in main.lumberjacks:
+		lj.process_mode = Node.PROCESS_MODE_DISABLED
 	_empty_hands()
 	for i in 3:
 		player.stack.add({"kind": "log", "tree": "pine"})
@@ -216,36 +226,112 @@ func _run() -> void:
 	await _wait(2.0)
 	_check(player.stack.count("log") == 0 and river.in_transit_from(point) > 0, "積み込み枠に丸太を置くと川を流れる (%d本)" % river.in_transit_from(point))
 	player.global_position = main.PLAYER_SPAWN
-	var d0 := river.delivered
 	var frames := 0
-	var yard_max := 0
-	while river.in_transit_from(point) > 0 and frames < 60 * 60:
+	while river.yard_count() < 3 and frames < 60 * 60:
 		await get_tree().physics_frame
 		frames += 1
-		yard_max = maxi(yard_max, river.yard_count())
-	_check(yard_max > 0, "流れ着いた丸太はいったん集積所に積まれる (最大%d本)" % yard_max)
-	_check(river.delivered >= d0 + 3 and river.in_transit_from(point) == 0 and river.yard_count() == 0, "集積所からコンベアで製材所に届く (%.0f秒)" % (frames / 60.0))
+	await _wait(2.0)
+	_check(river.yard_count() == 3 and river._yard_pile.get_child_count() == 3, "流れ着いた丸太は集積所に積まれる (%d本)" % river.yard_count())
+	_check(not river.belt.visible, "集積所コンベアは最初は無く、丸太は集積所に溜まったまま")
 
-	# 16. 丸太置き場の見た目の数は加工待ちの数と同じ（加工されたら消える）
-	await get_tree().process_frame
-	var pile_n: int = main.sawmill._input_pile.get_child_count()
-	_check(pile_n == mini(main.sawmill.queue.size(), Sawmill.PILE_VISIBLE), "丸太置き場の丸太の数が加工待ちと一致する (%d / %d)" % [pile_n, main.sawmill.queue.size()])
-	# 伐採員を止めて新しい丸太が来ないようにし、出口を空けて加工を進める
-	for lj in main.lumberjacks:
-		lj.process_mode = Node.PROCESS_MODE_DISABLED
+	# 16. 集積所の丸太は手で拾って製材所に運ぶ
+	main.sawmill.queue.clear()
 	main.sawmill.output.clear()
-	main.sawmill.queue.resize(mini(main.sawmill.queue.size(), 3))
 	main.sawmill._rebuild_input()
-	var q_before: int = main.sawmill.queue.size()
-	var wait_frames := 0
-	while not main.sawmill.queue.is_empty() and wait_frames < 60 * 90:
-		await get_tree().physics_frame
-		wait_frames += 1
+	await _walk_to(river.yard_pad_position(), 0.4)
+	await _wait(1.5)
+	_check(player.stack.count("log") == 3 and river.yard_count() == 0, "集積所の枠に立つと丸太を拾える (%d本)" % player.stack.count("log"))
+	await _walk_to(main.sawmill.input_position(), 0.5)
+	await _wait(1.5)
+	_check(player.stack.count("log") == 0 and main.sawmill.queue.size() == 3, "拾った丸太を製材所に運べる")
+
+	# 17. 集積所コンベアを開放すると、集積所から製材所へ自動で運ばれる
+	GameState.buy_upgrade("conveyor")
 	await get_tree().process_frame
-	pile_n = main.sawmill._input_pile.get_child_count()
-	_check(q_before > 0 and main.sawmill.queue.is_empty() and pile_n == 0, "板に加工された丸太は丸太置き場から消える (%d → %d本)" % [q_before, pile_n])
+	_check(river.belt.visible, "強化で集積所コンベアが開放される")
+	for i in 4:
+		river._yard.append({"tree": "pine", "z": 0.0, "node": null, "from": null})
+	river._rebuild_yard()
+	var d0: int = river.belt.delivered
+	frames = 0
+	while river.belt.delivered < d0 + 4 and frames < 60 * 30:
+		await get_tree().physics_frame
+		frames += 1
+	_check(river.belt.delivered == d0 + 4 and river.yard_count() == 0, "集積所コンベアで製材所に届く (%.1f秒)" % (frames / 60.0))
+	_check(frames / 60.0 >= 3.0 / GameState.value("conveyor"), "コンベアは1秒あたりの本数に限りがある (%.2f本/秒)" % GameState.value("conveyor"))
+
+	# 18. 丸太置き場がいっぱいだと、投入口でもコンベアでも受け取らない
+	while main.sawmill.queue.size() < main.sawmill.input_max():
+		main.sawmill.queue.append("pine")
+	main.sawmill._rebuild_input()
+	for i in 2:
+		river._yard.append({"tree": "pine", "z": 0.0, "node": null, "from": null})
+	_empty_hands()
+	player.stack.add({"kind": "log", "tree": "pine"})
+	# 加工を止めて置き場をいっぱいのままにする
+	var saw_level := GameState.level("sawmill")
+	main.sawmill.output.resize(main.sawmill.output_max())
+	main.sawmill.output.fill("pine")
+	await _wait(2.0)
+	_check(river.yard_count() == 2, "丸太置き場がいっぱいだとコンベアは止まり、集積所に溜まる")
+	await _walk_to(main.sawmill.input_position(), 0.5)
+	await _wait(1.0)
+	_check(player.stack.count("log") == 1, "丸太置き場がいっぱいだと投入口で渡せない")
+	_check(main.sawmill.queue.size() == main.sawmill.input_max(), "出口がいっぱいだと加工が止まる (Lv%d)" % saw_level)
+	_empty_hands()
+
+	# 19. 加工と見た目: 丸太置き場の丸太の数は加工待ちと同じで、加工されると消える
+	main.sawmill.output.clear()
+	main.sawmill.queue.resize(3)
+	main.sawmill._rebuild_input()
+	main.sawmill._rebuild_output()
+	river._yard.clear()
+	river._rebuild_yard()
+	await get_tree().process_frame
+	_check(main.sawmill._input_pile.get_child_count() == 3, "丸太置き場の丸太の数が加工待ちと一致する")
+	frames = 0
+	while not main.sawmill.queue.is_empty() and frames < 60 * 90:
+		await get_tree().physics_frame
+		frames += 1
+	await get_tree().process_frame
+	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.get_child_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる")
+	_check(frames / 60.0 >= 2.0 / GameState.value("sawmill"), "加工には時間がかかる (%.1f秒で3本)" % (frames / 60.0))
+
+	# 20. 板のコンベアを開放すると、製材所の板が出荷場へ運ばれて売れていく
+	_check(not main.dock.belt.visible, "板のコンベアは最初は無い")
+	GameState.buy_upgrade("plank_belt")
+	await get_tree().process_frame
+	_check(main.dock.belt.visible, "強化で板のコンベアが開放される")
+	var m0 := GameState.money
+	frames = 0
+	while (not main.sawmill.output.is_empty() or main.dock.belt.in_flight() > 0 or not main.dock.stock.is_empty()) and frames < 60 * 40:
+		await get_tree().physics_frame
+		frames += 1
+	_check(main.sawmill.output.is_empty() and main.dock.stock.is_empty() and GameState.money > m0, "板のコンベアで出荷場に届き、売れる (+¥%d, %.1f秒)" % [GameState.money - m0, frames / 60.0])
+	await get_tree().process_frame
 	_check(main.dock._stock_pile.get_child_count() == 0, "売れた板は出荷場に残らない")
+
+	# 21. 出荷場の荷台がいっぱいだと板を受け取らない
+	while main.dock.stock.size() < main.dock.stock_max():
+		main.dock.stock.append("pine")
+	var dock_speed := GameState.level("dock")
+	player.stack.add({"kind": "plank", "tree": "pine"})
+	player.global_position = main.DOCK_POS
+	await _wait(0.3)
+	_check(player.stack.count("plank") == 1, "出荷場がいっぱいだと板を置けない (Lv%d)" % dock_speed)
+	_empty_hands()
+
+	# 22. 在庫はセーブに入る
+	GameState.saving.emit()
+	_check((GameState.stock.get("dock", []) as Array).size() > 0 and GameState.stock.has("yard") and GameState.stock.has("sawmill_queue"), "集積所・製材所・出荷場の在庫がセーブに入る")
 	_check(not main.lines.has("trolley"), "トロッコは無くなっている")
+
+	# 23. 先に開放が必要な強化
+	GameState.reset_state()
+	GameState.add_money(100000)
+	_check(not GameState.buy_upgrade("conveyor") and not GameState.buy_upgrade("plank_belt"), "川流し・製材ラインの前にはコンベアを買えない")
+
+
 
 
 # ---- ヘルパー ----

@@ -103,6 +103,30 @@ func _render(id: String) -> Texture2D:
 				subject.add_child(lg)
 			look = Vector3(0, 0, 0)
 			dist = 4.4
+		"dock":
+			var crate := Props.crate(0.7)
+			crate.position = Vector3(0.6, 0, -0.2)
+			subject.add_child(crate)
+			for i in 6:
+				var plank := Sawmill._plank_mesh("pine")
+				plank.position = Vector3(-0.35, 0.08 + floori(i / 2.0) * 0.17, (i % 2 - 0.5) * 0.34)
+				subject.add_child(plank)
+			var coin := Fx.cylinder(0.22, 0.06, Color("#ffd84a"), Vector3(-0.35, 0.95, 0), -1.0, 16, false, "metal")
+			coin.rotation_degrees.x = 90.0
+			subject.add_child(coin)
+			look = Vector3(0, 0.4, 0)
+			dist = 3.6
+		"plank_belt", "conveyor":
+			var path: Array[Vector3] = [Vector3(-1.2, 0, 0), Vector3(1.2, 0, 0)]
+			Conveyor.build_visual(subject, path)
+			for i in 3:
+				var item: Node3D = Sawmill._plank_mesh("pine") if id == "plank_belt" else LogDrop.make_log_mesh("pine")
+				item.position = Vector3(-0.8 + i * 0.8, 0.44, 0)
+				if id == "plank_belt":
+					item.rotation_degrees.y = 90.0
+				subject.add_child(item)
+			look = Vector3(0, 0.3, 0)
+			dist = 4.2
 		_:
 			for i in 2:
 				var rig := CharacterRig.new(1.0)

@@ -59,8 +59,15 @@
 	},
 
 	"sawmill": {
-		"output_max": 60,
+		"_comment": "input_max = 丸太置き場に置ける加工待ちの丸太の数（いっぱいだと投入口で受け取らず、コンベアも止まる）/ output_max = 出口に積める板の数（いっぱいだと加工が止まる）",
+		"input_max": 40,
+		"output_max": 40,
 		"pad_radius": 1.6
+	},
+
+	"dock": {
+		"_comment": "出荷場に置いた板は、強化『出荷のペース』の枚/秒で1枚ずつ売れていく。stock_max = 出荷場に置ける板の数（いっぱいだと受け取らない）",
+		"stock_max": 40
 	},
 
 	"camera": {
@@ -108,11 +115,17 @@
 		  "base_value": 5.0, "per_level": 0.4,  "base_cost": 25,  "cost_growth": 1.6,  "max_level": 15, "unit": "m/秒",  "decimals": 1 },
 		{ "id": "sawmill",    "name": "製材ライン", "desc": "Lv1で開放。丸太を板(売値x2)に加工。以降は加工速度アップ",
 		  "base_value": 0.25, "per_level": 0.25, "base_cost": 150, "cost_growth": 1.7, "max_level": 20, "unit": "本/秒", "decimals": 2, "locked_at_zero": true },
+		{ "id": "dock",       "name": "出荷のペース", "desc": "出荷場に置いた板が売れていく速さ",
+		  "base_value": 0.5, "per_level": 0.3, "base_cost": 120, "cost_growth": 1.6, "max_level": 20, "unit": "枚/秒", "decimals": 1, "requires": "sawmill" },
+		{ "id": "plank_belt", "name": "板のコンベア", "desc": "Lv1で開放。製材所の板を出荷場へ自動で運ぶ。以降は運ぶ速さアップ",
+		  "base_value": 0.2, "per_level": 0.4, "base_cost": 500, "cost_growth": 1.6, "max_level": 12, "unit": "枚/秒", "decimals": 1, "locked_at_zero": true, "requires": "sawmill" },
 		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
 		{ "id": "lumberjack_capacity", "name": "伐採員の積載量", "desc": "伐採員が一度に運べる丸太の数",
 		  "base_value": 4.0, "per_level": 2.0,  "base_cost": 250, "cost_growth": 1.6,  "max_level": 15, "unit": "本",    "decimals": 0 },
-		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて集積所に積まれ、コンベアで製材所へ届く。以降は流れが速くなる",
-		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true }
+		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて集積所に積まれる。そこから製材所へは運ぶ（集積所コンベアで自動化）。以降は流れが速くなる",
+		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true },
+		{ "id": "conveyor",   "name": "集積所コンベア", "desc": "Lv1で開放。川流しの集積所の丸太を製材所へ自動で運ぶ。以降は運ぶ速さアップ",
+		  "base_value": 0.2, "per_level": 0.4, "base_cost": 1200, "cost_growth": 1.6, "max_level": 12, "unit": "本/秒", "decimals": 1, "locked_at_zero": true, "requires": "river" }
 	]
 }

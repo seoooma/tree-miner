@@ -6,6 +6,8 @@ signal upgrade_changed(id: String, level: int)
 signal area_unlocked(index: int)
 signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
+## セーブの直前。施設（集積所・製材所・出荷場）が在庫を stock に書き込む
+signal saving
 
 const SAVE_PATH := "user://save.json"
 const AUTOSAVE_SEC := 5.0
@@ -23,6 +25,8 @@ var shop_paid: Dictionary = {}
 var machine_state: Dictionary = {}
 ## 伐採員ごとの役割 "chop" / "haul"
 var lumberjack_roles: Array = []
+## 施設に溜まっている丸太・板（木のIDの配列）。例 {"yard": [...], "sawmill_queue": [...], "sawmill_output": [...], "dock": [...]}
+var stock: Dictionary = {}
 
 ## false にするとセーブしない（テスト用）
 var save_enabled := true
@@ -79,8 +83,14 @@ func next_cost(id: String) -> int:
 	return GameData.upgrade_cost(id, level(id))
 
 
+## 先に開放が必要な強化（requires）が済んでいるか
+func is_available(id: String) -> bool:
+	var req := str(GameData.upgrade_def(id).get("requires", ""))
+	return req == "" or level(req) > 0
+
+
 func buy_upgrade(id: String) -> bool:
-	if is_maxed(id) or not spend(next_cost(id)):
+	if is_maxed(id) or not is_available(id) or not spend(next_cost(id)):
 		return false
 	levels[id] = level(id) + 1
 	upgrade_changed.emit(id, levels[id])
@@ -176,9 +186,21 @@ func set_lumberjack_role(index: int, role: String) -> void:
 
 # ---- セーブ ----
 
-func save_game() -> void:
+## 施設の在庫（木のIDの配列）
+func stock_list(key: String) -> Array[String]:
+	var out: Array[String] = []
+	for id in stock.get(key, []):
+		if GameData.tree_def(str(id)).is_empty():
+			continue
+		out.append(str(id))
+	return out
+
+
+func save_game(collect := true) -> void:
 	if not save_enabled:
 		return
+	if collect:
+		saving.emit()
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		return
@@ -192,6 +214,7 @@ func save_game() -> void:
 		"shop_paid": shop_paid,
 		"machine_state": machine_state,
 		"lumberjack_roles": lumberjack_roles,
+		"stock": stock,
 	}))
 
 
@@ -215,6 +238,9 @@ func load_game() -> void:
 	shop_paid = parsed.get("shop_paid", {})
 	machine_state = parsed.get("machine_state", {})
 	lumberjack_roles = parsed.get("lumberjack_roles", [])
+	var saved_stock: Variant = parsed.get("stock", {})
+	if typeof(saved_stock) == TYPE_DICTIONARY:
+		stock = saved_stock
 
 
 func reset_state() -> void:
@@ -226,9 +252,10 @@ func reset_state() -> void:
 	shop_paid = {}
 	machine_state = {}
 	lumberjack_roles = []
+	stock = {}
 
 
 ## デバッグ用: セーブを消して最初から。
 func reset_game() -> void:
 	reset_state()
-	save_game()
+	save_game(false)
