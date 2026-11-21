@@ -120,9 +120,10 @@ func _run() -> void:
 	_check(player.vehicle == null, "機械から降りられる")
 	_check(player.stack.count("fuel") == 0, "機械に乗ると持っていた燃料缶はなくなる")
 	if player.stack.count("fuel") == 0:
-		# 途中で製材所の出口から拾った板で手がふさがっていたら空ける
-		_empty_hands()
+		# 途中で拾った板や丸太で手がふさがっていたら、給油所に着いてから空ける
+		# （森を通る道のりで落ちた丸太を拾って満杯になると缶を受け取れないため）
 		await _go_to_fuel_station()
+		_empty_hands()
 		await _wait(1.0)
 		await _walk_to(harvester.global_position, 2.0)
 	await _wait(1.0)
