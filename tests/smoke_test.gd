@@ -233,11 +233,14 @@ func _run() -> void:
 	_check(hauler.fuel > fuel_at_station + 10.0, "乗ったまま給油所で補給される (%.0f → %.0f)" % [fuel_at_station, hauler.fuel])
 	player.exit_vehicle()
 
-	# 14. 伐採員の積載量の強化
+	# 14. 伐採員の積載量・斧の強化
 	GameState.money += 1000000
 	var cap0: int = main.lumberjacks[0].stack.capacity()
 	GameState.buy_upgrade("lumberjack_capacity")
 	_check(main.lumberjacks[0].stack.capacity() > cap0, "伐採員の積載量を強化できる (%d → %d)" % [cap0, main.lumberjacks[0].stack.capacity()])
+	var crew_axe0 := GameState.value("lumberjack_axe")
+	_check(GameState.buy_upgrade("lumberjack_axe") and GameState.value("lumberjack_axe") > crew_axe0, "伐採員の斧を強化できる (%.0f → %.0f)" % [crew_axe0, GameState.value("lumberjack_axe")])
+	_check(GameData.upgrade_value("axe_power", GameData.upgrade_max_level("axe_power")) * 2.0 >= float(GameData.tree_def("ebony")["hardness"]), "斧の威力は上限でコクタンを2振りで切れる")
 
 	# 15. 川の積み場をその場で支払って開放し、積み込み枠から製材所へ丸太を流す
 	var river: LogLine = main.lines["river"]
@@ -351,6 +354,20 @@ func _run() -> void:
 	await get_tree().process_frame
 	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.shown_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる (%d枚)" % main.sawmill.output.size())
 	_check(frames / 60.0 >= 2.0 / GameState.value("sawmill"), "加工には時間がかかる (%.1f秒で3本)" % (frames / 60.0))
+
+	# 19b. 硬い木ほど製材に時間がかかる
+	_check(GameData.saw_time("ebony") > GameData.saw_time("pine"), "コクタンはマツより製材に時間がかかる")
+	var saw_frames := {}
+	for tid in ["pine", "ebony"]:
+		main.sawmill.queue.clear()
+		main.sawmill.queue.append(tid)
+		main.sawmill._rebuild_input()
+		frames = 0
+		while not main.sawmill.queue.is_empty() and frames < 60 * 90:
+			await get_tree().physics_frame
+			frames += 1
+		saw_frames[tid] = frames
+	_check(saw_frames["ebony"] > saw_frames["pine"] * 1.5, "硬い木は製材の時間が長い (マツ %.1f秒 / コクタン %.1f秒)" % [saw_frames["pine"] / 60.0, saw_frames["ebony"] / 60.0])
 
 	# 20. 板のコンベアを開放すると、製材所の板が出荷場へ運ばれて売れていく
 	_check(not main.dock.belt.visible, "板のコンベアは最初は無い")
