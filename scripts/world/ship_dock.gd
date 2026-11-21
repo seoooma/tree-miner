@@ -67,7 +67,7 @@ func has_room(incoming := 0) -> bool:
 func _build_belt() -> void:
 	if sawmill == null:
 		return
-	var from := sawmill.output_position() - global_position
+	var from := sawmill.output_pile_position() - global_position
 	var to := _stock_pile.position
 	var start := Vector3(from.x + 1.0, 0, from.z)
 	var turn_x := to.x - 2.0
