@@ -264,7 +264,7 @@ func _build_river() -> void:
 	while z < near_z:
 		for side in [-1.0, 1.0]:
 			if rng.randf() < 0.55:
-				var r := Fx.sphere(rng.randf_range(0.12, 0.22), Color("#8d877c"), Vector3(x + side * rng.randf_range(1.3, 1.6), 0.05, z), 6, 3, true)
+				var r := Fx.sphere(rng.randf_range(0.12, 0.22), Color("#a9b0b8"), Vector3(x + side * rng.randf_range(1.3, 1.6), 0.05, z), 6, 3, true)
 				r.scale.y = 0.6
 				_visual.add_child(r)
 		z += 1.3
@@ -333,24 +333,20 @@ void fragment() {
 	float n = n1 * 0.6 + n2 * 0.4;
 	// 流れに沿って伸びる筋
 	float streak = texture(noise_tex, vec2(wpos.x * 0.9, wpos.z * 0.08 - flow * 0.7)).r;
-	vec3 deep = vec3(0.1, 0.27, 0.31);
-	vec3 shallow = vec3(0.3, 0.52, 0.5);
+	// フラットな画風に合わせて、明るい水色の単色＋くっきりした白い泡の筋だけにする
+	vec3 deep = vec3(0.03, 0.34, 0.62);
+	vec3 shallow = vec3(0.16, 0.65, 0.75);
 	float d = min(UV.x, 1.0 - UV.x);
-	float edge = smoothstep(0.0, 0.2, d);
-	vec3 col = mix(shallow, deep, edge) * (0.85 + 0.3 * n);
-	// 岸ぎわの白い泡と、流れの筋の泡
-	float foam = (1.0 - smoothstep(0.02, 0.1, d + (n2 - 0.5) * 0.07)) * 0.85;
-	foam += smoothstep(0.72, 0.86, streak * 0.65 + n1 * 0.35) * 0.45;
-	col = mix(col, vec3(0.9, 0.95, 0.95), clamp(foam, 0.0, 1.0));
-	// 浅い角度ほど空が映る
-	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
-	col += vec3(0.45, 0.6, 0.72) * fres * 0.5;
+	float edge = smoothstep(0.0, 0.22, d);
+	vec3 col = mix(shallow, deep, edge);
+	float foam = 1.0 - step(0.06, d + (n2 - 0.5) * 0.06);
+	foam += step(0.8, streak * 0.7 + n1 * 0.3) * 0.85;
+	col = mix(col, vec3(0.92, 0.97, 1.0), clamp(foam, 0.0, 1.0));
 	ALBEDO = col;
-	ROUGHNESS = mix(0.08 + 0.15 * n, 0.7, clamp(foam, 0.0, 1.0));
+	ROUGHNESS = 0.35;
 	METALLIC = 0.0;
-	SPECULAR = 0.75;
-	NORMAL_MAP = normalize(vec3((n1 - 0.5) * 0.9, (n2 - 0.5) * 0.9, 1.0)) * 0.5 + 0.5;
-	ALPHA = max(0.86 * edge + 0.12, clamp(foam, 0.0, 1.0));
+	SPECULAR = 0.4;
+	ALPHA = max(0.9 * edge + 0.08, clamp(foam, 0.0, 1.0));
 }
 """
 	var m := ShaderMaterial.new()

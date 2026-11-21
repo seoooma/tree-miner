@@ -3,7 +3,7 @@ extends Node
 ## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]
 ## セーブデータは書き換えない。
 
-const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
+const SHOTS := ["home", "chop", "felled", "saw", "sell", "river", "overview"]  # overview はカメラを外すので最後に撮る
 
 var main: Node3D
 var out_dir := "user://shots"
@@ -107,3 +107,14 @@ func _shot_river() -> void:
 		line.launch("pine", line._points[0])
 	_place(Vector3(-13, 0, -6))
 	await _wait(3.0)
+
+
+## 拠点全体を高い所から見下ろす（配置の確認用）
+func _shot_overview() -> void:
+	_place(main.PLAYER_SPAWN)
+	await _wait(0.5)
+	var cam: FollowCamera = main.camera
+	cam.target = null
+	cam.global_position = Vector3(0, 30, 24)
+	cam.look_at(Vector3(0, 0, 4), Vector3.UP)
+	await _wait(0.3)

@@ -17,6 +17,14 @@ const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 12), "hauler": Vector3(12, 
 ## 川流し（左端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
 const LINE_X := {"river": -16.5}
 const LINE_CLEAR_X := 14.6
+## 拠点の土の作業場: Vector4(中心x, 中心z, 半幅x, 半幅z)。製材所・出荷場・給油所の広場、森への道、
+## 左（川の集積所・伐採機の店）と右（運搬車の店）
+const SAND_RECTS: Array[Vector4] = [
+	Vector4(-0.5, 10.0, 9.5, 5.6),
+	Vector4(0.0, 2.0, 1.9, 3.2),
+	Vector4(-13.0, 8.6, 4.6, 4.8),
+	Vector4(12.0, 8.6, 3.2, 4.6),
+]
 
 var player: Player
 var camera: FollowCamera
@@ -97,27 +105,27 @@ func _build_environment() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	# 環境光は「上が涼しい青、下が土色」の半球ライトとして効かせる
-	sky_mat.sky_top_color = Color("#7aa6d6")
-	sky_mat.sky_horizon_color = Color("#c9d8e2")
-	sky_mat.ground_horizon_color = Color("#8c7a5e")
-	sky_mat.ground_bottom_color = Color("#4a3f30")
+	sky_mat.sky_top_color = Color("#6fb4ef")
+	sky_mat.sky_horizon_color = Color("#cfe8f7")
+	sky_mat.ground_horizon_color = Color("#cfe8f7")
+	sky_mat.ground_bottom_color = Color("#9cc7e6")
 	sky_mat.sun_angle_max = 20.0
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.42
-	env.ambient_light_sky_contribution = 1.0
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.88
-	env.tonemap_white = 6.0
-	# 遠くの森がうっすら霞む（奥行きが出る）。霧の色は空の地平線に合わせる
+	# 影の部分は黒ではなく、空の青紫がかった色になるようにする（環境光を単色で強めに入れる）。
+	# 写実ではなくフラットカラーのローポリなので、トーンマップは色をそのまま出す Linear にする
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("#8e9ccf")
+	env.ambient_light_energy = 0.35
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.tonemap_exposure = 1.0
+	# 遠くがうっすら空色に霞む（奥行きが出る）
 	env.fog_enabled = true
-	env.fog_light_color = Color("#c4d3d6")
+	env.fog_light_color = Color("#cfe6f2")
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.006
+	env.fog_density = 0.0045
 	env.fog_sky_affect = 0.0
 	# グロー・色調補正は Web 版（Compatibility レンダラー）だと画面全体が白っぽく色あせるので使わない。
 	# 光る演出は加算合成のスプライト（Vfx）で出している
@@ -125,20 +133,20 @@ func _build_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	# 暖色の太陽を画面の左上から。少し低めにして影を長く
+	# 暖色の太陽を画面の左上から。影は濃すぎないようにして、環境光の青紫を残す
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-44, -140, 0)
-	sun.light_color = Color("#ffe2b8")
-	sun.light_energy = 1.05
-	sun.light_angular_distance = 1.2
+	sun.rotation_degrees = Vector3(-50, -140, 0)
+	sun.light_color = Color("#fff0d6")
+	sun.light_energy = 0.45
+	sun.light_angular_distance = 1.0
 	sun.shadow_enabled = true
-	sun.shadow_opacity = 0.85
-	sun.shadow_blur = 1.6
+	sun.shadow_opacity = 0.78
+	sun.shadow_blur = 1.2
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	# 影の範囲をカメラに映る範囲にぴったり合わせて、2048px の影マップをくっきり使う
-	sun.directional_shadow_max_distance = 18.0
+	# 影の範囲をカメラに映る範囲に合わせて、2048px の影マップをくっきり使う
+	sun.directional_shadow_max_distance = 26.0
 	add_child(sun)
 	_build_vignette()
 
@@ -171,11 +179,13 @@ func _build_vignette() -> void:
 func _build_ground() -> void:
 	var width := _width()
 	var base_depth := float(GameData.world.get("base_depth", 18))
-	# 拠点は踏み固められた土、森は草地（奥のエリアほど少し暗く、落ち着いた緑に）
-	_add_ground_tile(width, base_depth, base_depth * 0.5, "yard", Color.WHITE)
+	# 拠点は草地の中に、施設のまわりと通り道だけ土を敷く（何もない土の広場にしない）
+	Mats.sand_rects = SAND_RECTS
+	_add_ground_tile(width, base_depth, base_depth * 0.5, "grass", Color.WHITE)
 	for i in GameData.areas.size():
 		var r := _area_ranges[i]
-		var tint := Color("#e6e2d4").lerp(Color("#c4ccb0"), minf(1.0, i * 0.22)).darkened(0.04 * i)
+		# 奥のエリアほどわずかに深い緑（どこまで来たかが色でわかる程度）
+		var tint := Color.WHITE.lerp(Color("#d6e6cf"), minf(1.0, i * 0.25))
 		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, "grass", tint)
 
 
