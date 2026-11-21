@@ -17,7 +17,6 @@ const STAT_NAMES := {
 	"lumberjack": "人数",
 	"lumberjack_capacity": "積載量",
 	"river": "流れの速さ",
-	"trolley": "走る速さ",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -28,7 +27,6 @@ const BADGES := {
 	"lumberjack": "badge_capacity",
 	"lumberjack_capacity": "badge_capacity",
 	"river": "badge_speed",
-	"trolley": "badge_speed",
 }
 
 var player: Player

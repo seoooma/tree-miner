@@ -112,9 +112,7 @@
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
 		{ "id": "lumberjack_capacity", "name": "伐採員の積載量", "desc": "伐採員が一度に運べる丸太の数",
 		  "base_value": 4.0, "per_level": 2.0,  "base_cost": 250, "cost_growth": 1.6,  "max_level": 15, "unit": "本",    "decimals": 0 },
-		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて製材所へ届く。以降は流れが速くなる",
-		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true },
-		{ "id": "trolley",    "name": "トロッコ",   "desc": "Lv1で開放。各エリアの駅の枠に置いた丸太をトロッコが製材所へ運ぶ。川より速い",
-		  "base_value": 5.0, "per_level": 0.8,  "base_cost": 12000, "cost_growth": 1.7, "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true }
+		{ "id": "river",      "name": "川流し",     "desc": "Lv1で開放。各エリアの川岸の枠に置いた丸太が流れて集積所に積まれ、コンベアで製材所へ届く。以降は流れが速くなる",
+		  "base_value": 1.5, "per_level": 0.4,  "base_cost": 900, "cost_growth": 1.6,  "max_level": 12, "unit": "m/秒",  "decimals": 1, "locked_at_zero": true }
 	]
 }

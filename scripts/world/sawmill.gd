@@ -16,9 +16,9 @@ var _input_zone: Zone
 var _output_zone: Zone
 var _output_root: Node3D
 var _output_pile: Node3D
-## 投入口の横に積み上がる、加工待ちの丸太
+## 投入口の左前（森側。投入口に立っても屋根に隠れない位置）に積み上がる、加工待ちの丸太置き場。数は queue と同じ
 var _input_pile: Node3D
-const INPUT_PILE_OFFSET := Vector3(-2.3, 0, -2.6)
+const INPUT_PILE_OFFSET := Vector3(-3.0, 0, -3.6)
 const PILE_VISIBLE := 48
 var _blade: MeshInstance3D
 
@@ -35,6 +35,11 @@ func is_line_unlocked() -> bool:
 
 func input_position() -> Vector3:
 	return global_position + INPUT_OFFSET
+
+
+## 加工待ちの丸太置き場の位置（川の集積所からのコンベアの終点）
+func input_pile_position() -> Vector3:
+	return global_position + INPUT_PILE_OFFSET
 
 
 func output_position() -> Vector3:
@@ -98,11 +103,8 @@ static func build_house(root: Node3D) -> MeshInstance3D:
 		root.add_child(Fx.box(Vector3(0.95, 0.05, 0.08), Color("#8c939a"), Vector3(0, 0.53, -1.6 - i * 0.33), "metal"))
 	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(-0.4, 0.2, -2.7)))
 	root.add_child(Fx.box(Vector3(0.1, 0.4, 0.1), Color("#3d4247"), Vector3(0.4, 0.2, -2.7)))
-	# 煙突と丸太の山
+	# 煙突（丸太の山は飾りを置かず、実際の加工待ちの数だけ _input_pile に積む）
 	root.add_child(Fx.cylinder(0.14, 1.0, Color("#5b5f63"), Vector3(1.1, 2.7, 0.6), -1.0, 10, false, "metal"))
-	var pile := Props.log_pile(3, "pine")
-	pile.position = Vector3(-2.4, 0, 0.4)
-	root.add_child(pile)
 	return blade
 
 
@@ -140,7 +142,7 @@ func _fly_in(tree_id: String, from: Vector3) -> void:
 	Fx.fly_item(self, LogDrop.make_log_mesh(tree_id), from + Vector3(0, 1.0, 0), target, 0.25)
 
 
-## 丸太を受け取る（プレイヤー・運搬者・川やトロッコから）。
+## 丸太を受け取る（プレイヤー・運搬者・川の集積所のコンベアから）。
 func accept_log(tree_id: String) -> void:
 	_accept_log(tree_id)
 
@@ -186,7 +188,7 @@ func _rebuild_output() -> void:
 		_output_pile.add_child(plank)
 
 
-## 投入口横の加工待ちの丸太の山（4本ずつ積む）
+## 投入口の左前の加工待ちの丸太の山（4本ずつ積む）
 func _rebuild_input() -> void:
 	for child in _input_pile.get_children():
 		child.queue_free()

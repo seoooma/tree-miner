@@ -1,7 +1,7 @@
 class_name LoadingPoint
 extends Station
-## 川岸・トロッコ駅の積み込み枠。上に立つと（プレイヤー・運搬役の伐採員・運搬車）丸太を降ろし、
-## 川やトロッコが製材所まで運ぶ。川／トロッコが開放済みで、そのエリアも開放済みのときだけ使える。
+## 川岸の積み込み枠。上に立つと（プレイヤー・運搬役の伐採員・運搬車）丸太を降ろし、
+## 川が拠点の集積所まで流す。川流しが開放済みで、そのエリアも開放済みのときだけ使える。
 
 const RADIUS := 1.4
 
@@ -12,7 +12,7 @@ var _zone: Zone
 
 
 func _ready() -> void:
-	_zone = Zone.new(Vector2(RADIUS * 2.0, RADIUS * 2.0), Color(0.45, 0.75, 0.95, 0.18) if line.kind == "river" else Color(0.75, 0.75, 0.75, 0.2))
+	_zone = Zone.new(Vector2(RADIUS * 2.0, RADIUS * 2.0), Color(0.45, 0.75, 0.95, 0.18))
 	add_child(_zone)
 	refresh()
 
@@ -33,7 +33,7 @@ func refresh() -> void:
 func refresh_text() -> void:
 	if _zone == null or line == null:
 		return
-	_zone.set_text("川へ積み込み" if line.kind == "river" else "トロッコ積み込み", "積載量: %d" % line.in_transit_from(self))
+	_zone.set_text("川へ積み込み", "積載量: %d" % line.in_transit_from(self))
 
 
 func _process(delta: float) -> void:

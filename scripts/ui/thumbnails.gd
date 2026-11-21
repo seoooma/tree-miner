@@ -103,16 +103,6 @@ func _render(id: String) -> Texture2D:
 				subject.add_child(lg)
 			look = Vector3(0, 0, 0)
 			dist = 4.4
-		"trolley":
-			var cart := LogLine.trolley_cart()
-			cart.rotation_degrees.y = 30.0
-			subject.add_child(cart)
-			var lg := LogDrop.make_log_mesh("oak", 120.0)
-			lg.position = Vector3(0, 0.75, 0)
-			lg.scale = Vector3(1.0, 1.4, 1.4)
-			subject.add_child(lg)
-			look = Vector3(0, 0.45, 0)
-			dist = 3.6
 		_:
 			for i in 2:
 				var rig := CharacterRig.new(1.0)

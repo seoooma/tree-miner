@@ -106,7 +106,8 @@ func _run() -> void:
 	await _drive_to(target.global_position, 1.8)
 	await _wait(3.0)
 	_check(harvester.fuel < fuel0, "運転・伐採で燃料が減る (%.1f → %.1f)" % [fuel0, harvester.fuel])
-	_check(_alive_tree_count() < alive_before, "伐採機で木を切り倒せる")
+	# 走っている間に別の木が生え直すことがあるので、狙った木が倒れたかでも判定する
+	_check(not target.alive or _alive_tree_count() < alive_before, "伐採機で木を切り倒せる")
 
 	# 8. 燃料切れ → 降りて燃料缶で補給
 	harvester.fuel = 0.0
@@ -215,12 +216,36 @@ func _run() -> void:
 	await _wait(2.0)
 	_check(player.stack.count("log") == 0 and river.in_transit_from(point) > 0, "積み込み枠に丸太を置くと川を流れる (%d本)" % river.in_transit_from(point))
 	player.global_position = main.PLAYER_SPAWN
-	var q0: int = main.sawmill.queue.size()
+	var d0 := river.delivered
 	var frames := 0
+	var yard_max := 0
 	while river.in_transit_from(point) > 0 and frames < 60 * 60:
 		await get_tree().physics_frame
 		frames += 1
-	_check(main.sawmill.queue.size() >= q0 + 1 and river.in_transit_from(point) == 0, "流した丸太が製材所に届く (%.0f秒)" % (frames / 60.0))
+		yard_max = maxi(yard_max, river.yard_count())
+	_check(yard_max > 0, "流れ着いた丸太はいったん集積所に積まれる (最大%d本)" % yard_max)
+	_check(river.delivered >= d0 + 3 and river.in_transit_from(point) == 0 and river.yard_count() == 0, "集積所からコンベアで製材所に届く (%.0f秒)" % (frames / 60.0))
+
+	# 16. 丸太置き場の見た目の数は加工待ちの数と同じ（加工されたら消える）
+	await get_tree().process_frame
+	var pile_n: int = main.sawmill._input_pile.get_child_count()
+	_check(pile_n == mini(main.sawmill.queue.size(), Sawmill.PILE_VISIBLE), "丸太置き場の丸太の数が加工待ちと一致する (%d / %d)" % [pile_n, main.sawmill.queue.size()])
+	# 伐採員を止めて新しい丸太が来ないようにし、出口を空けて加工を進める
+	for lj in main.lumberjacks:
+		lj.process_mode = Node.PROCESS_MODE_DISABLED
+	main.sawmill.output.clear()
+	main.sawmill.queue.resize(mini(main.sawmill.queue.size(), 3))
+	main.sawmill._rebuild_input()
+	var q_before: int = main.sawmill.queue.size()
+	var wait_frames := 0
+	while not main.sawmill.queue.is_empty() and wait_frames < 60 * 90:
+		await get_tree().physics_frame
+		wait_frames += 1
+	await get_tree().process_frame
+	pile_n = main.sawmill._input_pile.get_child_count()
+	_check(q_before > 0 and main.sawmill.queue.is_empty() and pile_n == 0, "板に加工された丸太は丸太置き場から消える (%d → %d本)" % [q_before, pile_n])
+	_check(main.dock._stock_pile.get_child_count() == 0, "売れた板は出荷場に残らない")
+	_check(not main.lines.has("trolley"), "トロッコは無くなっている")
 
 
 # ---- ヘルパー ----

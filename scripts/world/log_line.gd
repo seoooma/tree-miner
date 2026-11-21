@@ -1,13 +1,19 @@
 class_name LogLine
 extends Node3D
-## 遠くの丸太を製材所まで自動で運ぶ仕組み（川流し／トロッコ）。強化で開放し、レベルで速くなる。
-## - マップの端（川は左、トロッコは右）に、奥から拠点まで1本通っている
-## - 各エリアの岸（駅）にある枠に丸太を置くと、川なら流れて、トロッコなら台車に乗って拠点へ向かう
-## - 拠点の端まで届いた丸太は製材所が受け取る（製材ライン未開放ならその場で売れる）
+## 遠くの丸太を製材所まで自動で運ぶ川流し。強化で開放し、レベルで流れが速くなる。
+## - マップの左端に、奥から拠点まで1本流れている
+## - 各エリアの岸にある枠に丸太を置くと、川を流れて拠点へ向かう
+## - 拠点の端まで流れ着いた丸太は、いったん岸の集積所に積まれる
+## - 集積所の丸太はベルトコンベアで1本ずつ製材所の丸太置き場へ運ばれる（製材ライン未開放ならそこで売れる）
 
 const MAX_VISIBLE := 160
+## 集積所に見た目で積む最大数
+const YARD_VISIBLE := 40
+## 集積所からコンベアに1本載せる間隔（秒）とコンベアの速さ（m/秒）
+const DISPATCH_INTERVAL := 0.3
+const BELT_SPEED := 3.0
 
-var kind := "river"  # "river" / "trolley"
+const UPGRADE_ID := "river"
 var x := -16.5
 var near_z := 3.0
 var far_z := -100.0
@@ -16,6 +22,17 @@ var area_ranges: Array[Vector2] = []
 
 ## 運搬中の丸太 {"tree": id, "z": 現在位置, "node": 見た目 or null, "from": 積み込んだ LoadingPoint}
 var _items: Array[Dictionary] = []
+## 集積所で待っている丸太（_items と同じ辞書）
+var _yard: Array[Dictionary] = []
+var _yard_pile: Node3D
+var _dispatch_timer := 0.0
+## コンベアに載っている丸太 {"tree", "d": 進んだ距離, "node", "from"}
+var _belt: Array[Dictionary] = []
+## コンベアの経路（集積所 → 製材所の丸太置き場）
+var _belt_path: Array[Vector3] = []
+var _belt_length := 0.0
+## コンベアで製材所に渡した丸太の累計
+var delivered := 0
 var _visual: Node3D
 var _points: Array[LoadingPoint] = []
 var _time := 0.0
@@ -25,33 +42,30 @@ var _water_mat: ShaderMaterial
 func _ready() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
-	if kind == "river":
-		_build_river()
-	else:
-		_build_rails()
+	_build_river()
 	_build_end()
+	_build_belt()
 	for i in area_ranges.size():
 		var r := area_ranges[i]
 		var p := LoadingPoint.new()
 		p.line = self
 		p.area_index = i
-		var inward := 1.0 if x < 0.0 else -1.0
-		p.position = Vector3(x + inward * 3.3, 0, (r.x + r.y) * 0.5)
+		p.position = Vector3(x + 3.3, 0, (r.x + r.y) * 0.5)
 		add_child(p)
 		_points.append(p)
 	GameState.upgrade_changed.connect(func(id: String, _l: int) -> void:
-		if id == kind:
+		if id == UPGRADE_ID:
 			_refresh())
 	GameState.area_unlocked.connect(func(_i: int) -> void: _refresh())
 	_refresh()
 
 
 func is_active() -> bool:
-	return GameState.level(kind) > 0
+	return GameState.level(UPGRADE_ID) > 0
 
 
 func speed() -> float:
-	return GameState.value(kind)
+	return GameState.value(UPGRADE_ID)
 
 
 func _refresh() -> void:
@@ -60,7 +74,7 @@ func _refresh() -> void:
 		p.refresh()
 
 
-## 枠に置かれた丸太を流す／台車に乗せる。
+## 枠に置かれた丸太を流す。
 func launch(tree_id: String, from: LoadingPoint) -> void:
 	var item := {"tree": tree_id, "z": from.global_position.z, "node": null, "from": from, "phase": randf() * TAU}
 	if _visible_count() < MAX_VISIBLE:
@@ -69,13 +83,24 @@ func launch(tree_id: String, from: LoadingPoint) -> void:
 	_items.append(item)
 
 
-## このLoadingPoint から出て、まだ届いていない数
+## このLoadingPoint から出て、まだ製材所に届いていない数（川・集積所・コンベアの合計）
 func in_transit_from(p: LoadingPoint) -> int:
 	var n := 0
-	for item in _items:
-		if item["from"] == p:
-			n += 1
+	for list in [_items, _yard, _belt]:
+		for item in list:
+			if item["from"] == p:
+				n += 1
 	return n
+
+
+## 集積所に積まれている丸太の数
+func yard_count() -> int:
+	return _yard.size()
+
+
+## 集積所の位置（丸太の山の中心）
+func yard_position() -> Vector3:
+	return Vector3(x + 1.1, 0, near_z + 2.4)
 
 
 func _visible_count() -> int:
@@ -90,6 +115,7 @@ func _process(delta: float) -> void:
 	_time += delta
 	if _water_mat:
 		_water_mat.set_shader_parameter("flow", _time * speed() * 0.25)
+	_process_belt(delta)
 	if _items.is_empty():
 		return
 	var v := speed() * delta
@@ -100,37 +126,95 @@ func _process(delta: float) -> void:
 		var node: Node3D = item["node"]
 		if node:
 			var z: float = item["z"]
-			if kind == "river":
-				var ph: float = item["phase"]
-				node.position = Vector3(x + sin(z * 0.6 + ph) * 0.35, -0.02 + sin(_time * 3.0 + ph) * 0.03, z)
-				node.rotation.y = PI * 0.5 + sin(z * 0.4 + ph) * 0.4
-			else:
-				node.position = Vector3(x, 0.0, z)
+			var ph: float = item["phase"]
+			node.position = Vector3(x + sin(z * 0.6 + ph) * 0.35, -0.02 + sin(_time * 3.0 + ph) * 0.03, z)
+			node.rotation.y = PI * 0.5 + sin(z * 0.4 + ph) * 0.4
 		if float(item["z"]) >= near_z:
-			if node:
-				node.queue_free()
 			_items.remove_at(i)
-			sawmill.accept_log(item["tree"])
-			var from: LoadingPoint = item["from"]
-			if is_instance_valid(from):
-				from.refresh_text()
+			_land_in_yard(item)
 			continue
 		i += 1
 
 
+## 流れ着いた丸太を岸の集積所に引き上げる
+func _land_in_yard(item: Dictionary) -> void:
+	var node: Node3D = item["node"]
+	if node:
+		node.queue_free()
+		Fx.fly_item(self, LogDrop.make_log_mesh(item["tree"]), Vector3(x, 0.1, near_z), _yard_top(), 0.3)
+	item["node"] = null
+	_yard.append(item)
+	_rebuild_yard()
+
+
+func _yard_top() -> Vector3:
+	return yard_position() + Vector3(0, 0.15 + floori(mini(_yard.size(), YARD_VISIBLE) / 4.0) * 0.2, 0)
+
+
+## 集積所の丸太を1本ずつコンベアに載せ、端まで運んだら製材所に渡す
+func _process_belt(delta: float) -> void:
+	if not _yard.is_empty():
+		_dispatch_timer -= delta
+		if _dispatch_timer <= 0.0:
+			_dispatch_timer = DISPATCH_INTERVAL
+			var item: Dictionary = _yard.pop_back()
+			item["d"] = 0.0
+			item["node"] = LogDrop.make_log_mesh(item["tree"])
+			_visual.add_child(item["node"])
+			_belt.append(item)
+			_rebuild_yard()
+	else:
+		_dispatch_timer = 0.0
+	var i := 0
+	while i < _belt.size():
+		var item := _belt[i]
+		item["d"] = float(item["d"]) + BELT_SPEED * delta
+		var node: Node3D = item["node"]
+		if float(item["d"]) >= _belt_length:
+			node.queue_free()
+			_belt.remove_at(i)
+			sawmill.accept_log(item["tree"])
+			delivered += 1
+			var from: LoadingPoint = item["from"]
+			if is_instance_valid(from):
+				from.refresh_text()
+			continue
+		var t := _belt_point(float(item["d"]))
+		node.position = t[0] + Vector3(0, 0.44, 0)
+		node.rotation.y = t[1]
+		i += 1
+
+
+## コンベア上の距離 d の位置と向き（丸太が進行方向に直角になる角度）
+func _belt_point(d: float) -> Array:
+	for k in range(1, _belt_path.size()):
+		var a := _belt_path[k - 1]
+		var b := _belt_path[k]
+		var seg := a.distance_to(b)
+		if d <= seg or k == _belt_path.size() - 1:
+			var dir := (b - a).normalized()
+			return [a.lerp(b, clampf(d / seg, 0.0, 1.0)), atan2(dir.x, dir.z)]
+		d -= seg
+	return [_belt_path[-1], 0.0]
+
+
+## 集積所の丸太の山（4本ずつ積む）。数は待っている丸太と同じ
+func _rebuild_yard() -> void:
+	for c in _yard_pile.get_children():
+		c.queue_free()
+	for i in mini(_yard.size(), YARD_VISIBLE):
+		var col := i % 4
+		var row := floori(i / 4.0)
+		var log_mesh := LogDrop.make_log_mesh(_yard[i]["tree"], 0.0)
+		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
+		log_mesh.position = Vector3(0, 0.12 + row * 0.2, (col - 1.5) * 0.23 + (0.11 if row % 2 == 1 else 0.0))
+		_yard_pile.add_child(log_mesh)
+
+
 func _make_item_visual(tree_id: String) -> Node3D:
-	if kind == "river":
-		var log_mesh := LogDrop.make_log_mesh(tree_id)
-		log_mesh.scale = Vector3(1.6, 1.4, 1.4)
-		return log_mesh
-	var cart := Node3D.new()
-	cart.add_child(trolley_cart())
-	var log_mesh := LogDrop.make_log_mesh(tree_id, 0.0)
-	log_mesh.position = Vector3(0, 0.62, 0)
-	log_mesh.rotation_degrees.y = 90.0
-	log_mesh.scale = Vector3(1.0, 1.3, 1.3)
-	cart.add_child(log_mesh)
-	return cart
+	var log_mesh := LogDrop.make_log_mesh(tree_id)
+	log_mesh.scale = Vector3(1.6, 1.4, 1.4)
+	return log_mesh
 
 
 # ---- 見た目 ----
@@ -169,53 +253,53 @@ func _build_river() -> void:
 		z += 1.3
 
 
-func _build_rails() -> void:
-	var length := near_z + 1.0 - far_z
-	var center := (near_z + 1.0 + far_z) * 0.5
-	# 砂利の道床
-	var bed := PlaneMesh.new()
-	bed.size = Vector2(2.6, length)
-	bed.material = Mats.strip("yard", 0)
-	var bed_mi := MeshInstance3D.new()
-	bed_mi.mesh = bed
-	bed_mi.position = Vector3(x, 0.01, center)
-	bed_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_visual.add_child(bed_mi)
-	# レール2本と枕木（MultiMesh でまとめる）
-	for side in [-0.45, 0.45]:
-		var rail := Fx.box(Vector3(0.08, 0.1, length), Color("#7c8288"), Vector3(x + side, 0.12, center), "metal")
-		_visual.add_child(rail)
-	var sleeper := BoxMesh.new()
-	sleeper.size = Vector3(1.4, 0.08, 0.24)
-	sleeper.material = Mats.surface(Color("#6e5238"), "wood")
-	var xforms: Array[Transform3D] = []
-	var z := far_z
-	while z < near_z + 1.0:
-		xforms.append(Transform3D(Basis(), Vector3(x, 0.05, z)))
-		z += 0.75
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = sleeper
-	mm.instance_count = xforms.size()
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	_visual.add_child(mmi)
-
-
-## 拠点側の終点（川は水門、トロッコは車止め）と看板
+## 拠点側の終点（水門）と、流れ着いた丸太を積む集積所・看板
 func _build_end() -> void:
-	if kind == "river":
-		for side in [-1.5, 1.5]:
-			_visual.add_child(Fx.box(Vector3(0.3, 1.4, 0.3), Color("#7a5a3a"), Vector3(x + side, 0.7, near_z + 0.4), "wood"))
-		_visual.add_child(Fx.box(Vector3(3.3, 0.25, 0.3), Color("#7a5a3a"), Vector3(x, 1.35, near_z + 0.4), "wood"))
-	else:
-		_visual.add_child(Fx.box(Vector3(1.4, 0.5, 0.3), Color("#c43a2e"), Vector3(x, 0.3, near_z + 1.0), "metal"))
-	var sign := Props.signboard("川流し 集積所" if kind == "river" else "トロッコ 終点")
-	sign.position = Vector3(x + (2.4 if x < 0.0 else -2.4), 0, near_z + 0.8)
+	for side in [-1.5, 1.5]:
+		_visual.add_child(Fx.box(Vector3(0.3, 1.4, 0.3), Color("#7a5a3a"), Vector3(x + side, 0.7, near_z + 0.4), "wood"))
+	_visual.add_child(Fx.box(Vector3(3.3, 0.25, 0.3), Color("#7a5a3a"), Vector3(x, 1.35, near_z + 0.4), "wood"))
+	# 集積所の床（丸太の山の下の板敷き）
+	var yp := yard_position()
+	_visual.add_child(Fx.box(Vector3(1.9, 0.08, 1.6), Color("#8a6a45"), yp + Vector3(0, 0.04, 0), "wood"))
+	_yard_pile = Node3D.new()
+	_yard_pile.position = yp
+	_visual.add_child(_yard_pile)
+	var sign := Props.signboard("川流し 集積所")
+	sign.position = Vector3(x - 1.6, 0, near_z + 3.2)
+	sign.rotation_degrees.y = 30.0
 	sign.scale = Vector3.ONE * 0.9
 	_visual.add_child(sign)
+
+
+## 集積所から製材所の丸太置き場までのベルトコンベア
+func _build_belt() -> void:
+	var yp := yard_position()
+	var goal := sawmill.input_pile_position()
+	var start := yp + Vector3(1.0, 0, 0)
+	var end := Vector3(goal.x - 0.9, 0, goal.z)
+	_belt_path = [start]
+	if absf(start.z - end.z) > 0.05:
+		_belt_path.append(Vector3(start.x, 0, end.z))
+	_belt_path.append(end)
+	_belt_length = 0.0
+	for k in range(1, _belt_path.size()):
+		var a := _belt_path[k - 1]
+		var b := _belt_path[k]
+		_belt_length += a.distance_to(b)
+		var mid := (a + b) * 0.5
+		var seg_len := a.distance_to(b) + 0.8
+		var along_x := absf(b.x - a.x) > absf(b.z - a.z)
+		var belt_size := Vector3(seg_len, 0.05, 0.62) if along_x else Vector3(0.62, 0.05, seg_len)
+		var frame_size := Vector3(seg_len, 0.1, 0.74) if along_x else Vector3(0.74, 0.1, seg_len)
+		_visual.add_child(Fx.box(frame_size, Color("#8c939a"), mid + Vector3(0, 0.25, 0), "metal"))
+		_visual.add_child(Fx.box(belt_size, Color("#3d4247"), mid + Vector3(0, 0.31, 0), "metal"))
+		# 脚
+		var steps := maxi(1, floori(seg_len / 1.6))
+		for j in steps + 1:
+			var p := (a - (b - a).normalized() * 0.3).lerp(b + (b - a).normalized() * 0.3, j / float(steps))
+			for side in [-0.38, 0.38]:
+				var off := Vector3(0, 0, side * 0.8) if along_x else Vector3(side * 0.8, 0, 0)
+				_visual.add_child(Fx.box(Vector3(0.07, 0.22, 0.07), Color("#5b6168"), p + off + Vector3(0, 0.11, 0), "metal"))
 
 
 static func water_material() -> ShaderMaterial:
@@ -247,16 +331,3 @@ void fragment() {
 	m.shader = sh
 	m.set_shader_parameter("noise_tex", Mats.tex("leaf_noise.png"))
 	return m
-
-
-## トロッコの台車（強化画面のサムネイルでも使う）
-static func trolley_cart() -> Node3D:
-	var root := Node3D.new()
-	root.add_child(Fx.box(Vector3(0.9, 0.36, 1.1), Color("#5b6168"), Vector3(0, 0.42, 0), "metal"))
-	root.add_child(Fx.box(Vector3(0.96, 0.06, 1.16), Color("#3c4046"), Vector3(0, 0.62, 0), "metal"))
-	for sx in [-0.45, 0.45]:
-		for sz in [-0.35, 0.35]:
-			var w := Fx.cylinder(0.13, 0.08, Color("#2d3035"), Vector3(sx, 0.2, sz), -1.0, 10, false, "metal")
-			w.rotation_degrees.z = 90.0
-			root.add_child(w)
-	return root
