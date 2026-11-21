@@ -1,7 +1,7 @@
 class_name ShipDock
 extends Station
 ## 出荷場。製材ライン開放後、板をここに運ぶと荷台に積まれ、1枚ずつ売れていく。
-## - 売れる速さは強化『出荷のペース』（枚/秒）。荷台に置ける数は dock.stock_max まで
+## - 売れる速さは強化『出荷のペース』（枚/秒）。荷台に置ける数に上限はない
 ## - 強化『板のコンベア』を開放すると、製材所の出口の板がコンベアで荷台へ自動で運ばれる
 
 const PAD_RADIUS := 1.8
@@ -55,14 +55,6 @@ func _ready() -> void:
 	_rebuild_stock()
 
 
-func stock_max() -> int:
-	return int(GameData.dock.get("stock_max", 40))
-
-
-func has_room(incoming := 0) -> bool:
-	return stock.size() + incoming < stock_max()
-
-
 ## 製材所の出口（コンベアの始点）から荷台の横（終点）までのベルトコンベア。強化で開放するまでは隠す
 func _build_belt() -> void:
 	if sawmill == null:
@@ -76,7 +68,6 @@ func _build_belt() -> void:
 	belt.path = path
 	belt.rate_source = func() -> float: return GameState.value(BELT_ID)
 	belt.take_source = sawmill.take_plank
-	belt.room_source = func(n: int) -> bool: return has_room(n)
 	belt.deliver = func(id: String) -> void: _add_stock(id)
 	belt.make_mesh = func(id: String) -> Node3D: return Sawmill._plank_mesh(id)
 	add_child(belt)
@@ -95,20 +86,18 @@ func _update_label() -> void:
 		_zone.set_text("出荷場", "（製材ラインで開放）")
 		return
 	var title := "板を置く"
-	if stock.size() >= stock_max():
-		title = "出荷場 満杯"
-	elif not stock.is_empty():
+	if not stock.is_empty():
 		title = "出荷中"
-	_zone.set_text(title, "板: %d / %d" % [stock.size(), stock_max()])
+	_zone.set_text(title, "板: %d" % stock.size())
 
 
 func _process(delta: float) -> void:
 	if GameState.level("sawmill") <= 0:
 		return
-	# 運んできた板を荷台に置く（いっぱいなら持ったまま）
+	# 運んできた板を荷台に置く
 	for carrier in carriers_near(global_position, PAD_RADIUS, "plank_carriers"):
 		var stack: CarryStack = carrier.stack
-		if stack.count("plank") > 0 and has_room() and tick(carrier, "sell", delta):
+		if stack.count("plank") > 0 and tick(carrier, "sell", delta):
 			var item := stack.take("plank")
 			Fx.fly_item(self, Sawmill._plank_mesh(item["tree"]), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), _pile_top(), 0.25)
 			_add_stock(item["tree"])

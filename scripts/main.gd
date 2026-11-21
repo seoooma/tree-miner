@@ -11,8 +11,7 @@ const SAWMILL_POS := Vector3(-5, 0, 9)
 const DOCK_POS := Vector3(5.5, 0, 9)
 const PLAYER_SPAWN := Vector3(1, 0, 4)
 const FUEL_POS := Vector3(0, 0, 14)
-## 機械の購入パッドと出現位置（伐採機は、川の集積所から製材所へのコンベアを避けて少し手前）
-const SHOP_POS := {"harvester": Vector3(-12, 0, 8.8), "hauler": Vector3(12, 0, 6)}
+## 機械の出現位置（伐採機は、川の集積所から製材所へのコンベアを避けて少し手前）
 const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 12), "hauler": Vector3(12, 0, 11)}
 ## 川流し（左端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
 const LINE_X := {"river": -16.5}
@@ -225,11 +224,6 @@ func _build_facilities() -> void:
 	var fuel := FuelStation.new()
 	fuel.position = FUEL_POS
 	add_child(fuel)
-	for kind in SHOP_POS:
-		var shop := MachineShop.new()
-		shop.kind = kind
-		shop.position = SHOP_POS[kind]
-		add_child(shop)
 
 
 func _build_lines() -> void:

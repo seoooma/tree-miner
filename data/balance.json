@@ -30,9 +30,11 @@
 	},
 
 	"machines": {
-		"_comment": "ランクごとの性能と価格。購入パッドで次のランクを買うと、既存の機械がそのランクに上がる",
+		"_comment": "ランクごとの性能と価格。ほかの強化と同じく強化画面のカードで買う（Lv = ランク）。次のランクを買うと既存の機械がそのランクに上がる。stat / unit = カードに出す代表の性能",
 		"harvester": {
 			"name": "伐採機",
+			"desc": "Lv1で購入。乗ると木を自動で切る。以降は速さ・伐採力・燃料タンクが上がる",
+			"stat": "chop_power", "unit": "",
 			"ranks": [
 				{ "name": "伐採機 Mk1", "cost": 600,   "speed": 5.5, "chop_power": 3,  "chop_interval": 0.35, "chop_range": 2.0, "fuel_max": 60,  "color": "#e8b030", "model": "yellow" },
 				{ "name": "伐採機 Mk2", "cost": 4000,  "speed": 6.5, "chop_power": 8,  "chop_interval": 0.30, "chop_range": 2.4, "fuel_max": 90,  "color": "#e07a30", "model": "red" },
@@ -41,6 +43,8 @@
 		},
 		"hauler": {
 			"name": "運搬車",
+			"desc": "Lv1で購入。乗ると落ちた丸太を拾って運ぶ。以降は速さ・積載量・燃料タンクが上がる",
+			"stat": "capacity", "unit": "本",
 			"ranks": [
 				{ "name": "運搬車 Mk1", "cost": 500,   "speed": 7.0, "capacity": 20, "pickup_radius": 2.5, "fuel_max": 60,  "color": "#4a90d0", "model": "green" },
 				{ "name": "運搬車 Mk2", "cost": 3500,  "speed": 8.0, "capacity": 40, "pickup_radius": 3.0, "fuel_max": 90,  "color": "#3a70c0", "model": "yellow" },
@@ -59,15 +63,12 @@
 	},
 
 	"sawmill": {
-		"_comment": "input_max = 丸太置き場に置ける加工待ちの丸太の数（いっぱいだと投入口で受け取らず、コンベアも止まる）/ output_max = 出口に積める板の数（いっぱいだと加工が止まる）",
-		"input_max": 40,
-		"output_max": 40,
+		"_comment": "丸太置き場・出口に置ける数に上限はない。pad_radius = 受け渡しの枠の半径",
 		"pad_radius": 1.6
 	},
 
 	"dock": {
-		"_comment": "出荷場に置いた板は、強化『出荷のペース』の枚/秒で1枚ずつ売れていく。stock_max = 出荷場に置ける板の数（いっぱいだと受け取らない）",
-		"stock_max": 40
+		"_comment": "出荷場に置いた板は、強化『出荷のペース』の枚/秒で1枚ずつ売れていく。置ける数に上限はない"
 	},
 
 	"camera": {
