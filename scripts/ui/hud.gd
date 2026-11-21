@@ -66,6 +66,7 @@ var _travel_button: Button
 var _travel_menu: PanelContainer
 var _travel_grid: GridContainer
 var _travel_banner: Button
+var order_board: OrderBoard
 var _gear: TextureButton
 var _settings: Control
 var _music_button: Button
@@ -126,6 +127,7 @@ func _ready() -> void:
 
 	_build_world_overlay()
 	_build_top_bar()
+	_build_orders()
 	_build_bottom_tiles()
 	_build_travel()
 	_build_settings()
@@ -192,6 +194,13 @@ func _build_top_bar() -> void:
 	_money_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(_money_label)
 	_money_pill = pill
+
+
+## 左上（設定ボタンの下）に注文の一覧と評判
+func _build_orders() -> void:
+	order_board = OrderBoard.new()
+	order_board.position = Vector2(16, 124)
+	_root.add_child(order_board)
 
 
 func _build_settings() -> void:

@@ -76,6 +76,28 @@
 		"truck_speed_per_level": 1.0
 	},
 
+	"orders": {
+		"_comment": "客からの注文。開放済みエリアで重みが min_weight 以上の木から、丸太か板（製材ラインのあと）の注文が出る。普段どおり売ると合う品が数えられ、代金が mult 倍になる。そろうと評判が上がる",
+		"_qty_note": "本数 = base_qty x grade_qty[木のグレード] x (1 + 評判 x qty_per_rep)（最大 max_qty_scale 倍）。期限 = 本数 x sec_per_item x (1 + グレード x time_per_grade) + min_time_sec 秒",
+		"_rep_note": "達成で上がる評判 = rep_base + グレード x rep_per_grade (+ 板なら rep_plank_bonus)。注文の枠は slots、評判が extra_slot_at_rep の各値に届くたびに1つ増える",
+		"slots": 2,
+		"extra_slot_at_rep": [15],
+		"first_delay_sec": 5,
+		"cooldown_sec": 20,
+		"min_weight": 10,
+		"base_qty": { "log": 16, "plank": 10 },
+		"grade_qty": [1.0, 1.0, 0.8, 0.7, 0.6],
+		"qty_per_rep": 0.02,
+		"max_qty_scale": 3.0,
+		"sec_per_item": { "log": 12, "plank": 18 },
+		"time_per_grade": 0.25,
+		"min_time_sec": 120,
+		"mult": { "log": 1.5, "plank": 1.6 },
+		"rep_base": 1,
+		"rep_per_grade": 1,
+		"rep_plank_bonus": 1
+	},
+
 	"camera": {
 		"_comment": "カメラ位置（プレイヤーからの高さ・手前への距離）と画角。乗車中は drive_zoom 倍だけ引く",
 		"height": 7.4,
@@ -100,16 +122,17 @@
 		{ "id": "ebony",   "name": "コクタン", "hardness": 48, "saw_time": 2.0, "respawn_sec": 45, "scale": 1.5, "shape": "cone",   "leaf_color": "#7b5cb0", "trunk_color": "#4a3428", "end_color": "#8a6a5a", "grade_color": "#a98ad6" }
 	],
 
+	"_areas_note": "unlock_cost = 柵で払う金額、rep_required = 柵で払う前に要る評判（注文の達成で上がる）、river_cost = 川の積み場の金額",
 	"areas": [
-		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0, "river_cost": 900,     "tree_count": 80, "ground_color": "#76b052",
+		{ "id": "area0", "name": "はじまりの林", "depth": 20, "unlock_cost": 0, "river_cost": 900, "rep_required": 0,     "tree_count": 80, "ground_color": "#76b052",
 		  "weights": { "sapling": 80, "pine": 17, "maple": 3 } },
-		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150, "river_cost": 2500,   "tree_count": 88, "ground_color": "#68a64c",
+		{ "id": "area1", "name": "マツの丘",     "depth": 20, "unlock_cost": 150, "river_cost": 2500, "rep_required": 0,   "tree_count": 88, "ground_color": "#68a64c",
 		  "weights": { "sapling": 20, "pine": 60, "maple": 17, "oak": 3 } },
-		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200, "river_cost": 8000,  "tree_count": 92, "ground_color": "#8fa84a",
+		{ "id": "area2", "name": "紅葉の谷",     "depth": 20, "unlock_cost": 1200, "river_cost": 8000, "rep_required": 6,  "tree_count": 92, "ground_color": "#8fa84a",
 		  "weights": { "sapling": 5, "pine": 20, "maple": 55, "oak": 17, "ebony": 3 } },
-		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000, "river_cost": 25000,  "tree_count": 96, "ground_color": "#5a8f45",
+		{ "id": "area3", "name": "古木の森",     "depth": 20, "unlock_cost": 8000, "river_cost": 25000, "rep_required": 20,  "tree_count": 96, "ground_color": "#5a8f45",
 		  "weights": { "pine": 5, "maple": 20, "oak": 60, "ebony": 15 } },
-		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "river_cost": 80000, "tree_count": 100, "ground_color": "#4f6e46",
+		{ "id": "area4", "name": "黒檀の奥地",   "depth": 20, "unlock_cost": 50000, "river_cost": 80000, "rep_required": 45, "tree_count": 100, "ground_color": "#4f6e46",
 		  "weights": { "maple": 5, "oak": 25, "ebony": 70 } }
 	],
 

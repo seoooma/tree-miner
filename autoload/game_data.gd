@@ -14,6 +14,7 @@ var camera: Dictionary = {}
 var drops: Dictionary = {}
 var fuel: Dictionary = {}
 var machines: Dictionary = {}
+var orders: Dictionary = {}
 var trees: Array = []
 var areas: Array = []
 var upgrades: Array = []
@@ -48,6 +49,7 @@ func load_balance() -> void:
 	drops = data.get("drops", {})
 	fuel = data.get("fuel", {})
 	machines = data.get("machines", {})
+	orders = data.get("orders", {})
 	trees = data.get("trees", [])
 	areas = data.get("areas", [])
 	upgrades = data.get("upgrades", [])
@@ -96,6 +98,13 @@ func log_price(id: String) -> int:
 ## 板の売値。丸太の売値 x plank_multiplier。
 func plank_price(id: String) -> int:
 	return maxi(1, roundi(log_price(id) * float(economy.get("plank_multiplier", 2.0))))
+
+
+## エリアの開放に要る評判
+func area_rep_required(index: int) -> int:
+	if index < 0 or index >= areas.size():
+		return 0
+	return int(areas[index].get("rep_required", 0))
 
 
 ## エリアの重み付き抽選で木の種類を決める。

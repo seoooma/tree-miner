@@ -226,11 +226,17 @@ func _load_one() -> void:
 ## 積み荷の代金を受け取って、トラックを走らせる
 func _depart() -> void:
 	var total := 0
+	var bonus := 0
 	for item in truck.cargo:
-		total += cargo_price(item)
-	GameState.add_money(total)
+		var price := cargo_price(item)
+		total += price
+		# 注文に合う品は数えられ、割増の代金が入る
+		bonus += Orders.record_sale(str(item.get("kind", "")), str(item.get("tree", "")), price)
+	GameState.add_money(total + bonus)
 	var at := truck.global_position + Vector3(-0.8, 2.0, 0)
-	Fx.popup(self, at, "+¥%d" % total, Color("#ffe14d"), 84)
+	Fx.popup(self, at, "+¥%d" % (total + bonus), Color("#ffe14d"), 84)
+	if bonus > 0:
+		Fx.popup(self, at + Vector3(0, 1.1, 0), "注文 +¥%d" % bonus, Color("#ff9d1e"), 60)
 	for i in mini(4, 1 + truck.cargo.size() / 8):
 		Fx.coin_pop(self, at + Vector3(randf_range(-1.2, 1.2), -1.0, 0))
 	Audio.play("sell", -4.0, 1.0)

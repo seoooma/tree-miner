@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。orders / travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -63,6 +63,26 @@ func _nearest_tree(pos: Vector3) -> ChoppableTree:
 		if tree.alive and (best == null or tree.global_position.distance_to(pos) < best.global_position.distance_to(pos)):
 			best = tree
 	return best
+
+
+## 左上の注文の一覧と、評判が足りない柵（名前を指定したときだけ撮る: orders）
+func _shot_orders() -> void:
+	Orders.running = false
+	GameState.unlock_area(1)
+	GameState.reputation = 4
+	GameState.reputation_changed.emit(GameState.reputation)
+	GameState.orders.clear()
+	var a := Orders.make_order("pine", "plank")
+	a["done"] = 7
+	a["time_left"] = 205.0
+	var b := Orders.make_order("sapling", "log")
+	b["done"] = 3
+	b["time_left"] = 25.0
+	GameState.orders.append(a)
+	GameState.orders.append(b)
+	Orders.orders_changed.emit()
+	_place(Vector3(0, 0, main._area_ranges[2].x + AreaGate.PAD_OFFSET.z + 2.0))
+	await _wait(1.0)
 
 
 func _shot_home() -> void:

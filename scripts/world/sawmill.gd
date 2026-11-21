@@ -253,6 +253,7 @@ func _accept_log(tree_id: String) -> void:
 		_rebuild_input()
 	else:
 		var price := GameData.log_price(tree_id)
+		price += Orders.record_sale("log", tree_id, price)
 		GameState.add_money(price)
 		Fx.popup(self, input_position(), "+¥%d" % price, Color("#ffe14d"))
 		Fx.coin_pop(self, input_position())
