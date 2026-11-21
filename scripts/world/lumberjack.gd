@@ -35,6 +35,11 @@ func _ready() -> void:
 	_role_label = Fx.label3d("", Vector3(0, 1.6, 0), 30)
 	add_child(_role_label)
 	set_role(role)
+	# 狙う木のグレードを変えたら、向かっている途中の木は選び直す（切っている最中の木は切り終える）
+	GameState.lumberjack_target_changed.connect(func(_id: String) -> void:
+		if role == "chop" and state == State.TO_TREE:
+			_release_targets()
+			state = State.IDLE)
 
 
 func set_role(new_role: String) -> void:
@@ -96,18 +101,26 @@ func _tree_valid() -> bool:
 	return is_instance_valid(_target_tree) and _target_tree.alive and _target_tree.claimed_by == self
 
 
+## 強化画面で選んだグレード以上の木のうち、いちばん近い木を狙う。
+## そのグレードの木がすべて切られて生え直し待ちのときは、手を止めないよう近い木を切る。
 func _find_tree() -> ChoppableTree:
 	var best: ChoppableTree = null
 	var best_dist := INF
+	var fallback: ChoppableTree = null
+	var fallback_dist := INF
 	for node in get_tree().get_nodes_in_group("trees"):
 		var tree := node as ChoppableTree
 		if not tree.alive or tree.claimed_by != null or not GameState.is_area_unlocked(tree.area_index):
 			continue
 		var d := Fx.xz_distance(global_position, tree.global_position)
-		if d < best_dist:
-			best = tree
-			best_dist = d
-	return best
+		if GameState.meets_lumberjack_target(tree.tree_id):
+			if d < best_dist:
+				best = tree
+				best_dist = d
+		elif d < fallback_dist:
+			fallback = tree
+			fallback_dist = d
+	return best if best else fallback
 
 
 # ---- 運搬役 ----

@@ -6,6 +6,8 @@ signal upgrade_changed(id: String, level: int)
 signal area_unlocked(index: int)
 signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
+## 伐採員が狙う木のグレードが変わった（"" = すべて）
+signal lumberjack_target_changed(tree_id: String)
 ## セーブの直前。施設（集積所・製材所・出荷場）が在庫を stock に書き込む
 signal saving
 
@@ -23,6 +25,8 @@ var machine_ranks: Dictionary = {}
 var machine_state: Dictionary = {}
 ## 伐採員ごとの役割 "chop" / "haul"
 var lumberjack_roles: Array = []
+## 伐採役の伐採員が狙う木の最低グレード（木の ID。"" = すべて＝近い木から）。全員共通
+var lumberjack_target := ""
 ## 施設に溜まっている丸太・板（木のIDの配列）。例 {"yard": [...], "sawmill_queue": [...], "sawmill_output": [...], "dock": [...]}
 var stock: Dictionary = {}
 
@@ -169,6 +173,20 @@ func set_lumberjack_role(index: int, role: String) -> void:
 	save_game()
 
 
+## 木の ID がグレード lumberjack_target 以上か（グレード = balance.json の trees の並び順）
+func meets_lumberjack_target(tree_id: String) -> bool:
+	if lumberjack_target == "":
+		return true
+	return GameData.tree_grade(tree_id) >= GameData.tree_grade(lumberjack_target)
+
+
+func set_lumberjack_target(tree_id: String) -> void:
+	if not GameData.tree_def(tree_id).is_empty() or tree_id == "":
+		lumberjack_target = tree_id
+	lumberjack_target_changed.emit(lumberjack_target)
+	save_game()
+
+
 # ---- セーブ ----
 
 ## 施設の在庫（木のIDの配列）
@@ -198,6 +216,7 @@ func save_game(collect := true) -> void:
 		"machine_ranks": machine_ranks,
 		"machine_state": machine_state,
 		"lumberjack_roles": lumberjack_roles,
+		"lumberjack_target": lumberjack_target,
 		"stock": stock,
 	}))
 
@@ -226,6 +245,8 @@ func load_game() -> void:
 			money += maxi(0, int(shop_paid[kind]))
 	machine_state = parsed.get("machine_state", {})
 	lumberjack_roles = parsed.get("lumberjack_roles", [])
+	var target := str(parsed.get("lumberjack_target", ""))
+	lumberjack_target = target if not GameData.tree_def(target).is_empty() else ""
 	var saved_stock: Variant = parsed.get("stock", {})
 	if typeof(saved_stock) == TYPE_DICTIONARY:
 		stock = saved_stock
@@ -239,6 +260,7 @@ func reset_state() -> void:
 	machine_ranks = {}
 	machine_state = {}
 	lumberjack_roles = []
+	lumberjack_target = ""
 	stock = {}
 
 

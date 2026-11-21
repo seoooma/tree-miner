@@ -64,6 +64,13 @@ func _run() -> void:
 	GameState.set_lumberjack_role(0, "haul")
 	_check(main.lumberjacks[0].role == "haul", "伐採員の役割を運搬に切り替えられる")
 	GameState.set_lumberjack_role(0, "chop")
+	GameState.set_lumberjack_target("pine")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var aimed: ChoppableTree = main.lumberjacks[0]._target_tree
+	_check(aimed != null and GameData.tree_grade(aimed.tree_id) >= GameData.tree_grade("pine"), "伐採員が狙う木のグレードを選べる (%s)" % (aimed.tree_id if aimed else "なし"))
+	_check(GameState.meets_lumberjack_target("maple") and not GameState.meets_lumberjack_target("sapling"), "選んだグレード以上の木だけを優先する")
+	GameState.set_lumberjack_target("")
 
 	# 4. 製材 → 出荷
 	await _gather_until_full()

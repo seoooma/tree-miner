@@ -68,6 +68,14 @@ func tree_name(id: String) -> String:
 	return str(tree_def(id).get("name", id))
 
 
+## 木のグレード（balance.json の trees の並び順。0 = いちばん安い木）。知らない ID は -1
+func tree_grade(id: String) -> int:
+	for i in trees.size():
+		if str(trees[i]["id"]) == id:
+			return i
+	return -1
+
+
 ## 丸太の売値。硬さに比例する。
 func log_price(id: String) -> int:
 	var hardness := float(tree_def(id).get("hardness", 1))
