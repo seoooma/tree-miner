@@ -9,8 +9,6 @@ extends Node3D
 ##   （1秒あたりの本数は強化レベルで増える）
 
 const MAX_VISIBLE := 160
-## 集積所に見た目で積む最大数
-const YARD_VISIBLE := 60
 ## 集積所の枠の半径（ここに立つと丸太を拾う）
 const YARD_RADIUS := 1.3
 
@@ -26,7 +24,7 @@ var area_ranges: Array[Vector2] = []
 var _items: Array[Dictionary] = []
 ## 集積所で待っている丸太（_items と同じ辞書）
 var _yard: Array[Dictionary] = []
-var _yard_pile: Node3D
+var _yard_pile: ItemPile
 var _yard_zone: Zone
 ## 集積所の枠で拾う処理（受け渡し間隔の管理）
 var _yard_station: Station
@@ -55,7 +53,7 @@ func _ready() -> void:
 		var p := LoadingPoint.new()
 		p.line = self
 		p.area_index = i
-		p.position = Vector3(x + 3.3, 0, (r.x + r.y) * 0.5)
+		p.position = Vector3(x + 3.3, 0, (r.x + r.y) * 0.5)  # main.gd の LOADING_POINT_DX と同じ
 		add_child(p)
 		_points.append(p)
 	GameState.upgrade_changed.connect(func(id: String, _l: int) -> void:
@@ -177,7 +175,7 @@ func _land_in_yard(item: Dictionary) -> void:
 
 
 func _yard_top() -> Vector3:
-	return yard_position() + Vector3(0, 0.15 + floori(mini(_yard.size(), YARD_VISIBLE) / 4.0) * 0.2, 0)
+	return _yard_pile.top_global()
 
 
 ## 集積所の丸太を1本取り出す（コンベア・手で拾う共通）。無ければ空文字
@@ -215,17 +213,12 @@ func _update_yard_label() -> void:
 		_yard_zone.set_text("丸太を拾う" if not _yard.is_empty() else "集積所", sub)
 
 
-## 集積所の丸太の山（4本ずつ積む）。数は待っている丸太と同じ
+## 集積所の丸太の山。数は待っている丸太と同じ
 func _rebuild_yard() -> void:
-	for c in _yard_pile.get_children():
-		c.queue_free()
-	for i in mini(_yard.size(), YARD_VISIBLE):
-		var col := i % 4
-		var row := floori(i / 4.0)
-		var log_mesh := LogDrop.make_log_mesh(_yard[i]["tree"], 0.0)
-		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
-		log_mesh.position = Vector3(0, 0.12 + row * 0.2, (col - 1.5) * 0.23 + (0.11 if row % 2 == 1 else 0.0))
-		_yard_pile.add_child(log_mesh)
+	var ids: Array[String] = []
+	for item in _yard:
+		ids.append(str(item["tree"]))
+	_yard_pile.show_items(ids)
 
 
 func _make_item_visual(tree_id: String) -> Node3D:
@@ -247,6 +240,8 @@ func _build_river() -> void:
 	bank_mi.mesh = bank
 	bank_mi.position = Vector3(x, 0.01, center)
 	bank_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 土手・水面は大きな半透明の板。並べ替えで水面が土手の下に隠れたり、積み込み枠の上に重なったりしないよう、描く順を固定する
+	bank_mi.sorting_offset = -100.0
 	_visual.add_child(bank_mi)
 	var water := PlaneMesh.new()
 	water.size = Vector2(2.6, length)
@@ -256,6 +251,7 @@ func _build_river() -> void:
 	water_mi.mesh = water
 	water_mi.position = Vector3(x, 0.03, center)
 	water_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	water_mi.sorting_offset = -90.0
 	_visual.add_child(water_mi)
 	# 岸の石
 	var rng := RandomNumberGenerator.new()
@@ -280,8 +276,16 @@ func _build_end() -> void:
 	_visual.add_child(_gate_splash)
 	# 集積所の床（丸太の山の下の板敷き）
 	var yp := yard_position()
-	_visual.add_child(Fx.box(Vector3(1.9, 0.08, 1.6), Color("#8a6a45"), yp + Vector3(0, 0.04, 0), "wood"))
-	_yard_pile = Node3D.new()
+	_visual.add_child(Fx.box(Vector3(1.9, 0.08, 1.8), Color("#8a6a45"), yp + Vector3(0, 0.04, 0), "wood"))
+	# 丸太を左右に向けて奥行きに6本（1段6本。上の段は半分ずらす）。数は待っている丸太と同じ
+	_yard_pile = ItemPile.new(func(id: String) -> MeshInstance3D:
+		var log_mesh := LogDrop.make_log_mesh(id, 0.0) as MeshInstance3D
+		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
+		return log_mesh)
+	_yard_pile.cols = 1
+	_yard_pile.rows = 6
+	_yard_pile.step = Vector3(0, 0, 0.23)
+	_yard_pile.stagger = Vector3(0, 0, 0.115)
 	_yard_pile.position = yp
 	_visual.add_child(_yard_pile)
 	# 丸太を拾う枠（集積所の手前、拠点側）

@@ -20,7 +20,6 @@ const BED_SIZE := Vector3(4.0, 0.12, 1.5)
 const SLOT_COLS := 4
 const SLOT_ROWS := 4
 const LAYER_H := 0.17
-const VISIBLE_MAX := 64
 
 const CAB_COLOR := Color("#2f6fd6")
 const TRIM_COLOR := Color("#f4f1ea")
@@ -50,13 +49,12 @@ func is_parked() -> bool:
 
 ## 次に積む荷物が飛んでいく先（荷台の上）
 func next_slot_position() -> Vector3:
-	return to_global(_slot(mini(cargo.size(), VISIBLE_MAX - 1)) + Vector3(0, 0.15, 0))
+	return to_global(_slot(cargo.size()) + Vector3(0, 0.15, 0))
 
 
 func add_cargo(kind: String, tree_id: String) -> void:
 	cargo.append({"kind": kind, "tree": tree_id})
-	if cargo.size() <= VISIBLE_MAX:
-		_load_root.add_child(_cargo_mesh(cargo.size() - 1))
+	_load_root.add_child(_cargo_mesh(cargo.size() - 1))
 
 
 func clear_cargo() -> void:

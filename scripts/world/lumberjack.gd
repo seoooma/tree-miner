@@ -33,6 +33,8 @@ func _ready() -> void:
 	stack = CarryStack.new()
 	stack.capacity_source = func() -> int: return roundi(GameState.value("lumberjack_capacity"))
 	stack.position = Vector3(0, 0.45, -0.34)
+	stack.max_layers = 10
+	stack.overflow_step = Vector3(0, 0, -0.22)
 	_visual.add_child(stack)
 	_role_label = Fx.label3d("", Vector3(0, 1.6, 0), 30)
 	add_child(_role_label)

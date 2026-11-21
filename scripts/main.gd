@@ -16,6 +16,8 @@ const MACHINE_SPAWN := {"harvester": Vector3(-12, 0, 12), "hauler": Vector3(12, 
 ## 川流し（左端）の通る位置。木はこの帯と積み込み枠のまわりには生やさない
 const LINE_X := {"river": -16.5}
 const LINE_CLEAR_X := 14.6
+## 川岸の積み込み枠の位置（川の中心からの x）
+const LOADING_POINT_DX := 3.3
 ## 拠点の土の作業場: Vector4(中心x, 中心z, 半幅x, 半幅z)。製材所・出荷場・給油所の広場、森への道、
 ## 左（川の集積所と伐採機の出現位置）と右（運搬車の出現位置）、出荷場の奥から拠点の外（右端）へ抜ける販売のトラックの道
 const SAND_RECTS: Array[Vector4] = [
@@ -43,6 +45,18 @@ func _ready() -> void:
 	_compute_area_ranges()
 	_build_environment()
 	_build_ground()
+	# 川の上（水面と土手）には草・花・石を置かない
+	Decor.clear_bands.clear()
+	for kind in LINE_X:
+		Decor.clear_bands.append(Vector2(LINE_X[kind], 2.4))
+	# 地面の枠（川の積み込み枠・エリア開放の支払い枠）の上にも置かない
+	Decor.clear_rects.clear()
+	for i in _area_ranges.size():
+		var cz := (_area_ranges[i].x + _area_ranges[i].y) * 0.5
+		for kind in LINE_X:
+			Decor.clear_rects.append(Vector4(LINE_X[kind] + LOADING_POINT_DX, cz, 1.9, 1.9))
+		if i > 0:
+			Decor.clear_rects.append(Vector4(0.0, _area_ranges[i].x + AreaGate.PAD_OFFSET.z, 2.1, 1.8))
 	Decor.build(self, _area_ranges, _width(), float(GameData.world.get("base_depth", 18)), int(GameData.world.get("seed", 1)))
 	_build_bounds()
 	_build_facilities()
@@ -297,10 +311,11 @@ func _is_free_spot(pos: Vector3, placed: Array[Vector3], spacing: float) -> bool
 	# 左右の端も空けておく（左は川。右は配置を変えないよう従来どおり空ける）
 	if absf(pos.x) < 1.8 or absf(pos.x) > LINE_CLEAR_X:
 		return false
-	# 川岸の積み込み枠のまわり（左右対称のまま。木の配置を変えないため）
+	# 川岸の積み込み枠のまわり（左右対称）
 	for i in _area_ranges.size():
 		var cz := (_area_ranges[i].x + _area_ranges[i].y) * 0.5
-		if absf(absf(pos.x) - 13.2) < 2.2 and absf(pos.z - cz) < 2.2:
+		# 枠（2.8m 四方）に木の幹だけでなく枝葉もかからないように、枠の外側 1.4m まで空ける
+		if absf(absf(pos.x) - 13.2) < 2.8 and absf(pos.z - cz) < 2.8:
 			return false
 	for p in placed:
 		if Fx.xz_distance(p, pos) < spacing:

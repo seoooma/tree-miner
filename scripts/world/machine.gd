@@ -55,7 +55,6 @@ func _ready() -> void:
 		stack.columns = 2
 		stack.rows = 3
 		stack.item_spacing = Vector2(0.3, 0.32)
-		stack.max_visible = 36
 		stack.position = Vector3(0, 0.95, -0.65)
 		stack.rotation_degrees.y = 90.0
 		add_child(stack)

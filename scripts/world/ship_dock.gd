@@ -10,11 +10,12 @@ extends Station
 const PAD_RADIUS := 1.8
 const SELL_ID := "dock"
 const BELT_ID := "plank_belt"
-const PILE_VISIBLE := 48
 ## 丸太を売る枠（出荷場の右隣）
 const LOG_PAD_OFFSET := Vector3(3.7, 0, 0.2)
 const LOG_PAD_RADIUS := 1.35
-const LOG_PILE_OFFSET := Vector3(3.6, 0.26, -2.6)
+const LOG_PILE_OFFSET := Vector3(3.75, 0.26, -2.6)
+## 荷台の板の山の位置
+const STOCK_PILE_OFFSET := Vector3(-0.65, 0.26, -2.6)
 ## 販売のトラックを停める位置（荷台の奥。正面は +X で、拠点の外へ向かう）
 const TRUCK_OFFSET := Vector3(2.0, 0, -4.4)
 
@@ -30,8 +31,8 @@ var truck: SaleTruck
 var _zone: Zone
 var _log_zone: Zone
 ## 荷台の板の山。数は stock と同じで、トラックに積んだ分だけ消える
-var _stock_pile: Node3D
-var _log_pile: Node3D
+var _stock_pile: ItemPile
+var _log_pile: ItemPile
 ## 積み込みの進み具合（1 で1個積む）。トラックがいない間も貯まる（上限はトラック1台分）
 var _load_progress := 0.0
 ## 積む物が無くなってからの秒数（積み荷があればこの秒数で出発する）
@@ -48,19 +49,30 @@ func _ready() -> void:
 	add_child(Fx.box(Vector3(6.6, 0.14, 1.6), Color("#c99a5e"), Vector3(1.65, 0.07, -2.6), "wood"))
 	for i in 14:
 		add_child(Fx.box(Vector3(0.03, 0.02, 1.6), Color("#9a7040"), Vector3(-1.5 + i * 0.48, 0.15, -2.6)))
-	add_child(Fx.box(Vector3(1.3, 0.12, 1.1), Color("#b07f48"), Vector3(-0.7, 0.2, -2.6), "wood"))
-	add_child(Fx.box(Vector3(1.3, 0.12, 1.1), Color("#b07f48"), Vector3(LOG_PILE_OFFSET.x, 0.2, -2.6), "wood"))
-	_stock_pile = Node3D.new()
-	_stock_pile.position = Vector3(-0.7, 0.26, -2.6)
+	add_child(Fx.box(Vector3(1.9, 0.12, 1.3), Color("#b07f48"), Vector3(STOCK_PILE_OFFSET.x, 0.2, -2.6), "wood"))
+	add_child(Fx.box(Vector3(1.6, 0.12, 1.3), Color("#b07f48"), Vector3(LOG_PILE_OFFSET.x, 0.2, -2.6), "wood"))
+	# 板の山: 板2枚を縦に並べ、奥行きに4枚（1段8枚）。数は stock と同じ
+	_stock_pile = ItemPile.new(func(id: String) -> MeshInstance3D: return Sawmill._plank_mesh(id))
+	_stock_pile.cols = 2
+	_stock_pile.rows = 4
+	_stock_pile.step = Vector3(0.86, 0, 0.3)
+	_stock_pile.layer_h = 0.17
+	_stock_pile.base_y = 0.08
+	_stock_pile.layer_twist_deg = 3.0
+	_stock_pile.position = STOCK_PILE_OFFSET
 	add_child(_stock_pile)
-	_log_pile = Node3D.new()
+	# 丸太の山: 前後に向けて横に6本（1段6本）。数は log_stock と同じ
+	_log_pile = ItemPile.new(func(id: String) -> MeshInstance3D: return Sawmill._pile_log(id))
+	_log_pile.cols = 6
+	_log_pile.step = Vector3(0.23, 0, 0)
+	_log_pile.stagger = Vector3(0.115, 0, 0)
 	_log_pile.position = LOG_PILE_OFFSET
 	add_child(_log_pile)
 	var c1 := Props.crate(0.6)
-	c1.position = Vector3(1.3, 0.14, -2.75)
+	c1.position = Vector3(1.55, 0.14, -2.75)
 	add_child(c1)
 	var c2 := Props.crate(0.45, Color("#d8ab6a"))
-	c2.position = Vector3(1.35, 0.74, -2.75)
+	c2.position = Vector3(1.6, 0.74, -2.75)
 	c2.rotation_degrees.y = 20.0
 	add_child(c2)
 	var signboard := Props.signboard("出荷場", Color("#3b8fe0"))
@@ -115,7 +127,7 @@ func _build_belt() -> void:
 	var to := _stock_pile.position
 	var start := Vector3(from.x + 1.0, 0, from.z)
 	var turn_x := to.x - 2.0
-	var path: Array[Vector3] = [start, Vector3(turn_x, 0, start.z), Vector3(turn_x, 0, to.z), Vector3(to.x - 0.9, 0, to.z)]
+	var path: Array[Vector3] = [start, Vector3(turn_x, 0, start.z), Vector3(turn_x, 0, to.z), Vector3(to.x - 1.15, 0, to.z)]
 	belt = Conveyor.new()
 	belt.path = path
 	belt.rate_source = func() -> float: return GameState.value(BELT_ID)
@@ -241,35 +253,20 @@ func add_log(tree_id: String) -> void:
 	_rebuild_logs()
 
 
+## 板の山のいちばん上（次に置く場所）
 func _pile_top() -> Vector3:
-	return _stock_pile.global_position + Vector3(0, 0.1 + floori(mini(stock.size(), PILE_VISIBLE) / 4.0) * 0.17, 0)
+	return _stock_pile.top_global()
 
 
 func _log_pile_top() -> Vector3:
-	return _log_pile.global_position + Vector3(0, 0.12 + floori(mini(log_stock.size(), PILE_VISIBLE) / 4.0) * 0.2, 0)
+	return _log_pile.top_global()
 
 
-## 荷台の板の山（4枚ずつ互い違いに積む）
+## 荷台の板の山（数は stock と同じ）
 func _rebuild_stock() -> void:
-	for child in _stock_pile.get_children():
-		child.queue_free()
-	for i in mini(stock.size(), PILE_VISIBLE):
-		var col := i % 4
-		var row := floori(i / 4.0)
-		var plank := Sawmill._plank_mesh(stock[i])
-		plank.position = Vector3(0, 0.08 + row * 0.17, (col - 1.5) * 0.26)
-		plank.rotation_degrees.y = 4.0 if row % 2 == 0 else -4.0
-		_stock_pile.add_child(plank)
+	_stock_pile.show_items(stock)
 
 
-## 売りに出した丸太の山（4本ずつ積む）
+## 売りに出した丸太の山（数は log_stock と同じ）
 func _rebuild_logs() -> void:
-	for child in _log_pile.get_children():
-		child.queue_free()
-	for i in mini(log_stock.size(), PILE_VISIBLE):
-		var col := i % 4
-		var row := floori(i / 4.0)
-		var log_mesh := LogDrop.make_log_mesh(log_stock[i], 90.0)
-		log_mesh.scale = Vector3(1.5, 1.0, 1.0)
-		log_mesh.position = Vector3((col - 1.5) * 0.23 + (0.11 if row % 2 == 1 else 0.0), 0.12 + row * 0.2, 0)
-		_log_pile.add_child(log_mesh)
+	_log_pile.show_items(log_stock)

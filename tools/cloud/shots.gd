@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / upgrades_chop / overview は名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -167,3 +167,72 @@ func _shot_road() -> void:
 	cam.global_position = Vector3(13, 22, 12)
 	cam.look_at(Vector3(13, 0, 5), Vector3.UP)
 	await _wait(0.3)
+
+
+## エリア開放の柵と支払いの枠（名前を指定したときだけ撮る: gate）
+func _shot_gate() -> void:
+	_place(Vector3(0, 0, main._area_ranges[1].x + AreaGate.PAD_OFFSET.z + 3.0))
+	await _wait(0.8)
+
+
+## 木の種類ごとの丸太と板を並べる（見分けやすさの確認。名前を指定したときだけ撮る: grades）
+func _shot_grades() -> void:
+	var at: Vector3 = main.PLAYER_SPAWN + Vector3(0, 0, -3.0)
+	var root := Node3D.new()
+	main.add_child(root)
+	for i in GameData.trees.size():
+		var id := str(GameData.trees[i]["id"])
+		var x := (i - 2) * 1.0
+		var log_mesh := LogDrop.make_log_mesh(id, 90.0)
+		log_mesh.position = at + Vector3(x, 0.15, 0)
+		root.add_child(log_mesh)
+		var log2 := LogDrop.make_log_mesh(id, 0.0)
+		log2.position = at + Vector3(x, 0.15, 1.0)
+		root.add_child(log2)
+		var plank := Sawmill._plank_mesh(id)
+		plank.position = at + Vector3(x, 0.1, 1.8)
+		plank.rotation_degrees.y = 90.0
+		root.add_child(plank)
+	_place(main.PLAYER_SPAWN + Vector3(0, 0, 1.5))
+	await _wait(0.5)
+
+
+## 製材所の置き場にたくさん積み、背中にも運搬容量いっぱいに積んだところ（実際の数だけ積めているか。名前を指定したときだけ撮る: piles）
+func _shot_piles() -> void:
+	var ids := ["sapling", "pine", "maple", "oak", "ebony"]
+	for i in 40:
+		main.sawmill.accept_log(ids[i % 5])
+	for i in 30:
+		main.sawmill.output.append(ids[(i / 3) % 5])
+	main.sawmill._rebuild_output()
+	for i in 12:
+		GameState.buy_upgrade("capacity")
+	var stack: CarryStack = main.player.stack
+	var n := 0
+	while not stack.is_full():
+		stack.add({"kind": "log", "tree": ids[n % 5]})
+		n += 1
+	_place(main.SAWMILL_POS + Vector3(0, 0, 1.5))
+	await _wait(0.5)
+
+
+## 出荷場の山にたくさん積んだところ（名前を指定したときだけ撮る: dockpiles）
+func _shot_dockpiles() -> void:
+	var ids := ["sapling", "pine", "maple", "oak", "ebony"]
+	for i in 45:
+		main.dock._add_stock(ids[(i / 2) % 5])
+	for i in 27:
+		main.dock.add_log(ids[i % 5])
+	_place(main.DOCK_POS + Vector3(1.5, 0, 2.0))
+	await _wait(1.5)
+
+
+## 川の集積所にたくさん流れ着いたところ（名前を指定したときだけ撮る: yard）
+func _shot_yard() -> void:
+	var line: LogLine = main.lines["river"]
+	var ids := ["sapling", "pine", "maple", "oak", "ebony"]
+	for i in 33:
+		line._yard.append({"tree": ids[i % 5], "z": line.near_z, "node": null, "from": null})
+	line._rebuild_yard()
+	_place(line.yard_pad_position() + Vector3(1.5, 0, 1.5))
+	await _wait(0.5)
