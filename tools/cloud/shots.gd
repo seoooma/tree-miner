@@ -137,11 +137,11 @@ func _shot_upgrades() -> void:
 	await _wait(0.5)
 
 
-## 強化画面の最初のタブ（伐採。伐採員の役割チップまで見えるよう下へ送る。名前を指定したときだけ撮る: upgrades_chop）
+## 強化画面の仲間タブ（伐採員のカードと役割・狙う木。名前を指定したときだけ撮る: upgrades_chop）
 func _shot_upgrades_chop() -> void:
 	_place(main.PLAYER_SPAWN)
 	main.hud._set_sheet(true)
-	main.hud._select_tab(GameData.upgrade_group_of("axe_power"))
+	main.hud._select_tab(GameData.upgrade_group_of("lumberjack"))
 	await _wait(0.5)
 	main.hud._scroll.scroll_vertical = 100000
 	await _wait(0.3)

@@ -4,7 +4,7 @@ extends CanvasLayer
 ## - 左上: 設定（ギア）。BGM / 効果音のオン・オフはここから開く
 ## - 右上: 所持金のピル
 ## - 下: 乗る／降りる・強化のタイルボタン
-## - 強化画面: 下からせり上がるシート。上のタブ（伐採・運搬・製材・販売・車両。balance.json の upgrade_groups）で切り替え、カード・サムネイル・おすすめ・伐採員の役割チップを出す
+## - 強化画面: 下からせり上がるシート。上のタブ（自分・仲間・乗り物・設備。balance.json の upgrade_groups）で切り替え、カード・サムネイル・おすすめ・伐採員の役割チップを出す
 ## - ワールド表示: プレイヤー頭上の積荷バー、機械の燃料・積荷バー、案内先が画面外のときの端のインジケーター
 ## 表示だけを担当し、ゲームの数値や処理は GameState / 各ノードが持つ。
 
@@ -473,7 +473,7 @@ func _build_sheet() -> void:
 		var m: Dictionary = GameData.machines[kind]
 		_build_card(_page_for(kind), {"id": kind, "name": m.get("name", kind), "desc": m.get("desc", "")})
 
-	# 伐採員の役割は伐採員のカードと同じタブに出す
+	# 伐採員の役割・狙う木は伐採員のカードと同じタブ（仲間）に出す
 	var roles_page := _page_for("lumberjack")
 	_roles_title = UiKit.label("伐採員の役割（タップで切り替え）", 26)
 	roles_page.add_child(_roles_title)
@@ -522,7 +522,7 @@ func _page_for(id: String) -> VBoxContainer:
 	return _pages[_tab_of(id)]
 
 
-## 見出しの下のタブ（伐採・運搬・製材・販売・車両）。選んでいるタブはオレンジ、ほかは灰色
+## 見出しの下のタブ（自分・仲間・乗り物・設備）。選んでいるタブはオレンジ、ほかは灰色
 func _build_tabs() -> void:
 	_groups = _collect_groups()
 	var bar := HBoxContainer.new()

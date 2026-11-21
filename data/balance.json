@@ -112,12 +112,11 @@
 	],
 
 	"upgrade_groups": [
-		{ "_comment": "強化画面のタブ。ゲームの流れの順に並べる。items に強化（upgrades の id）や機械（machines のキー）を入れると、そのタブにカードが出る。どこにも入っていないものは「その他」タブに出る" },
-		{ "id": "chop",   "name": "伐採", "icon": "icon_axe",    "items": ["axe_power", "lumberjack", "lumberjack_capacity"] },
-		{ "id": "carry",  "name": "運搬", "icon": "icon_log",    "items": ["capacity", "move_speed", "river", "conveyor"] },
-		{ "id": "saw",    "name": "製材", "icon": "icon_home",   "items": ["sawmill", "plank_belt"] },
-		{ "id": "sell",   "name": "販売", "icon": "icon_money",  "items": ["dock"] },
-		{ "id": "vehicle", "name": "車両", "icon": "icon_truck", "items": ["harvester", "hauler"] }
+		{ "_comment": "強化画面のタブ。自分 → 仲間（伐採員）→ 乗り物 → 設備（自動で運ぶ・加工する・売るしくみ）の順。items に強化（upgrades の id）や機械（machines のキー）を入れると、そのタブにカードが出る。どこにも入っていないものは「その他」タブに出る" },
+		{ "id": "self",     "name": "自分",   "icon": "icon_axe",    "items": ["axe_power", "capacity", "move_speed"] },
+		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_capacity"] },
+		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler"] },
+		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock"] }
 	],
 
 	"upgrades": [
