@@ -132,6 +132,12 @@ func _render(id: String) -> Texture2D:
 				subject.add_child(item)
 			look = Vector3(0, 0.3, 0)
 			dist = 4.2
+		"harvester", "hauler":
+			var car := Fx.model("res://assets/kenney/car/%s.glb" % Machine.MODELS[id][0])
+			car.rotation_degrees.y = -20.0
+			subject.add_child(car)
+			look = Vector3(0, 0.5, 0)
+			dist = 5.2
 		_:
 			for i in 2:
 				var rig := CharacterRig.new(1.0)

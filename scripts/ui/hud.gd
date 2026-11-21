@@ -20,6 +20,8 @@ const STAT_NAMES := {
 	"dock": "売れる速さ",
 	"plank_belt": "運ぶ速さ",
 	"conveyor": "運ぶ速さ",
+	"harvester": "伐採力",
+	"hauler": "積載量",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -33,6 +35,8 @@ const BADGES := {
 	"dock": "badge_speed",
 	"plank_belt": "badge_speed",
 	"conveyor": "badge_speed",
+	"harvester": "badge_power",
+	"hauler": "badge_capacity",
 }
 
 var player: Player
@@ -103,6 +107,7 @@ func _ready() -> void:
 	joystick.is_blocked = _is_over_ui
 
 	GameState.money_changed.connect(func(_m: int) -> void: _refresh())
+	GameState.machine_changed.connect(func(_k: String, _r: int) -> void: _refresh())
 	GameState.upgrade_changed.connect(func(_id: String, _l: int) -> void:
 		_refresh()
 		_rebuild_roles())
@@ -437,6 +442,12 @@ func _build_sheet() -> void:
 
 	for def in GameData.upgrades:
 		_build_card(list, def)
+	# 機械（伐採機・運搬車）もほかの強化と同じカードで買う。Lv = ランク
+	for kind in GameData.machines:
+		if str(kind).begins_with("_"):
+			continue
+		var m: Dictionary = GameData.machines[kind]
+		_build_card(list, {"id": kind, "name": m.get("name", kind), "desc": m.get("desc", "")})
 
 	_roles_title = UiKit.label("伐採員の役割（タップで切り替え）", 26)
 	list.add_child(_roles_title)
@@ -535,7 +546,8 @@ func _build_card(list: Control, def: Dictionary) -> void:
 	button.pressed.connect(func() -> void:
 		if _tap_suppressed():
 			return
-		if GameState.buy_upgrade(id):
+		var bought := GameState.buy_machine(id) if GameData.machines.has(id) else GameState.buy_upgrade(id)
+		if bought:
 			Audio.play("buy", -2.0)
 			if player:
 				Fx.burst(player, player.global_position + Vector3(0, 1.2, 0), [Color("#ffd84a"), Color("#8fe07a"), Color("#6bc4ff")], 24, 5.0, 0.09, 1.0))
@@ -596,14 +608,15 @@ func _refresh() -> void:
 	var best_id := _recommended()
 	for id in _rows:
 		var row: Dictionary = _rows[id]
-		var lv := GameState.level(id)
+		var is_machine := GameData.machines.has(id)
+		var lv := GameState.machine_rank(id) if is_machine else GameState.level(id)
 		var cells: Array = row["cells"]
 		var button: Button = row["button"]
 		(cells[0] as Label).text = "Lv.%d" % lv
-		(cells[3] as Label).text = GameData.format_upgrade_value(id, lv)
+		(cells[3] as Label).text = _format_value(id, lv)
 		button.add_theme_font_size_override("font_size", 34)
 		button.add_theme_font_override("font", UiKit.font(true))
-		if not GameState.is_available(id):
+		if not is_machine and not GameState.is_available(id):
 			# 先に開放が必要な強化がある（例: 集積所コンベアは川流しのあと）
 			(cells[1] as Label).visible = false
 			(cells[2] as Label).text = ""
@@ -618,7 +631,7 @@ func _refresh() -> void:
 			button.add_theme_font_size_override("font_size", 24)
 			UiKit.skin_button(button, "btn_gray", "", 18, 10)
 			_price_color(button, Color.WHITE, Color("#555555"))
-		elif GameState.is_maxed(id):
+		elif _card_maxed(id):
 			(cells[1] as Label).visible = false
 			(cells[2] as Label).text = ""
 			(cells[4] as Label).visible = false
@@ -632,8 +645,8 @@ func _refresh() -> void:
 			(cells[1] as Label).visible = true
 			(cells[4] as Label).visible = true
 			(cells[2] as Label).text = "Lv.%d" % (lv + 1)
-			(cells[5] as Label).text = GameData.format_upgrade_value(id, lv + 1)
-			var cost := GameState.next_cost(id)
+			(cells[5] as Label).text = _format_value(id, lv + 1)
+			var cost := _card_cost(id)
 			var affordable := GameState.money >= cost
 			button.text = "%d" % cost
 			button.icon = UiKit.icon("icon_money")
@@ -653,22 +666,37 @@ static func _price_color(b: Button, color: Color, outline: Color) -> void:
 	b.add_theme_color_override("font_outline_color", outline)
 
 
-## 「おすすめ」: 今買える強化のうち、値段あたりの伸び（相対的な上がり幅）がいちばん大きいもの。表示だけ。
+## カードの値の表示（強化と機械で共通の形）
+static func _format_value(id: String, lv: int) -> String:
+	if GameData.machines.has(id):
+		return GameData.format_machine_value(id, lv)
+	return GameData.format_upgrade_value(id, lv)
+
+
+static func _card_maxed(id: String) -> bool:
+	return GameState.machine_is_maxed(id) if GameData.machines.has(id) else GameState.is_maxed(id)
+
+
+static func _card_cost(id: String) -> int:
+	return GameState.machine_next_cost(id) if GameData.machines.has(id) else GameState.next_cost(id)
+
+
+## 「おすすめ」: 今買える強化（機械を含む）のうち、値段あたりの伸び（相対的な上がり幅）がいちばん大きいもの。表示だけ。
 func _recommended() -> String:
 	var best := ""
 	var best_score := 0.0
-	for def in GameData.upgrades:
-		var id := str(def["id"])
-		if GameState.is_maxed(id) or not GameState.is_available(id):
+	for id in _rows:
+		var is_machine := GameData.machines.has(id)
+		if _card_maxed(id) or (not is_machine and not GameState.is_available(id)):
 			continue
-		var cost := GameState.next_cost(id)
+		var cost := _card_cost(id)
 		if cost <= 0 or GameState.money < cost:
 			continue
-		var lv := GameState.level(id)
-		var now := GameData.upgrade_value(id, lv)
-		var next := GameData.upgrade_value(id, lv + 1)
+		var lv := GameState.machine_rank(id) if is_machine else GameState.level(id)
+		var now := GameData.machine_stat(id, lv) if is_machine else GameData.upgrade_value(id, lv)
+		var next := GameData.machine_stat(id, lv + 1) if is_machine else GameData.upgrade_value(id, lv + 1)
 		var gain := (next - now) / maxf(absf(now), absf(next - now))
-		if def.get("locked_at_zero", false) and lv == 0:
+		if lv == 0 and (is_machine or GameData.upgrade_def(id).get("locked_at_zero", false)):
 			gain = 1.0
 		var score := gain / float(cost)
 		if score > best_score:

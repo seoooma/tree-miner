@@ -6,7 +6,7 @@ extends Node3D
 ## - 拠点の端まで流れ着いた丸太は、いったん岸の集積所に積まれる
 ## - 集積所の丸太は、最初はプレイヤー（か運搬車）が枠に立って拾い、製材所まで運ぶ
 ## - 強化『集積所コンベア』を開放すると、ベルトコンベアで製材所の丸太置き場へ自動で運ばれる
-##   （1秒あたりの本数は強化レベルで増える。丸太置き場がいっぱいならコンベアは止まり、集積所に溜まる）
+##   （1秒あたりの本数は強化レベルで増える）
 
 const MAX_VISIBLE := 160
 ## 集積所に見た目で積む最大数
@@ -311,7 +311,6 @@ func _build_belt() -> void:
 	belt.path = path
 	belt.rate_source = func() -> float: return GameState.value(CONVEYOR_ID)
 	belt.take_source = take_from_yard
-	belt.room_source = func(n: int) -> bool: return sawmill.has_input_room(n)
 	belt.deliver = func(id: String) -> void: sawmill.accept_log(id)
 	add_child(belt)
 	belt.set_active(false)

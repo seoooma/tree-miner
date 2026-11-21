@@ -1,9 +1,9 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。fuel / upgrades / overview は名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
-const SHOTS := ["home", "chop", "felled", "saw", "sell", "river", "overview"]  # overview はカメラを外すので最後に撮る
+const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
 
 var main: Node3D
 var out_dir := "user://shots"
@@ -109,7 +109,22 @@ func _shot_river() -> void:
 	await _wait(3.0)
 
 
-## 拠点全体を高い所から見下ろす（配置の確認用）
+## 給油所（名前を指定したときだけ撮る: fuel）
+func _shot_fuel() -> void:
+	_place(main.FUEL_POS + Vector3(0, 0, 2.5))
+	await _wait(1.0)
+
+
+## 強化画面の機械のカード（名前を指定したときだけ撮る: upgrades）
+func _shot_upgrades() -> void:
+	_place(main.PLAYER_SPAWN)
+	main.hud._set_sheet(true)
+	await _wait(0.5)
+	main.hud._scroll.scroll_vertical = 100000
+	await _wait(0.3)
+
+
+## 拠点全体を高い所から見下ろす（配置の確認用。名前を指定したときだけ撮る: overview。カメラを外すので最後に撮る）
 func _shot_overview() -> void:
 	_place(main.PLAYER_SPAWN)
 	await _wait(0.5)

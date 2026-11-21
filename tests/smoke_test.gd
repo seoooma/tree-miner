@@ -89,10 +89,15 @@ func _run() -> void:
 	await _wait(1.0)
 	_check(player.stack.count("fuel") > 0, "給油所で燃料缶を受け取れる (%d個)" % player.stack.count("fuel"))
 
-	# 6. 伐採機を買う
-	await _walk_to(main.SHOP_POS["harvester"], 0.4)
-	await _wait(3.0)
-	_check(main.machines.has("harvester"), "購入パッドで伐採機を買うと出現する")
+	# 6. 伐採機を買う（ほかの強化と同じく、強化画面のカードのボタンで買う）
+	_check(not main.has_node("MachineShop") and get_tree().get_nodes_in_group("machines").is_empty(), "最初は機械が無い")
+	_check(main.hud._rows.has("harvester") and main.hud._rows.has("hauler"), "強化画面に伐採機・運搬車のカードがある")
+	GameState.money = maxi(GameState.money, GameState.machine_next_cost("harvester"))
+	var money_before_machine := GameState.money
+	_press_card("harvester")
+	await _wait(0.5)
+	_check(main.machines.has("harvester") and GameState.money == money_before_machine - int(GameData.machine_rank("harvester", 1)["cost"]), "強化画面で伐採機を買うと出現する")
+	_check(_card_text("harvester", 0) == "Lv.1" and _card_text("harvester", 2) == "Lv.2", "伐採機のカードはほかの強化と同じく Lv で表示される")
 	if not main.machines.has("harvester"):
 		return
 	var harvester: Machine = main.machines["harvester"]
@@ -134,8 +139,9 @@ func _run() -> void:
 	_check(harvester.fuel > 0.0, "燃料缶を持って近づくと補給される (燃料 %.0f)" % harvester.fuel)
 
 	# 9. 運搬車を買って、落ちている丸太を集めて製材所へ
-	await _walk_to(main.SHOP_POS["hauler"], 0.4)
-	await _wait(3.0)
+	GameState.money = maxi(GameState.money, GameState.machine_next_cost("hauler"))
+	_press_card("hauler")
+	await _wait(0.5)
 	_check(main.machines.has("hauler"), "運搬車を買える")
 	if not main.machines.has("hauler"):
 		return
@@ -154,7 +160,6 @@ func _run() -> void:
 			break
 		await _drive_to(drop.global_position, 1.0)
 	_check(hauler.stack.count("log") > 0, "運搬車で落ちた丸太を拾える (%d本)" % hauler.stack.count("log"))
-	# 製材所の丸太置き場がいっぱいだと降ろせないので空けておく
 	main.sawmill.queue.clear()
 	main.sawmill.output.clear()
 	var queue_before: int = main.sawmill.queue.size()
@@ -167,10 +172,17 @@ func _run() -> void:
 	_check(hauler.stack.count("log") == 0 and main.sawmill.queue.size() > queue_before, "運搬車から製材所に丸太を降ろせる")
 	player.exit_vehicle()
 
-	# 10. ランクアップ
-	await _walk_to(main.SHOP_POS["hauler"], 0.4)
-	await _wait(4.0)
-	_check(hauler.rank == 2, "購入パッドで運搬車をランクアップできる（1回で1ランクだけ）")
+	# 10. ランクアップ（強化画面のボタン1回で1ランク）
+	GameState.money = GameState.machine_next_cost("hauler") * 3
+	_press_card("hauler")
+	await _wait(0.5)
+	_check(hauler.rank == 2 and GameState.machine_rank("hauler") == 2, "強化画面で運搬車をランクアップできる（1回で1ランクだけ）")
+	_check(hauler.stack.capacity() == int(GameData.machine_rank("hauler", 2)["capacity"]) and _card_text("hauler", 3) == "%d本" % int(GameData.machine_rank("hauler", 2)["capacity"]), "ランクアップで積載量が上がり、カードに表示される")
+	GameState.money = 0
+	_press_card("hauler")
+	await _wait(0.2)
+	_check(hauler.rank == 2, "お金が足りないとランクアップできない")
+	GameState.money = GameState.gate_remaining(1)
 
 	# 11. エリア開放
 	var gate_pad := Vector3(0, 0, main._area_ranges[1].x + AreaGate.PAD_OFFSET.z)
@@ -261,24 +273,30 @@ func _run() -> void:
 	_check(river.belt.delivered == d0 + 4 and river.yard_count() == 0, "集積所コンベアで製材所に届く (%.1f秒)" % (frames / 60.0))
 	_check(frames / 60.0 >= 3.0 / GameState.value("conveyor"), "コンベアは1秒あたりの本数に限りがある (%.2f本/秒)" % GameState.value("conveyor"))
 
-	# 18. 丸太置き場がいっぱいだと、投入口でもコンベアでも受け取らない
-	while main.sawmill.queue.size() < main.sawmill.input_max():
+	# 18. 置き場に上限は無い: たくさん溜まっていても、投入口でもコンベアでも受け取り、加工も続く
+	const MANY := 80
+	main.sawmill.queue.clear()
+	for i in MANY:
 		main.sawmill.queue.append("pine")
 	main.sawmill._rebuild_input()
+	main.sawmill.output.resize(MANY)
+	main.sawmill.output.fill("pine")
+	main.sawmill._rebuild_output()
 	for i in 2:
 		river._yard.append({"tree": "pine", "z": 0.0, "node": null, "from": null})
 	_empty_hands()
 	player.stack.add({"kind": "log", "tree": "pine"})
-	# 加工を止めて置き場をいっぱいのままにする
-	var saw_level := GameState.level("sawmill")
-	main.sawmill.output.resize(main.sawmill.output_max())
-	main.sawmill.output.fill("pine")
-	await _wait(2.0)
-	_check(river.yard_count() == 2, "丸太置き場がいっぱいだとコンベアは止まり、集積所に溜まる")
+	frames = 0
+	while (river.yard_count() > 0 or river.belt.in_flight() > 0) and frames < 60 * 20:
+		await get_tree().physics_frame
+		frames += 1
+	_check(river.yard_count() == 0 and river.belt.in_flight() == 0, "丸太置き場に%d本あってもコンベアは止まらない" % MANY)
 	await _walk_to(main.sawmill.input_position(), 0.5)
 	await _wait(1.0)
-	_check(player.stack.count("log") == 1, "丸太置き場がいっぱいだと投入口で渡せない")
-	_check(main.sawmill.queue.size() == main.sawmill.input_max(), "出口がいっぱいだと加工が止まる (Lv%d)" % saw_level)
+	_check(player.stack.count("log") == 0, "丸太置き場がたくさんでも投入口で渡せる")
+	_check(main.sawmill.output.size() > MANY, "出口に板がたくさんあっても加工は続く (%d枚)" % main.sawmill.output.size())
+	_check(main.sawmill._input_pile.get_child_count() <= Sawmill.PILE_VISIBLE and main.sawmill._output_pile.get_child_count() <= Sawmill.PILE_VISIBLE, "山の見た目は一定の数まで")
+	_check(not main.sawmill._input_zone._title.text.contains("満杯"), "「満杯」の表示は出ない")
 	_empty_hands()
 
 	# 19. 加工と見た目: 丸太置き場の丸太の数は加工待ちと同じで、加工されると消える
@@ -295,7 +313,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 		frames += 1
 	await get_tree().process_frame
-	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.get_child_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる")
+	_check(main.sawmill.queue.is_empty() and main.sawmill._input_pile.get_child_count() == 0 and main.sawmill.output.size() == 3, "板に加工された丸太は丸太置き場から消え、出口に板が積まれる (%d枚)" % main.sawmill.output.size())
 	_check(frames / 60.0 >= 2.0 / GameState.value("sawmill"), "加工には時間がかかる (%.1f秒で3本)" % (frames / 60.0))
 
 	# 20. 板のコンベアを開放すると、製材所の板が出荷場へ運ばれて売れていく
@@ -312,14 +330,13 @@ func _run() -> void:
 	await get_tree().process_frame
 	_check(main.dock._stock_pile.get_child_count() == 0, "売れた板は出荷場に残らない")
 
-	# 21. 出荷場の荷台がいっぱいだと板を受け取らない
-	while main.dock.stock.size() < main.dock.stock_max():
+	# 21. 出荷場の荷台にも上限は無い
+	while main.dock.stock.size() < MANY:
 		main.dock.stock.append("pine")
-	var dock_speed := GameState.level("dock")
 	player.stack.add({"kind": "plank", "tree": "pine"})
 	player.global_position = main.DOCK_POS
 	await _wait(0.3)
-	_check(player.stack.count("plank") == 1, "出荷場がいっぱいだと板を置けない (Lv%d)" % dock_speed)
+	_check(player.stack.count("plank") == 0, "出荷場に%d枚あっても板を置ける" % MANY)
 	_empty_hands()
 
 	# 22. 在庫はセーブに入る
@@ -356,6 +373,18 @@ func _chop_down(tree: ChoppableTree) -> void:
 		await get_tree().physics_frame
 		frames += 1
 	player.joystick_vector = Vector2.ZERO
+
+
+## 強化画面のカードのボタンを押す
+func _press_card(id: String) -> void:
+	main.hud._refresh()
+	(main.hud._rows[id]["button"] as Button).pressed.emit()
+
+
+## カードの値の表示（0 = 今の Lv, 2 = 次の Lv, 3 = 今の値, 5 = 次の値）
+func _card_text(id: String, cell: int) -> String:
+	main.hud._refresh()
+	return (main.hud._rows[id]["cells"][cell] as Label).text
 
 
 func _gather_until_full() -> void:
