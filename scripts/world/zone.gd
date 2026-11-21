@@ -1,12 +1,12 @@
 class_name Zone
 extends Node3D
-## 地面に描く受け渡し場所の印（白く太い角丸の枠＋中の文字＋下の小さな文字）。
+## 地面に描く受け渡し場所の印（施設ごとの色の角丸プレート＋白い枠＋中の文字＋下の小さな文字）。
 ## 例: 「積み込み」「製材中」と、その下に「積載量: 3」。見た目だけで、判定は各 Station の半径で行う。
 
 const OUTLINE := Color(1, 1, 1, 0.95)
 const TEXT_OUTLINE := Color(0.08, 0.06, 0.04, 1.0)
-const TITLE_PX := 0.0062
-const SUB_PX := 0.0046
+const TITLE_PX := 0.0052
+const SUB_PX := 0.0042
 
 var size := Vector2(3.0, 3.0)
 var fill := Color(1, 1, 1, 0.12)
@@ -24,17 +24,18 @@ func _init(p_size := Vector2(3.0, 3.0), p_fill := Color(1, 1, 1, 0.12)) -> void:
 func _ready() -> void:
 	_fill_mi = MeshInstance3D.new()
 	_fill_mi.mesh = _rounded_rect_mesh(size, 0.45, 0.0)
-	_fill_mi.material_override = Mats.ground_paint(fill)
+	_fill_mi.material_override = Mats.ground_paint(_plate(fill))
 	_fill_mi.position.y = 0.025
 	_fill_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_fill_mi)
 	var ring := MeshInstance3D.new()
-	ring.mesh = _rounded_rect_mesh(size, 0.45, 0.16)
+	ring.mesh = _rounded_rect_mesh(size, 0.45, 0.13)
 	ring.material_override = Mats.ground_paint(OUTLINE)
 	ring.position.y = 0.03
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ring)
 	_title = _flat_label(Vector3(0, 0.05, 0), 96, TITLE_PX)
+	_title.outline_modulate = Color(fill.r, fill.g, fill.b).darkened(0.6)
 	add_child(_title)
 	_sub = _flat_label(Vector3(0, 0.05, size.y * 0.5 + 0.42), 72, SUB_PX)
 	add_child(_sub)
@@ -54,7 +55,12 @@ func set_text(title: String, sub := "") -> void:
 
 func set_fill(color: Color) -> void:
 	if _fill_mi:
-		_fill_mi.material_override = Mats.ground_paint(color)
+		_fill_mi.material_override = Mats.ground_paint(_plate(color))
+
+
+## 呼び出し側の薄い塗り色を、はっきり色のわかるプレートの色にする（色は同じで、濃さだけ上げる）。
+static func _plate(c: Color) -> Color:
+	return Color(c.r, c.g, c.b, clampf(c.a * 3.2, 0.3, 0.62))
 
 
 static func _fit(text: String, font_size: int, px: float, max_width: float) -> float:
@@ -75,7 +81,7 @@ static func _flat_label(pos: Vector3, font_size: int, px: float) -> Label3D:
 	l.rotation_degrees.x = -90.0
 	l.font_size = font_size
 	l.pixel_size = px
-	l.outline_size = 22
+	l.outline_size = 16
 	l.outline_modulate = TEXT_OUTLINE
 	l.modulate = Color.WHITE
 	l.double_sided = false

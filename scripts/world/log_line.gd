@@ -290,7 +290,7 @@ func _build_end() -> void:
 	_visual.add_child(_yard_zone)
 	_yard_station = Station.new()
 	add_child(_yard_station)
-	var signboard := Props.signboard("川流し 集積所")
+	var signboard := Props.signboard("川流し 集積所", Color("#2bb0c2"))
 	signboard.position = Vector3(x - 1.6, 0, near_z + 3.2)
 	signboard.rotation_degrees.y = 30.0
 	signboard.scale = Vector3.ONE * 0.9

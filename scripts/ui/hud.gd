@@ -76,6 +76,7 @@ var _suppress_tap_until := 0
 var _carry_root: Control
 var _carry_bar: UiKit.Bar
 var _carry_text: Label
+var _carry_count := 0
 var _machine_bars: Dictionary = {}  # Machine -> {root, fuel, cargo, warn}
 var _edge: Control
 var _edge_icon: TextureRect
@@ -211,7 +212,7 @@ func _update_sound_buttons() -> void:
 # ================================================================ 下部のタイルボタン
 
 func _build_bottom_tiles() -> void:
-	_board_button = UiKit.tile_button("icon_truck", "乗る")
+	_board_button = UiKit.tile_button("icon_truck", "乗る", Vector2(140, 140), Color("#3b8fe0"))
 	_board_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_board_button.offset_left = 24
 	_board_button.offset_top = -164
@@ -222,7 +223,7 @@ func _build_bottom_tiles() -> void:
 	_root.add_child(_board_button)
 
 	# 燃料缶を捨てる（徒歩で缶を持っているときだけ出る）
-	_discard_button = UiKit.tile_button("icon_fuel", "缶を捨てる")
+	_discard_button = UiKit.tile_button("icon_fuel", "缶を捨てる", Vector2(140, 140), Color("#e8573a"))
 	_discard_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_discard_button.offset_left = 24
 	_discard_button.offset_top = -324
@@ -749,13 +750,13 @@ func _build_world_overlay() -> void:
 	# プレイヤー頭上の積荷バー「積荷 (5/19)」。満杯で赤くなり「最大」
 	_carry_root = Control.new()
 	_carry_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_carry_root.size = Vector2(210, 34)
+	_carry_root.size = Vector2(160, 28)
 	_root.add_child(_carry_root)
-	_carry_bar = UiKit.Bar.new(Color("#F2C230"), Vector2(210, 34))
+	_carry_bar = UiKit.Bar.new(Color("#F2C230"), Vector2(160, 28))
 	_carry_root.add_child(_carry_bar)
-	_carry_text = UiKit.label("", 22, false, Color.WHITE, 8)
+	_carry_text = UiKit.label("", 19, false, Color.WHITE, 7)
 	_carry_text.position = Vector2.ZERO
-	_carry_text.size = Vector2(210, 34)
+	_carry_text.size = Vector2(160, 28)
 	_carry_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_carry_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_carry_root.add_child(_carry_text)
@@ -786,6 +787,7 @@ func _build_world_overlay() -> void:
 
 
 func _on_carry_changed(count: int, cap: int) -> void:
+	_carry_count = count
 	_carry_bar.fill = float(count) / maxf(1.0, float(cap))
 	var full := count >= cap
 	_carry_bar.color = Color("#E04040") if full else Color("#F2C230")
@@ -798,7 +800,8 @@ func _update_world_overlay() -> void:
 		return
 	# 積荷バー
 	var head := player.global_position + Vector3(0, 2.35, 0)
-	_carry_root.visible = player.vehicle == null and not cam.is_position_behind(head)
+	# 何も持っていないときは出さない（地面の受け渡し場所の文字と重ならないように）
+	_carry_root.visible = player.vehicle == null and _carry_count > 0 and not cam.is_position_behind(head)
 	if _carry_root.visible:
 		_carry_root.position = (cam.unproject_position(head) - Vector2(_carry_root.size.x * 0.5, 0)).round()
 

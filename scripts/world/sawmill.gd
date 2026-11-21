@@ -139,31 +139,37 @@ func _build() -> void:
 ## 強化画面のサムネイルでも使う。回転するノコギリを返す。
 static func build_bench(root: Node3D) -> MeshInstance3D:
 	# 作業列の下の板敷きの床（出荷場の桟橋と同じ色）
-	root.add_child(Fx.box(Vector3(7.0, DECK_Y, 1.7), Color("#a8834f"), Vector3(0, DECK_Y * 0.5, ROW_Z), "wood"))
+	root.add_child(Fx.box(Vector3(7.0, DECK_Y, 1.7), Color("#c99a5e"), Vector3(0, DECK_Y * 0.5, ROW_Z), "wood"))
 	for i in 15:
-		root.add_child(Fx.box(Vector3(0.03, 0.02, 1.7), Color("#7a5a33"), Vector3(-3.5 + i * 0.5, DECK_Y + 0.005, ROW_Z)))
-	# 製材台（脚付きの台と、台を貫く丸ノコ）
+		root.add_child(Fx.box(Vector3(0.03, 0.02, 1.7), Color("#9a7040"), Vector3(-3.5 + i * 0.5, DECK_Y + 0.005, ROW_Z)))
+	# 製材機: 赤い本体の上に鋼の台、台を貫く丸ノコと黄色のカバー。両端に丸太を送るローラー
 	var bench := Node3D.new()
 	bench.position = BENCH_OFFSET + Vector3(0, DECK_Y, 0)
 	root.add_child(bench)
-	bench.add_child(Fx.box(Vector3(2.3, 0.12, 0.8), Color("#7a4a2a"), Vector3(0, 0.66, 0), "wood"))
-	bench.add_child(Fx.box(Vector3(2.3, 0.06, 0.06), Color("#5a3820"), Vector3(0, 0.75, -0.37), "wood"))
-	bench.add_child(Fx.box(Vector3(2.3, 0.06, 0.06), Color("#5a3820"), Vector3(0, 0.75, 0.37), "wood"))
-	for x in [-1.0, 1.0]:
-		for z in [-0.32, 0.32]:
-			bench.add_child(Fx.box(Vector3(0.1, 0.6, 0.1), Color("#5a3820"), Vector3(x, 0.3, z), "wood"))
-	# モーターの箱
-	bench.add_child(Fx.box(Vector3(0.5, 0.42, 0.5), Color("#3d4247"), Vector3(0, 0.3, 0), "metal"))
-	var blade := Fx.cylinder(0.32, 0.04, Color("#c9ced3"), Vector3(0, 0.72, 0), -1.0, 16, false, "metal")
+	var body := Color("#e8573a")
+	bench.add_child(Fx.box(Vector3(1.5, 0.62, 0.86), body, Vector3(0, 0.31, 0), "metal"))
+	bench.add_child(Fx.box(Vector3(1.56, 0.08, 0.92), body.darkened(0.25), Vector3(0, 0.04, 0), "metal"))
+	bench.add_child(Fx.box(Vector3(2.4, 0.1, 0.9), Color("#cfd6de"), Vector3(0, 0.67, 0), "metal"))
+	for x in [-1.05, 1.05]:
+		bench.add_child(Fx.box(Vector3(0.12, 0.62, 0.12), Color("#59616b"), Vector3(x, 0.31, 0), "metal"))
+		var roller := Fx.cylinder(0.07, 0.8, Color("#59616b"), Vector3(x, 0.76, 0), -1.0, 10, false, "metal")
+		roller.rotation_degrees.x = 90.0
+		bench.add_child(roller)
+	var blade := Fx.cylinder(0.36, 0.04, Color("#e6eaee"), Vector3(0, 0.74, 0), -1.0, 20, false, "metal")
 	blade.rotation_degrees.z = 90.0
 	blade.rotation_degrees.y = 90.0
 	bench.add_child(blade)
 	# ノコギリの上のカバー（黄色）と、奥から支える柱
-	bench.add_child(Fx.box(Vector3(0.78, 0.12, 0.14), Color("#e0b52a"), Vector3(0, 1.1, 0), "metal"))
-	bench.add_child(Fx.box(Vector3(0.08, 0.5, 0.08), Color("#e0b52a"), Vector3(0, 0.95, -0.36), "metal"))
-	bench.add_child(Fx.box(Vector3(0.08, 0.08, 0.36), Color("#e0b52a"), Vector3(0, 1.16, -0.2), "metal"))
+	var hood := Color("#ffc23d")
+	bench.add_child(Fx.box(Vector3(0.84, 0.16, 0.2), hood, Vector3(0, 1.12, 0), "metal"))
+	bench.add_child(Fx.box(Vector3(0.1, 0.5, 0.1), hood, Vector3(0, 0.96, -0.38), "metal"))
+	bench.add_child(Fx.box(Vector3(0.1, 0.1, 0.38), hood, Vector3(0, 1.17, -0.2), "metal"))
+	# 操作盤
+	bench.add_child(Fx.box(Vector3(0.3, 0.26, 0.06), Color("#3a4250"), Vector3(0.55, 0.4, 0.45), "metal"))
+	bench.add_child(Fx.box(Vector3(0.08, 0.08, 0.04), Color("#5bd15b"), Vector3(0.5, 0.42, 0.49)))
+	bench.add_child(Fx.box(Vector3(0.08, 0.08, 0.04), Color("#ff4d4d"), Vector3(0.62, 0.42, 0.49)))
 	# 看板（出荷場と同じ形）
-	var signboard := Props.signboard("製材所")
+	var signboard := Props.signboard("製材所", Color("#e8573a"))
 	signboard.position = BENCH_OFFSET + Vector3(0, 0, -1.2)
 	root.add_child(signboard)
 	return blade
@@ -305,7 +311,8 @@ func _rebuild_input() -> void:
 
 static func _plank_mesh(tree_id: String) -> MeshInstance3D:
 	var def := GameData.tree_def(tree_id)
-	var color := Color(def.get("trunk_color", "#a77a4f")).lightened(0.45)
+	# 板は木の種類の色を明るい黄みの木肌に寄せる（青みの環境光でくすまないように）
+	var color := Color(def.get("trunk_color", "#a77a4f")).lerp(Color("#f6cf8e"), 0.7)
 	return Fx.box(Vector3(0.9, 0.16, 0.3), color, Vector3.ZERO, "wood")
 
 
