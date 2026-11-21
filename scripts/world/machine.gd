@@ -22,6 +22,10 @@ var _saw: Node3D
 var _chop_timer := 0.0
 var _refuel_timer := 0.0
 var _wheels: Array[Node] = []
+## 排気の煙・走ったときの土ぼこり・伐採中のおがくず
+var _exhaust: CPUParticles3D
+var _dust: CPUParticles3D
+var _cut_fx: CPUParticles3D
 
 
 func _ready() -> void:
@@ -56,6 +60,36 @@ func _ready() -> void:
 		stack.rotation_degrees.y = 90.0
 		add_child(stack)
 	_build_visual()
+	_build_effects()
+
+
+func _build_effects() -> void:
+	_exhaust = Vfx.make_smoke(10, 0.28, Color(0.36, 0.36, 0.38))
+	_exhaust.position = Vector3(0.42, 1.25, -0.75)
+	_exhaust.emitting = false
+	add_child(_exhaust)
+	_dust = Vfx.make_smoke(10, 0.5, Color("#d6c6a2"))
+	_dust.position = Vector3(0, 0.15, -1.1)
+	_dust.direction = Vector3(0, 0.6, -1)
+	_dust.gravity = Vector3(0, 0.2, 0)
+	_dust.emitting = false
+	add_child(_dust)
+	if kind == "harvester":
+		_cut_fx = Vfx.make_sawdust(Vector3(0, 0.8, -0.6).normalized())
+		_cut_fx.position = Vector3(0, 0.75, 1.75)
+		_cut_fx.emitting = false
+		add_child(_cut_fx)
+
+
+func _update_effects(cutting: bool) -> void:
+	var engine_on := driver != null and fuel > 0.0
+	if _exhaust.emitting != engine_on:
+		_exhaust.emitting = engine_on
+	var rolling := velocity.length() > 1.0
+	if _dust.emitting != rolling:
+		_dust.emitting = rolling
+	if _cut_fx and _cut_fx.emitting != cutting:
+		_cut_fx.emitting = cutting
 
 
 func spec() -> Dictionary:
@@ -155,9 +189,11 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	position.y = 0.0
 
+	var cutting := false
 	if driver and has_fuel:
 		if kind == "harvester":
-			working = _update_harvest(delta) or working
+			cutting = _update_harvest(delta)
+			working = cutting or working
 		elif kind == "hauler":
 			LogDrop.collect_near(self, stack, float(spec().get("pickup_radius", 2.5)))
 
@@ -169,6 +205,7 @@ func _physics_process(delta: float) -> void:
 	for w in _wheels:
 		(w as Node3D).rotate_object_local(Vector3.RIGHT, spin)
 
+	_update_effects(cutting)
 	_refuel_from_player(delta)
 	_update_label()
 	_save_state()

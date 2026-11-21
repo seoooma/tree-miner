@@ -155,29 +155,58 @@ uniform sampler2D bark_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D bark_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D leaf_noise : filter_linear_mipmap, repeat_enable;
 uniform bool use_custom = true;
+uniform float wind = 1.0;
 varying vec3 lpos;
 varying float leaf;
 varying vec3 tint;
+varying float ao;
 void vertex() {
 	lpos = VERTEX;
 	leaf = COLOR.a;
 	tint = vec3(1.0);
+	// 葉のかたまりの下側・内側は暗く（簡易的な環境遮蔽）。幹は根元と樹冠の下を少し暗く
+	if (leaf > 0.75) {
+		ao = mix(0.62, 1.06, smoothstep(-0.7, 0.85, NORMAL.y));
+	} else {
+		ao = mix(0.72, 1.0, smoothstep(0.0, 0.35, VERTEX.y));
+	}
+	if (use_custom) {
+		// 風で揺れる（高い所ほど大きく。木ごとに位相をずらす）。風向きはワールドの +X 寄り
+		vec3 origin = MODEL_MATRIX[3].xyz;
+		float ph = origin.x * 0.37 + origin.z * 0.23;
+		float t = TIME * 1.25 + ph;
+		float h = max(VERTEX.y, 0.0);
+		float bend = (sin(t) * 0.65 + sin(t * 2.17 + 1.3) * 0.25 + 0.35) * h * h * 0.016 * wind;
+		vec3 wdir = (vec4(1.0, 0.0, 0.4, 0.0) * MODEL_MATRIX).xyz;
+		wdir /= max(dot(wdir, wdir), 0.0001);
+		VERTEX += wdir * bend;
+		// 葉のさざめき（位置だけで決めるので、面のつなぎ目は離れない）
+		if (leaf > 0.75) {
+			VERTEX.xz += sin(TIME * 3.7 + dot(VERTEX, vec3(4.1, 5.3, 3.7)) + ph) * 0.018 * wind;
+		}
+	}
 }
 void fragment() {
 	if (leaf > 0.25 && leaf < 0.75) {
+		// 木口（年輪）
 		float r = length(lpos.xz);
-		ALBEDO = COLOR.rgb * (0.9 + 0.1 * sin(r * 90.0));
+		ALBEDO = COLOR.rgb * (0.88 + 0.12 * sin(r * 90.0));
 		ROUGHNESS = 0.9;
 	} else if (leaf <= 0.25) {
 		vec2 uv = vec2(atan(lpos.x, lpos.z) * 0.477, lpos.y * 0.9);
-		ALBEDO = COLOR.rgb * texture(bark_tex, uv).rgb * 1.15;
+		ALBEDO = COLOR.rgb * texture(bark_tex, uv).rgb * 1.15 * ao;
 		NORMAL_MAP = texture(bark_nrm, uv).rgb;
 		ROUGHNESS = 0.92;
 	} else {
 		float n = texture(leaf_noise, lpos.xz * 0.6 + vec2(lpos.y * 0.45)).r;
-		ALBEDO = COLOR.rgb * tint * (0.78 + 0.42 * n);
+		float n2 = texture(leaf_noise, lpos.xz * 2.1 - vec2(lpos.y * 1.3)).r;
+		vec3 col = COLOR.rgb * tint * (0.74 + 0.36 * n + 0.14 * (n2 - 0.5)) * ao;
+		ALBEDO = col;
 		ROUGHNESS = 0.8;
 		SPECULAR = 0.3;
+		// 輪郭がうっすら明るい（逆光で葉が透ける感じ）
+		float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+		EMISSION = col * rim * vec3(0.45, 0.5, 0.25);
 	}
 }
 """
@@ -187,6 +216,39 @@ void fragment() {
 		m.set_shader_parameter("bark_nrm", tex("bark_normal.png"))
 		m.set_shader_parameter("leaf_noise", tex("leaf_noise.png"))
 		m.set_shader_parameter("use_custom", use_custom)
+		return m)
+
+
+## 草・花（風でそよぐ）。color を指定すると単色、Color(0,0,0,0) なら頂点カラーを使う。
+## 根元ほど暗くして、地面から生えている感じを出す。
+static func foliage(color := Color(0, 0, 0, 0)) -> ShaderMaterial:
+	return _cached_mat("foliage/%s" % color.to_html(), func() -> Material:
+		var sh := Shader.new()
+		sh.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform vec4 base_color : source_color = vec4(0.0);
+uniform float height = 0.3;
+varying float h;
+void vertex() {
+	h = clamp(VERTEX.y / height, 0.0, 1.0);
+	vec3 origin = MODEL_MATRIX[3].xyz;
+	float ph = origin.x * 0.9 + origin.z * 0.6;
+	float sway = sin(TIME * 2.1 + ph) * 0.6 + sin(TIME * 3.3 + ph * 1.7) * 0.3 + 0.3;
+	vec3 wdir = (vec4(0.93, 0.0, 0.37, 0.0) * MODEL_MATRIX).xyz;
+	wdir /= max(dot(wdir, wdir), 0.0001);
+	VERTEX += wdir * sway * h * h * 0.07;
+}
+void fragment() {
+	vec3 c = base_color.a > 0.0 ? base_color.rgb : COLOR.rgb;
+	ALBEDO = c * mix(0.55, 1.08, h);
+	ROUGHNESS = 0.85;
+	SPECULAR = 0.25;
+}
+"""
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.set_shader_parameter("base_color", color)
 		return m)
 
 

@@ -64,6 +64,8 @@ glTF → GLB に変換だけしています（形状・アニメーションは�
 | 木・施設・丸太・看板などのモデル | コード内でプリミティブを組み合わせて生成（`scripts/world/`） |
 | `assets/textures/metal_detail.png`, `paint_detail.png`, `leaf_noise.png`（金属・塗装のムラ、葉のノイズ） | `tools/make_textures.py` でノイズから生成（numpy + Pillow） |
 | `assets/ui/*.png`（アイコン・ボタン・カード・見出しの下地） | 同上 |
+| パーティクル演出（木くず・葉・土ぼこり・おがくず・火花・煙・水しぶき・きらめき）のテクスチャとメッシュ | `scripts/vfx.gd` がゲーム起動時にコードで生成（外部素材なし） |
+| 木・草の風の揺れ、川の水面、葉の陰影 | `scripts/world/mats.gd`・`scripts/world/log_line.gd` のシェーダー |
 | 作業着の配色（キャラクターの塗り替え） | `scripts/world/character_rig.gd` と `scripts/world/mats.gd` で Quaternius のモデルの色を置き換え |
 
 
