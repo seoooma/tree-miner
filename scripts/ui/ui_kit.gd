@@ -88,10 +88,30 @@ static func skin_button(b: Button, normal: String, pressed := "", margin := 18, 
 
 
 ## 四角いタイル型ボタン（濃い灰色・明るい縁・内側の面取り・アイコン＋小さな縁取り文字）。押すと 3px 沈む。
-static func tile_button(icon_name: String, text: String, size := Vector2(140, 140)) -> Button:
+## 角丸の立体ボタンの下地（上面の色 color、下に厚みの濃い帯。押すと沈む）。画像を使わないのでどの大きさでもくっきり。
+static func flat_skin(b: Button, color: Color, radius := 26) -> void:
+	for state in ["normal", "hover", "disabled", "pressed", "hover_pressed"]:
+		var pressed: bool = state.contains("pressed")
+		var st := StyleBoxFlat.new()
+		st.bg_color = color
+		st.set_corner_radius_all(radius)
+		st.border_color = color.darkened(0.32)
+		st.border_width_bottom = 3 if pressed else 10
+		st.border_width_left = 0
+		st.border_width_right = 0
+		st.border_width_top = 0
+		st.expand_margin_top = -7.0 if pressed else 0.0
+		st.shadow_color = Color(0, 0, 0, 0.25)
+		st.shadow_size = 0 if pressed else 6
+		st.shadow_offset = Vector2(0, 4)
+		st.anti_aliasing = true
+		b.add_theme_stylebox_override(state, st)
+
+
+static func tile_button(icon_name: String, text: String, size := Vector2(140, 140), color := Color("#ff9d1e")) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = size
-	skin_button(b, "tile", "tile_pressed", 20, 10)
+	flat_skin(b, color)
 	b.focus_mode = Control.FOCUS_NONE
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)

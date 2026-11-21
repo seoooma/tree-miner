@@ -23,10 +23,9 @@ kenney.nl はこの開発環境からの自動ダウンロードを受け付け�
 | 素材 | 出典 | 使っている場所 |
 |---|---|---|
 | `assets/kenney/car/tractor.glb`, `tractor-shovel.glb` | [Car Kit 3.1](https://opengameart.org/content/car-kit) | 伐採機（Mk1 / Mk2・Mk3。ショベルは隠してノコギリを付けている） |
-| `assets/kenney/car/truck.glb`, `truck-flat.glb`, `delivery-flat.glb` | 同上 | 運搬車（Mk1 / Mk2 / Mk3） |
+| `assets/kenney/car/truck.glb`, `truck-flat.glb`, `delivery-flat.glb` | 同上 | 運搬車（Mk1 / Mk2 / Mk3）・出荷場に停めたトラック |
 | `assets/kenney/survival/tool-axe.glb` | [Survival Kit](https://opengameart.org/content/survival-kit) | 人物が持つ斧・強化画面の斧 |
-| `assets/kenney/survival/rock-a.glb`, `rock-c.glb` | 同上 | 地面の岩 |
-| `assets/kenney/nature/*.glb` | [Nature Kit 2.1](https://opengameart.org/content/nature-kit) | 木（種類ごとに色を塗り替え）・切り株・草・花など。ライセンス文は `assets/kenney/nature/License.txt` |
+| `assets/kenney/nature/*.glb` | [Nature Kit 2.1](https://opengameart.org/content/nature-kit) | 木（種類ごとに色を塗り替え）・切り株・草・花・岩など。ライセンス文は `assets/kenney/nature/License.txt` |
 
 ## 人物モデル（Quaternius / CC0）
 

@@ -2,7 +2,6 @@ class_name Decor
 ## 地面の飾り（草・花・石・道・マップ外の森）。当たり判定は無く、MultiMesh でまとめて描画する。
 
 const NATURE := "res://assets/kenney/nature/"
-const ROCK_MODELS := ["res://assets/kenney/survival/rock-a.glb", "res://assets/kenney/survival/rock-c.glb"]
 
 
 static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, base_depth: float, seed_value: int) -> void:
@@ -64,12 +63,12 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), p))
 		_multimesh(parent, head, xf, Mats.foliage(), false)
 
-	# 石（Kenney Survival Kit の岩を2種類）
+	# 石（Kenney Nature Kit の岩。上に草が載っている。色はパレットに合わせる）
 	var rocks: Array[Mesh] = []
-	for path in ROCK_MODELS:
-		var m := _first_mesh(Fx.model(path))
-		if m:
-			rocks.append(m)
+	for n in ["rock_largeA", "rock_largeB", "rock_smallC"]:
+		rocks.append(Fx.model_merged("decor/" + n, NATURE + n + ".glb",
+			func(m: String, _b: Color) -> Color: return Color("#86c053") if m.to_lower().contains("grass") else Color("#b9bec4"),
+			Transform3D(Basis.from_scale(Vector3.ONE * 1.0), Vector3.ZERO)))
 	var rock_xf: Array = []
 	for r in rocks:
 		var arr: Array[Transform3D] = []
@@ -81,14 +80,14 @@ static func build(parent: Node3D, area_ranges: Array[Vector2], width: float, bas
 			continue
 		(rock_xf[i % rocks.size()] as Array[Transform3D]).append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.5)), p))
 	for k in rocks.size():
-		_multimesh(parent, rocks[k], rock_xf[k], Mats.surface(Color("#b9bec4"), "paint", 0.9))
+		_multimesh(parent, rocks[k], rock_xf[k])
 
 	# マップの外側の森（飾り）。左右の外側には生やさず、奥と手前の帯だけ
 	var border: Dictionary = {}
 	var x2 := -half + 0.8
 	while x2 < half - 0.8:
 		for k in 3:
-			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, base_depth + 1.2 + k * 1.8))
+			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, base_depth + 2.6 + k * 1.8))
 			_add_border_tree(border, rng, Vector3(x2 + rng.randf_range(-0.5, 0.5), 0, far - 1.2 - k * 1.8))
 		x2 += 1.7
 	for key in border:

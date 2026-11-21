@@ -67,19 +67,25 @@ static func pallet_of_planks(color := Color("#e8c99a")) -> Node3D:
 	return root
 
 
-## 2本の柱で立つ看板。文字は Label3D（ビルボードではなく板に貼る）。
-static func signboard(text: String, color := Color("#7a4a2a")) -> Node3D:
+## 2本の柱で立つ看板。明るいクリーム色の板を施設ごとの色（accent）で縁取り、上に同じ色の屋根を載せる。
+## 文字は Label3D（ビルボードではなく板に貼る）。
+static func signboard(text: String, accent := Color("#e8643a")) -> Node3D:
 	var root := Node3D.new()
-	for x in [-0.7, 0.7]:
-		root.add_child(Fx.cylinder(0.06, 1.6, color.darkened(0.2), Vector3(x, 0.8, 0), -1.0, 6, false, "wood"))
-	root.add_child(Fx.box(Vector3(1.8, 0.6, 0.08), color, Vector3(0, 1.45, 0), "wood"))
+	var post := Color("#6b4a32")
+	for x in [-0.75, 0.75]:
+		root.add_child(Fx.box(Vector3(0.12, 1.7, 0.12), post, Vector3(x, 0.85, 0), "wood"))
+	root.add_child(Fx.box(Vector3(1.9, 0.68, 0.1), accent, Vector3(0, 1.48, 0)))
+	root.add_child(Fx.box(Vector3(1.74, 0.52, 0.12), Color("#fff4dc"), Vector3(0, 1.48, 0)))
+	var cap := Props.gable_roof(2.1, 0.34, 0.18, accent.darkened(0.15))
+	cap.position = Vector3(0, 1.82, 0)
+	root.add_child(cap)
 	var label := Label3D.new()
 	label.text = text
 	label.font_size = 64
-	label.pixel_size = 0.004
-	label.outline_size = 8
-	label.outline_modulate = Color(0.15, 0.08, 0.03)
-	label.position = Vector3(0, 1.45, 0.05)
+	label.pixel_size = 0.0042
+	label.modulate = Color("#4a2f1a")
+	label.outline_size = 0
+	label.position = Vector3(0, 1.47, 0.065)
 	root.add_child(label)
 	return root
 

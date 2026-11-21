@@ -25,10 +25,16 @@ func _ready() -> void:
 	_zone = Zone.new(Vector2.ONE * PAD_RADIUS * 2.0, Color(0.5, 0.85, 0.55, 0.16))
 	add_child(_zone)
 	# 木の桟橋風の床と、出荷待ちの荷物
-	add_child(Fx.box(Vector3(3.2, 0.14, 1.6), Color("#a8834f"), Vector3(0, 0.07, -2.6)))
+	add_child(Fx.box(Vector3(3.2, 0.14, 1.6), Color("#c99a5e"), Vector3(0, 0.07, -2.6), "wood"))
 	for i in 7:
-		add_child(Fx.box(Vector3(0.03, 0.02, 1.6), Color("#7a5a33"), Vector3(-1.5 + i * 0.5, 0.15, -2.6)))
-	add_child(Fx.box(Vector3(1.3, 0.12, 1.1), Color("#a8834f"), Vector3(-0.7, 0.2, -2.6), "wood"))
+		add_child(Fx.box(Vector3(0.03, 0.02, 1.6), Color("#9a7040"), Vector3(-1.5 + i * 0.5, 0.15, -2.6)))
+	add_child(Fx.box(Vector3(1.3, 0.12, 1.1), Color("#b07f48"), Vector3(-0.7, 0.2, -2.6), "wood"))
+	# 桟橋の奥に、板を運び出すトラックを停めておく（見た目だけ）
+	var truck := Fx.model("res://assets/kenney/car/truck-flat.glb")
+	truck.scale = Vector3.ONE * 0.95
+	truck.position = Vector3(0.2, 0, -4.3)
+	truck.rotation_degrees.y = -90.0
+	add_child(truck)
 	_stock_pile = Node3D.new()
 	_stock_pile.position = Vector3(-0.7, 0.26, -2.6)
 	add_child(_stock_pile)
@@ -39,7 +45,7 @@ func _ready() -> void:
 	c2.position = Vector3(0.75, 0.84, -2.7)
 	c2.rotation_degrees.y = 20.0
 	add_child(c2)
-	var signboard := Props.signboard("出荷場")
+	var signboard := Props.signboard("出荷場", Color("#3b8fe0"))
 	signboard.position = Vector3(1.9, 0, -1.6)
 	signboard.rotation_degrees.y = -20.0
 	add_child(signboard)
