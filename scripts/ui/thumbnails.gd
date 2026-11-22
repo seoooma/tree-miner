@@ -82,6 +82,18 @@ func _render(id: String) -> Texture2D:
 				house.add_child(lg)
 			look = Vector3(0, 0.7, 0)
 			dist = 6.5
+		"workshop":
+			var shop := Node3D.new()
+			Workshop.build_bench(shop)
+			shop.position = -Workshop.BENCH_OFFSET
+			shop.rotation_degrees.y = 200.0
+			subject.add_child(shop)
+			var chair := Workshop.goods_mesh("chair")
+			chair.scale = Vector3.ONE * 1.4
+			chair.position = Vector3(1.3, 0.1, 0.4)
+			subject.add_child(chair)
+			look = Vector3(0, 0.7, 0)
+			dist = 5.0
 		"lumberjack_axe":
 			var rig := CharacterRig.new(1.0)
 			rig.set_hat(Color("#f2c230"))

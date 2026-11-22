@@ -26,12 +26,14 @@ const SAND_RECTS: Array[Vector4] = [
 	Vector4(0.0, 2.0, 1.9, 3.2),
 	Vector4(-13.0, 8.6, 4.6, 4.8),
 	Vector4(11.5, 9.8, 3.0, 3.4),
+	Vector4(14.5, 7.0, 4.6, 1.6),
 ]
 
 var player: Player
 var camera: FollowCamera
 var sawmill: Sawmill
 var dock: ShipDock
+var workshop: Workshop
 var guide: GuideArrows
 var lines: Dictionary = {}  # "river" -> LogLine
 var hud: Hud
@@ -248,6 +250,11 @@ func _build_facilities() -> void:
 	dock.sawmill = sawmill
 	dock.position = DOCK_POS
 	add_child(dock)
+	workshop = Workshop.new()
+	workshop.dock = dock
+	workshop.position = DOCK_POS + Workshop.FROM_DOCK
+	dock.workshop = workshop
+	add_child(workshop)
 	var fuel := FuelStation.new()
 	fuel.position = FUEL_POS
 	add_child(fuel)

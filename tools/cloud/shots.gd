@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。orders / travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。orders / workshop / travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -83,6 +83,21 @@ func _shot_orders() -> void:
 	Orders.orders_changed.emit()
 	_place(Vector3(0, 0, main._area_ranges[2].x + AreaGate.PAD_OFFSET.z + 2.0))
 	await _wait(1.0)
+
+
+## 出荷場の右隣の工房（名前を指定したときだけ撮る: workshop）
+func _shot_workshop() -> void:
+	GameState.buy_upgrade("workshop")
+	for i in 6:
+		main.dock.stock.append(["pine", "maple", "oak"][i % 3])
+	for i in 4:
+		main.dock.log_stock.append("sapling")
+	main.workshop.goods.append_array(["chest", "table", "chair", "shelf", "charcoal"])
+	main.workshop._rebuild_goods()
+	main.dock._rebuild_stock()
+	main.dock._rebuild_logs()
+	_place(main.DOCK_POS + Workshop.FROM_DOCK + Vector3(0.5, 0, 2.2))
+	await _wait(3.0)
 
 
 func _shot_home() -> void:

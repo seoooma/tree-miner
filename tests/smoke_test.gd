@@ -543,6 +543,51 @@ func _run() -> void:
 	GameState.gate_paid.erase(str(gate_area))
 	main.dock.stock.append("pine")
 
+	# 21e. 工房: 出荷場の板（若木は丸太）から品を作り、トラックで売る
+	_check(not main.workshop.visible or not main.workshop._root.visible, "工房は開放するまで見えない")
+	_check(GameData.upgrade_group_of("workshop") == "facility", "工房のカードは設備タブにある")
+	GameState.money = maxi(GameState.money, 100000)
+	_check(GameState.buy_upgrade("workshop") and main.workshop._root.visible and main.workshop.belt.visible, "工房を開放すると、工房とコンベアが出る")
+	_check(GameData.goods_price("shelf") > GameData.plank_price("pine") * 2, "マツの棚は材料の板2枚より高く売れる (¥%d)" % GameData.goods_price("shelf"))
+	main.dock.stock.clear()
+	main.dock.log_stock.clear()
+	for i in 4:
+		main.dock.stock.append("pine")
+	for i in 2:
+		main.dock.log_stock.append("sapling")
+	main.dock.stock.append("oak")  # カシの板は2枚では足りず、作らずに工房で待つ（工房に回す設定のまま）
+	main.dock._rebuild_stock()
+	main.dock._rebuild_logs()
+	var goods_sold := 0
+	var m_ws := GameState.money
+	frames = 0
+	while frames < 60 * 40:
+		await get_tree().physics_frame
+		frames += 1
+		for item in main.dock.truck.cargo:
+			if item["kind"] == "goods":
+				goods_sold = maxi(goods_sold, main.dock.truck.cargo.filter(func(c: Dictionary) -> bool: return c["kind"] == "goods").size())
+		if goods_sold >= 3 and main.workshop.goods.is_empty():
+			break
+	_check(main.workshop.inbox.has("plank:oak") and not main.dock.stock.has("pine"), "工房に回す木はコンベアで工房へ運ばれる (材料 %s)" % ", ".join(main.workshop.inbox))
+	_check(goods_sold >= 3, "工房で棚2つと炭1つを作り、トラックに積む (%d個)" % goods_sold)
+	await _wait(float(GameData.dock.get("depart_idle_sec", 2.5)) + 2.0)
+	_check(GameState.money > m_ws, "工房の品が売れる (+¥%d)" % (GameState.money - m_ws))
+	# 作らない設定の品の材料は、これまでどおりトラックで売る
+	GameState.set_recipe_on("shelf", false)
+	_check(not GameState.is_for_workshop("plank", "pine") and GameState.is_for_workshop("log", "sapling"), "作る品は切り替えられる")
+	_check(main.hud._recipe_box.get_children().filter(func(c: Node) -> bool: return not c.is_queued_for_deletion()).size() == GameData.recipes.size(), "設備タブに工房で作る品の切り替えが並ぶ")
+	GameState.set_recipe_on("shelf", true)
+	# 工房の品の注文
+	GameState.orders.clear()
+	var goods_order := Orders.make_order("pine", "goods")
+	GameState.orders.append(goods_order)
+	_check(Orders.item_name("goods", "pine") == "マツの棚" and Orders.record_sale("goods", "pine", GameData.goods_price("shelf")) > 0, "工房の品の注文もある（マツの棚）")
+	GameState.orders.clear()
+	main.workshop.inbox.clear()
+	main.workshop._rebuild_input()
+	main.dock.stock.append("pine")
+
 	# 22. 在庫はセーブに入る
 	GameState.saving.emit()
 	_check((GameState.stock.get("dock", []) as Array).size() > 0 and GameState.stock.has("yard") and GameState.stock.has("sawmill_queue"), "集積所・製材所・出荷場の在庫がセーブに入る")

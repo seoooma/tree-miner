@@ -32,6 +32,7 @@ const STAT_NAMES := {
 	"harvester": "伐採力",
 	"hauler": "積載量",
 	"truck_capacity": "積める数",
+	"workshop": "作る速さ",
 }
 ## 左上のバッジ: speed（緑 ⏩）/ power（赤 ↑）/ capacity（黄）
 const BADGES := {
@@ -49,6 +50,7 @@ const BADGES := {
 	"harvester": "badge_power",
 	"hauler": "badge_capacity",
 	"truck_capacity": "badge_capacity",
+	"workshop": "badge_speed",
 }
 
 var player: Player
@@ -76,6 +78,9 @@ var _sheet: Control
 var _sheet_open := false
 var _sheet_tween: Tween
 var _roles_box: HFlowContainer
+## 工房で作る品の切り替え（設備タブ）
+var _recipe_title: Label
+var _recipe_box: HFlowContainer
 var _roles_title: Label
 var _target_box: HFlowContainer
 var _target_title: Label
@@ -138,12 +143,15 @@ func _ready() -> void:
 	GameState.machine_changed.connect(func(_k: String, _r: int) -> void: _refresh())
 	GameState.upgrade_changed.connect(func(_id: String, _l: int) -> void:
 		_refresh()
-		_rebuild_roles())
+		_rebuild_roles()
+		_rebuild_recipes())
 	GameState.lumberjack_role_changed.connect(func(_i: int, _r: String) -> void: _rebuild_roles())
 	GameState.lumberjack_target_changed.connect(func(_id: String) -> void: _rebuild_roles())
 	GameState.area_unlocked.connect(func(_i: int) -> void: _rebuild_roles())
+	GameState.recipe_toggled.connect(func(_id: String, _on: bool) -> void: _rebuild_recipes())
 	_refresh()
 	_rebuild_roles()
+	_rebuild_recipes()
 
 
 func bind_player(p: Player) -> void:
@@ -641,6 +649,15 @@ func _build_sheet() -> void:
 	_target_box.add_theme_constant_override("h_separation", 12)
 	_target_box.add_theme_constant_override("v_separation", 12)
 	roles_page.add_child(_target_box)
+	# 工房で作る品は工房のカードと同じタブ（設備）に出す
+	var workshop_page := _page_for("workshop")
+	_recipe_title = UiKit.label("工房で作る品（タップで切り替え。作らない品の材料はそのまま売る）", 24)
+	_recipe_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	workshop_page.add_child(_recipe_title)
+	_recipe_box = HFlowContainer.new()
+	_recipe_box.add_theme_constant_override("h_separation", 12)
+	_recipe_box.add_theme_constant_override("v_separation", 12)
+	workshop_page.add_child(_recipe_box)
 	for g in _groups:
 		var bottom_pad := Control.new()
 		bottom_pad.custom_minimum_size = Vector2(0, 30)
@@ -1088,6 +1105,48 @@ func _rebuild_targets(show: bool) -> void:
 			Audio.play("ui", -4.0)
 			GameState.set_lumberjack_target(target_id))
 		_target_box.add_child(chip)
+
+
+## 工房で作る品の切り替え。工房を開放してから出す
+func _rebuild_recipes() -> void:
+	if _recipe_box == null:
+		return
+	for child in _recipe_box.get_children():
+		child.queue_free()
+	var show := GameState.level("workshop") > 0
+	_recipe_title.visible = show
+	_recipe_box.visible = show
+	if not show:
+		return
+	for r in GameData.recipes:
+		var id := str(r["id"])
+		var on := GameState.is_recipe_on(id)
+		var color := Color("#3f9a5a") if on else Color("#5b5f66")
+		var chip := Button.new()
+		chip.custom_minimum_size = Vector2(150, 84)
+		chip.focus_mode = Control.FOCUS_NONE
+		chip.text = ("● " if on else "") + str(r["name"])
+		var normal := UiKit.flat_box(color, 42, 3, Color("#ffe27a") if on else color.lightened(0.35))
+		normal.border_width_bottom = 7
+		normal.border_color = color.darkened(0.35)
+		normal.content_margin_left = 18
+		normal.content_margin_right = 18
+		var pressed := normal.duplicate() as StyleBoxFlat
+		pressed.border_width_bottom = 2
+		pressed.content_margin_top = 6
+		chip.add_theme_stylebox_override("normal", normal)
+		chip.add_theme_stylebox_override("hover", normal)
+		chip.add_theme_stylebox_override("pressed", pressed)
+		chip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		chip.add_theme_constant_override("outline_size", 8)
+		chip.add_theme_color_override("font_outline_color", UiKit.OUTLINE_DARK)
+		chip.add_theme_font_size_override("font_size", 26)
+		chip.pressed.connect(func() -> void:
+			if _tap_suppressed():
+				return
+			Audio.play("ui", -4.0)
+			GameState.set_recipe_on(id, not GameState.is_recipe_on(id)))
+		_recipe_box.add_child(chip)
 
 
 # ================================================================ ワールド表示（頭上のバー・画面端の案内）

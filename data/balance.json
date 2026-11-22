@@ -76,26 +76,41 @@
 		"truck_speed_per_level": 1.0
 	},
 
+	"workshop": {
+		"_comment": "工房（出荷場の右隣）。強化『工房』Lv1で開放。出荷場に置かれた板（炭は若木の丸太）のうち、作る品に使う木を工房のコンベアで受け取り、count 個で1つの品を作る。できた品は販売のトラックで売れる",
+		"_price_note": "品の売値 = count x 材料の売値 x price_mult。作る時間 = time / 強化『工房』の個/秒。input_cap = 工房に溜めておく材料の上限（超えた分は出荷場で待つ）",
+		"input_cap": 12,
+		"feed_rate": 2.0,
+		"recipes": [
+			{ "id": "charcoal", "name": "炭",               "tree": "sapling", "input": "log",   "count": 2, "price_mult": 2.4, "time": 0.6 },
+			{ "id": "shelf",    "name": "マツの棚",         "tree": "pine",    "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.0 },
+			{ "id": "chair",    "name": "カエデの椅子",     "tree": "maple",   "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.2 },
+			{ "id": "table",    "name": "カシのテーブル",   "tree": "oak",     "input": "plank", "count": 3, "price_mult": 1.8, "time": 1.6 },
+			{ "id": "chest",    "name": "コクタンのたんす", "tree": "ebony",   "input": "plank", "count": 3, "price_mult": 1.8, "time": 2.0 }
+		]
+	},
+
 	"orders": {
 		"_comment": "客からの注文。開放済みエリアで重みが min_weight 以上の木から、丸太か板（製材ラインのあと）の注文が出る。普段どおり売ると合う品が数えられ、代金が mult 倍になる。そろうと評判が上がる",
 		"_qty_note": "本数 = base_qty x grade_qty[木のグレード] x (1 + 評判 x qty_per_rep)（最大 max_qty_scale 倍）。期限 = 本数 x sec_per_item x (1 + グレード x time_per_grade) + min_time_sec 秒",
-		"_rep_note": "達成で上がる評判 = rep_base + グレード x rep_per_grade (+ 板なら rep_plank_bonus)。注文の枠は slots、評判が extra_slot_at_rep の各値に届くたびに1つ増える",
+		"_rep_note": "達成で上がる評判 = rep_base + グレード x rep_per_grade (+ 板なら rep_plank_bonus、工房の品なら rep_goods_bonus)。工房の品の注文は工房のあと、作る品に選んでいる品だけ。注文の枠は slots、評判が extra_slot_at_rep の各値に届くたびに1つ増える",
 		"slots": 2,
 		"extra_slot_at_rep": [15],
 		"first_delay_sec": 5,
 		"cooldown_sec": 20,
 		"min_weight": 10,
-		"base_qty": { "log": 16, "plank": 10 },
+		"base_qty": { "log": 16, "plank": 10, "goods": 4 },
 		"grade_qty": [1.0, 1.0, 0.8, 0.7, 0.6],
 		"qty_per_rep": 0.02,
 		"max_qty_scale": 3.0,
-		"sec_per_item": { "log": 12, "plank": 18 },
+		"sec_per_item": { "log": 12, "plank": 18, "goods": 45 },
 		"time_per_grade": 0.25,
 		"min_time_sec": 120,
-		"mult": { "log": 1.5, "plank": 1.6 },
+		"mult": { "log": 1.5, "plank": 1.6, "goods": 1.4 },
 		"rep_base": 1,
 		"rep_per_grade": 1,
-		"rep_plank_bonus": 1
+		"rep_plank_bonus": 1,
+		"rep_goods_bonus": 2
 	},
 
 	"camera": {
@@ -141,7 +156,7 @@
 		{ "id": "self",     "name": "自分",   "icon": "icon_axe",    "items": ["axe_power", "capacity", "move_speed"] },
 		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_axe", "lumberjack_capacity"] },
 		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler", "truck_capacity"] },
-		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock"] }
+		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock", "workshop"] }
 	],
 
 	"upgrades": [
@@ -159,6 +174,8 @@
 		  "base_value": 12.0, "per_level": 4.0, "base_cost": 200, "cost_growth": 1.55, "max_level": 13, "unit": "個", "decimals": 0, "requires": "sawmill" },
 		{ "id": "plank_belt", "name": "板のコンベア", "desc": "Lv1で開放。製材所の板を出荷場へ自動で運ぶ。以降は運ぶ速さアップ",
 		  "base_value": 0.2, "per_level": 0.4, "base_cost": 500, "cost_growth": 1.6, "max_level": 12, "unit": "枚/秒", "decimals": 1, "locked_at_zero": true, "requires": "sawmill" },
+		{ "id": "workshop", "name": "工房", "desc": "Lv1で開放。出荷場の板（若木は丸太）から家具や炭を作る。以降は作る速さアップ",
+		  "base_value": 0.2, "per_level": 0.1, "base_cost": 2500, "cost_growth": 1.6, "max_level": 15, "unit": "個/秒", "decimals": 1, "locked_at_zero": true, "requires": "sawmill" },
 		{ "id": "lumberjack", "name": "伐採員",     "desc": "雇った仲間。役割（伐採／運搬）を下で切り替えられる",
 		  "base_value": 0.0, "per_level": 1.0,  "base_cost": 300, "cost_growth": 2.2,  "max_level": 5,  "unit": "人",    "decimals": 0 },
 		{ "id": "lumberjack_axe", "name": "伐採員の斧", "desc": "伐採員が1回の伐採で与えるダメージ",
