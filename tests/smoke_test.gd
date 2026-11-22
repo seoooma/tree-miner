@@ -514,6 +514,19 @@ func _run() -> void:
 	main.hud.order_board._rebuild()
 	await get_tree().process_frame
 	_check(main.hud.order_board._rows.size() == 1 and (main.hud.order_board._rows[0]["count"] as Label).text == "0/3", "画面の左上に注文が出る")
+	Orders.orders_changed.emit()
+	var marked_pine := false
+	var marked_other := false
+	for t in get_tree().get_nodes_in_group("trees"):
+		var ct := t as ChoppableTree
+		if ct.is_order_marked():
+			if ct.tree_id == "pine":
+				marked_pine = true
+			else:
+				marked_other = true
+	_check(marked_pine and not marked_other, "注文の木（マツ）だけ根元に目印が出る")
+	var pics: Array[Node] = main.hud.order_board._list.find_children("*", "TextureRect", true, false)
+	_check(not pics.is_empty() and (pics[0] as TextureRect).texture != null, "注文に切る木と品の絵が出る")
 	main.dock.stock.clear()
 	frames = 0
 	while not (main.dock.truck.is_parked() and main.dock.truck.cargo.is_empty()) and frames < 60 * 20:

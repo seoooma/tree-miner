@@ -1,9 +1,14 @@
 class_name OrderBoard
 extends VBoxContainer
 ## 画面左上（設定ボタンの下）の注文の一覧と評判。タッチは受け取らない（下のスティックに通す）。
-## 1件ごとに「品物・そろった数のゲージ・残り時間・割増・もらえる評判」を出す。達成すると画面中央に知らせる。
+## 1件ごとに「切る木と品の絵・品物・そろった数のゲージ・残り時間・割増・もらえる評判」を出す（木の名前だけでは見た目が分からないので絵を出し、森でも注文の木の根元に同じ色の輪を出す）。達成すると画面中央に知らせる。
 
-const WIDTH := 300.0
+const WIDTH := 340.0
+## 注文の絵（切る木と売る品）の大きさ
+const PIC := 72.0
+
+## 注文の絵を描く（HUD のサムネイル）。無ければ絵を出さない
+var thumbs: Thumbnails
 
 var _rep_label: Label
 var _list: VBoxContainer
@@ -82,31 +87,46 @@ func _make_row(o: Dictionary) -> Dictionary:
 	panel.add_theme_stylebox_override("panel", ps)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_list.add_child(panel)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	panel.add_child(row)
+	# 左: 切る木と売る品の絵（木の名前だけでは見た目が分からないので）。下地は木の等級の色
+	var pic_bg := PanelContainer.new()
+	pic_bg.add_theme_stylebox_override("panel", UiKit.flat_box(grade_color.darkened(0.55), 12, 2, grade_color))
+	pic_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic_bg.custom_minimum_size = Vector2(PIC, PIC)
+	row.add_child(pic_bg)
+	var pic := TextureRect.new()
+	if thumbs:
+		pic.texture = thumbs.texture_for("order:%s:%s" % [o["kind"], o["tree"]])
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic_bg.add_child(pic)
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 2)
-	panel.add_child(box)
+	row.add_child(box)
 
 	var top := HBoxContainer.new()
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(top)
-	var icon := TextureRect.new()
-	icon.texture = UiKit.icon({"log": "icon_log", "plank": "icon_tree", "goods": "icon_home"}.get(str(o["kind"]), "icon_tree"))
-	icon.custom_minimum_size = Vector2(30, 30)
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top.add_child(icon)
-	var name_label := UiKit.label(Orders.item_name(str(o["kind"]), str(o["tree"])), 24, false, UiKit.WHITE, 8)
+	var name_label := UiKit.label(Orders.item_name(str(o["kind"]), str(o["tree"])), 22, false, UiKit.WHITE, 8)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.clip_text = true
+	name_label.custom_minimum_size = Vector2(10, 0)
 	top.add_child(name_label)
 	var count := UiKit.label("", 24, false, UiKit.WHITE, 8)
 	top.add_child(count)
 
-	var bar := UiKit.Bar.new(grade_color, Vector2(WIDTH - 24, 16))
+	var bar := UiKit.Bar.new(grade_color, Vector2(WIDTH - 32 - PIC, 16))
 	bar.radius = 6
 	box.add_child(bar)
-	var info := UiKit.label("", 19, false, Color("#e8e2d6"), 6)
+	var info := UiKit.label("", 18, false, Color("#e8e2d6"), 6)
+	info.clip_text = true
+	info.custom_minimum_size = Vector2(10, 0)
 	box.add_child(info)
 	return {"bar": bar, "count": count, "info": info}
 
@@ -121,7 +141,7 @@ func _update_rows() -> void:
 		(row["count"] as Label).text = "%d/%d" % [done, need]
 		var left := maxi(0, ceili(float(o["time_left"])))
 		var info := row["info"] as Label
-		info.text = "残り %d:%02d ・ 代金x%.1f ・ 評判+%d" % [left / 60, left % 60, float(o["mult"]), int(o["rep"])]
+		info.text = "残り%d:%02d  x%.1f  評判+%d" % [left / 60, left % 60, float(o["mult"]), int(o["rep"])]
 		info.add_theme_color_override("font_color", Color("#ff8a7a") if left <= 30 else Color("#e8e2d6"))
 
 

@@ -208,6 +208,7 @@ func _build_top_bar() -> void:
 ## 左上（設定ボタンの下）に注文の一覧と評判
 func _build_orders() -> void:
 	order_board = OrderBoard.new()
+	order_board.thumbs = _thumbs
 	order_board.position = Vector2(16, 124)
 	_root.add_child(order_board)
 

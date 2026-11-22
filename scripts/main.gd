@@ -65,6 +65,9 @@ func _ready() -> void:
 	_build_gates()
 	_build_lines()
 	_spawn_trees()
+	# 注文に出ている木の根元に輪を出す（どの木を切ればよいか森の中でも分かるように）
+	Orders.orders_changed.connect(_update_order_marks)
+	_update_order_marks()
 	_spawn_player()
 	_build_camera()
 	guide = GuideArrows.new()
@@ -343,6 +346,15 @@ func _spawn_player() -> void:
 	var near := float(GameData.world.get("base_depth", 18))
 	player.nav_rect = Rect2(-_width() * 0.5, far, _width(), near - far)
 	add_child(player)
+
+
+## 注文に出ている木（丸太・板・工房の品の材料）の根元に輪を出す
+func _update_order_marks() -> void:
+	var wanted: Dictionary = {}
+	for o in GameState.orders:
+		wanted[str(o["tree"])] = true
+	for t in get_tree().get_nodes_in_group("trees"):
+		(t as ChoppableTree).set_order_mark(wanted.has((t as ChoppableTree).tree_id))
 
 
 ## 自動移動の行き先の一覧（いま行ける所だけ）。HUD の「移動」メニューに並ぶ。

@@ -39,6 +39,9 @@ var _mm: MultiMesh
 var _mm_index := -1
 ## 見た目が動いている残り時間（この間だけ MultiMesh を更新する）
 var _anim_left := 0.0
+## 注文に出ている木の目印（根元の輪。等級の色）
+var _order_mark: MeshInstance3D
+var _order_marked := false
 
 
 func setup(def: Dictionary, p_area_index: int, variant := 0) -> void:
@@ -74,6 +77,30 @@ func setup(def: Dictionary, p_area_index: int, variant := 0) -> void:
 	add_child(_shape)
 
 	_build_hp_bar()
+
+
+## 注文に出ている木なら根元に輪を出す（倒れている間は出さない）
+func set_order_mark(on: bool) -> void:
+	_order_marked = on
+	if on and _order_mark == null:
+		var ring := TorusMesh.new()
+		ring.inner_radius = radius + 0.32
+		ring.outer_radius = radius + 0.5
+		ring.rings = 24
+		ring.ring_segments = 4
+		_order_mark = MeshInstance3D.new()
+		_order_mark.mesh = ring
+		_order_mark.scale = Vector3(1, 0.12, 1)
+		_order_mark.position.y = 0.05
+		_order_mark.material_override = Mats.ground_paint(LogDrop.grade_color(_def).lightened(0.1))
+		_order_mark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_order_mark)
+	if _order_mark:
+		_order_mark.visible = on and alive
+
+
+func is_order_marked() -> bool:
+	return _order_marked and _order_mark != null and _order_mark.visible
 
 
 func _ready() -> void:
@@ -277,6 +304,8 @@ func _fell(dir: Vector3) -> void:
 		_shake_tween.kill()
 	_bar_root.visible = false
 	_stump.visible = true
+	if _order_mark:
+		_order_mark.visible = false
 	_shape.set_deferred("disabled", true)
 	felled.emit(self)
 	var axis := Vector3.UP.cross(dir).normalized()
@@ -321,6 +350,8 @@ func _respawn() -> void:
 	_visual.transform = Transform3D()
 	_visual.visible = true
 	_stump.visible = false
+	if _order_mark:
+		_order_mark.visible = _order_marked
 	_visual.scale = Vector3.ONE * 0.05
 	_shape.set_deferred("disabled", false)
 	create_tween().tween_property(_visual, "scale", Vector3.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
