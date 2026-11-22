@@ -26,6 +26,15 @@ tools/cloud/screenshots.sh /tmp/shots 720x1280 chop,felled   # 場面を絞る
 仮想ディスプレイ上で実際に描画する（セーブデータは書き換えない）。Web 版と同じ Compatibility レンダラーなので、
 グロー・色調補正（Environment の glow / adjustment）は画面が白っぽく色あせる。使わず、光る演出は加算合成のスプライト（`scripts/vfx.gd`）で出す。
 
+## 重さの確認
+
+```bash
+tools/cloud/probe.sh   # 後半の状態で 30 秒動かし、描画の呼び出し数・ノード数・施設ごとのメッシュ数を出す
+```
+
+Web 版（スマホの WebGL）は `rendering/driver/depth_prepass/enable=false` にしている。ブラウザ越しだと GPU の種類が分からず、
+Godot が Android の GPU 向けに深度プリパスを切る判定が効かない。深度プリパスが効いたままだと、3D が描かれず空の色だけの画面がちらつくことがある（2026-11 にスマホで発生）。
+
 ## Godot MCP（.mcp.json の `godot`）
 
 `tools/cloud/godot_mcp.sh` が `@coding-solo/godot-mcp` を起動する。画面が無い環境なので、`GODOT_PATH` には

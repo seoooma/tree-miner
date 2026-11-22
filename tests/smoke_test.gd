@@ -416,13 +416,13 @@ func _run() -> void:
 	_check(main.dock.truck.is_parked() and main.dock.truck.cargo.is_empty(), "トラックは走り去ったあと空で戻ってくる (%.1f秒)" % (frames / 60.0))
 	_check(not main.dock.truck.is_in_group("vehicles") and not main.dock.truck.is_in_group("machines"), "販売のトラックには乗れない（機械とは別）")
 	_check(GameData.log_price("oak") < GameData.plank_price("oak"), "丸太の売値は板より安い")
-	_check(main.dock._log_zone.visible, "製材ライン開放後は「丸太を売る」枠がある")
 	var m_logs := GameState.money
+	# 板と丸太は同じ出荷の枠に置ける（枠の左端でも丸太を置ける）
 	for i in 3:
 		player.stack.add({"kind": "log", "tree": "oak"})
-	player.global_position = main.DOCK_POS + ShipDock.LOG_PAD_OFFSET
+	player.global_position = main.dock.pad_position() - Vector3(ShipDock.PAD_SIZE.x * 0.5 - 0.3, 0, 0)
 	await _wait(0.6)
-	_check(player.stack.count("log") == 0, "「丸太を売る」枠に丸太を置ける")
+	_check(player.stack.count("log") == 0, "出荷の枠に丸太を置ける（板と同じ枠）")
 	_check(GameState.money == m_logs, "丸太はその場では売れず、トラックを待つ")
 	player.global_position = main.PLAYER_SPAWN
 	await _wait(3.0 / GameState.value("dock") + float(GameData.dock.get("depart_idle_sec", 2.5)) + 0.5)
