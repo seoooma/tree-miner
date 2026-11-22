@@ -107,6 +107,8 @@ func make_order(tree_id := "", kind := "") -> Dictionary:
 		rep += int(c.get("rep_plank_bonus", 1))
 	elif kind == "goods":
 		rep += int(c.get("rep_goods_bonus", 2))
+	# 親方の腕前「名声」で上がる評判が増える
+	rep = ceili(rep * maxf(1.0, GameState.perk_value("fame")))
 	return {
 		"tree": tree_id,
 		"kind": kind,
@@ -114,7 +116,7 @@ func make_order(tree_id := "", kind := "") -> Dictionary:
 		"done": 0,
 		"time_left": secs,
 		"time_total": secs,
-		"mult": float(c.get("mult", {}).get(kind, 1.5)),
+		"mult": float(c.get("mult", {}).get(kind, 1.5)) + GameState.perk_value("regulars"),
 		"rep": rep,
 	}
 
@@ -155,5 +157,6 @@ func record_sale(kind: String, tree_id: String, price: int) -> int:
 ## 品物の名前（例「マツの板」「マツの丸太」「マツの棚」）
 static func item_name(kind: String, tree_id: String) -> String:
 	if kind == "goods":
-		return str(_recipe_of_tree(tree_id).get("name", GameData.tree_name(tree_id)))
+		var r := _recipe_of_tree(tree_id)
+		return GameData.recipe_name(str(r["id"])) if not r.is_empty() else GameData.tree_name(tree_id)
 	return GameData.tree_name(tree_id) + ("の板" if kind == "plank" else "の丸太")

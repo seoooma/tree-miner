@@ -119,7 +119,8 @@ const TREE_HEIGHT := 2.9
 
 
 static func _model_path(def: Dictionary, variant: int) -> String:
-	var list: Array = MODELS.get(str(def["id"]), MODELS_BY_SHAPE.get(def.get("shape", "sphere"), MODELS_BY_SHAPE["sphere"]))
+	# 山によっては models でモデルを上書きする（竹の谷の細い竹など）
+	var list: Array = def.get("models", MODELS.get(str(def["id"]), MODELS_BY_SHAPE.get(def.get("shape", "sphere"), MODELS_BY_SHAPE["sphere"])))
 	return NATURE + str(list[variant % list.size()]) + ".glb"
 
 

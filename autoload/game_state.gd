@@ -10,6 +10,8 @@ signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
 ## 伐採員が狙う木のグレードが変わった（"" = すべて）
 signal lumberjack_target_changed(tree_id: String)
+## 親方の腕前（点・強化）が変わった
+signal perks_changed
 ## 工房で作る品を切り替えた
 signal recipe_toggled(id: String, on: bool)
 ## 評判が変わった（注文の達成で上がる）
@@ -48,6 +50,14 @@ var reputation: int = 0
 var orders: Array = []
 ## 次の注文が来るまでの秒数
 var order_cooldown := 0.0
+
+## ---- 周回をまたいで残るもの（reset_state では消さない） ----
+## いまの山の番号（0 = 最初の山）
+var mountain := 0
+## 親方の腕前（使っていない点）
+var skill_points := 0
+## 親方の腕前で買った強化のレベル {id: レベル}
+var perks: Dictionary = {}
 
 ## 工房で作らない品（レシピの id）。既定はすべて作る
 var recipes_off: Array = []
@@ -96,7 +106,10 @@ func level(id: String) -> int:
 
 
 func value(id: String) -> float:
-	return GameData.upgrade_value(id, level(id))
+	var v := GameData.upgrade_value(id, level(id))
+	if id == "sawmill" or id == "workshop":
+		v *= perk_value("blade")
+	return v
 
 
 func is_maxed(id: String) -> bool:
@@ -122,6 +135,80 @@ func buy_upgrade(id: String) -> bool:
 	upgrade_changed.emit(id, levels[id])
 	save_game()
 	return true
+
+
+# ---- 親方の腕前・別の山へ移る ----
+
+func perk_level(id: String) -> int:
+	return int(perks.get(id, 0))
+
+
+func perk_value(id: String) -> float:
+	return GameData.perk_value(id, perk_level(id))
+
+
+func perk_is_maxed(id: String) -> bool:
+	return perk_level(id) >= int(GameData.perk_def(id).get("max_level", 1))
+
+
+func perk_next_cost(id: String) -> int:
+	return GameData.perk_cost(id, perk_level(id))
+
+
+func buy_perk(id: String) -> bool:
+	if GameData.perk_def(id).is_empty() or perk_is_maxed(id) or skill_points < perk_next_cost(id):
+		return false
+	skill_points -= perk_next_cost(id)
+	perks[id] = perk_level(id) + 1
+	_sync_prices()
+	perks_changed.emit()
+	money_changed.emit(money)
+	save_game()
+	return true
+
+
+## いまの山のエリアをすべて開放したら、別の山へ移れる
+func can_move_mountain() -> bool:
+	return unlocked_area_count >= GameData.areas.size()
+
+
+## 移るともらえる腕前の点（評判が高いほど多い）
+func move_points() -> int:
+	return int(GameData.prestige.get("points_base", 3)) + floori(reputation * float(GameData.prestige.get("points_per_rep", 0.1)))
+
+
+## 別の山へ移る。お金・強化・機械・エリア・評判・注文・在庫は最初から（腕前の「元手」「弟子」のぶんは持っていく）。
+## 呼んだあとはメインの場面を作り直すこと（get_tree().reload_current_scene()）
+func move_mountain() -> bool:
+	if not can_move_mountain():
+		return false
+	var gained := move_points()
+	var next := mountain + 1
+	var points := skill_points + gained
+	var kept_perks := perks.duplicate()
+	reset_state()
+	mountain = next
+	skill_points = points
+	perks = kept_perks
+	GameData.apply_mountain(mountain)
+	_sync_prices()
+	_apply_start_perks()
+	order_cooldown = float(GameData.orders.get("first_delay_sec", 5.0))
+	save_game(false)
+	return true
+
+
+## 新しい山の最初の所持金と伐採員（腕前の「元手」「弟子」）
+func _apply_start_perks() -> void:
+	money += roundi(perk_value("capital"))
+	var crew := roundi(perk_value("apprentice"))
+	if crew > 0:
+		levels["lumberjack"] = mini(crew, GameData.upgrade_max_level("lumberjack"))
+
+
+## 売値の倍率 = 山の倍率 x 目利き
+func _sync_prices() -> void:
+	GameData.price_mult = GameData.mountain_price_mult * perk_value("appraise")
 
 
 # ---- 工房 ----
@@ -325,6 +412,9 @@ func save_game(collect := true) -> void:
 		"orders": orders,
 		"order_cooldown": order_cooldown,
 		"recipes_off": recipes_off,
+		"mountain": mountain,
+		"skill_points": skill_points,
+		"perks": perks,
 	}))
 
 
@@ -366,6 +456,14 @@ func load_game() -> void:
 	var saved_stock: Variant = parsed.get("stock", {})
 	if typeof(saved_stock) == TYPE_DICTIONARY:
 		stock = saved_stock
+	mountain = maxi(0, int(parsed.get("mountain", 0)))
+	skill_points = maxi(0, int(parsed.get("skill_points", 0)))
+	var saved_perks: Variant = parsed.get("perks", {})
+	if typeof(saved_perks) == TYPE_DICTIONARY:
+		for id in saved_perks:
+			perks[id] = int(saved_perks[id])
+	GameData.apply_mountain(mountain)
+	_sync_prices()
 	var off: Variant = parsed.get("recipes_off", [])
 	if typeof(off) == TYPE_ARRAY:
 		recipes_off = off
@@ -396,7 +494,12 @@ func reset_state() -> void:
 	order_cooldown = float(GameData.orders.get("first_delay_sec", 5.0))
 
 
-## デバッグ用: セーブを消して最初から。
+## デバッグ用: セーブを消して最初から（山・親方の腕前も消す）。
 func reset_game() -> void:
 	reset_state()
+	mountain = 0
+	skill_points = 0
+	perks = {}
+	GameData.apply_mountain(0)
+	_sync_prices()
 	save_game(false)
