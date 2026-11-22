@@ -23,6 +23,8 @@ const STOCK_PILE_OFFSET := Vector3(-0.65, 0.26, DECK_Z)
 const TRUCK_OFFSET := Vector3(2.0, 0, DECK_Z - 1.8)
 
 var sawmill: Sawmill
+## 隣の工房（工房に回す木の板・丸太は、トラックに積まずに工房のコンベアへ渡す）
+var workshop: Workshop
 ## 荷台に積まれてトラックを待っている板（木のID）
 var stock: Array[String] = []
 ## 丸太を売る枠の横に積まれてトラックを待っている丸太（木のID）
@@ -93,6 +95,8 @@ func _ready() -> void:
 		var parts := str(entry).split(":")
 		if parts.size() == 2 and parts[0] in ["plank", "log"] and not GameData.tree_def(parts[1]).is_empty():
 			truck.add_cargo(parts[0], parts[1])
+		elif parts.size() == 2 and parts[0] == "goods" and not GameData.recipe_def(parts[1]).is_empty():
+			truck.add_cargo(parts[0], parts[1])
 	GameState.saving.connect(_on_saving)
 	_build_belt()
 	GameState.upgrade_changed.connect(func(_id: String, _level: int) -> void: _refresh())
@@ -154,7 +158,8 @@ func _update_label() -> void:
 	var title := "板を置く"
 	if not stock.is_empty():
 		title = "出荷中"
-	_zone.set_text(title, "板: %d" % stock.size())
+	var for_workshop := _count_for_workshop(stock, "plank") + _count_for_workshop(log_stock, "log")
+	_zone.set_text(title, "板: %d" % stock.size() + ("（工房へ %d）" % for_workshop if for_workshop > 0 else ""))
 	_log_zone.set_text("丸太を売る", "板の半値")
 
 
@@ -182,7 +187,7 @@ func _process(delta: float) -> void:
 ## 荷台の板・丸太を、出荷のペースでトラックに積む。満載か、積む物がしばらく無ければ出発
 func _process_truck(delta: float) -> void:
 	var capacity := truck_capacity()
-	var has_goods := not stock.is_empty() or not log_stock.is_empty()
+	var has_goods := _loadable_count() > 0
 	# 積み込みはトラックが停まっている間だけ進め、1個ずつ積む（貯めておいて一度にまとめて積むと、
 	# 戻ってきたトラックの1段目が一瞬で埋まって見えるため）
 	if not truck.is_parked():
@@ -192,13 +197,13 @@ func _process_truck(delta: float) -> void:
 		_load_progress = minf(_load_progress + GameState.value(SELL_ID) * delta, 1.0)
 	else:
 		_load_progress = minf(_load_progress, 1.0)
-	while _load_progress >= 1.0 and truck.cargo.size() < capacity and (not stock.is_empty() or not log_stock.is_empty()):
+	while _load_progress >= 1.0 and truck.cargo.size() < capacity and _loadable_count() > 0:
 		_load_progress -= 1.0
 		_load_one()
 	if truck.cargo.is_empty():
 		_idle_time = 0.0
 		return
-	if not stock.is_empty() or not log_stock.is_empty():
+	if _loadable_count() > 0:
 		_idle_time = 0.0
 	else:
 		_idle_time += delta
@@ -206,20 +211,76 @@ func _process_truck(delta: float) -> void:
 		_depart()
 
 
-## 荷台から1個トラックに積む（多いほうの山から）
+## 工房に回す（トラックに積まない）木の数
+static func _count_for_workshop(ids: Array[String], kind: String) -> int:
+	var n := 0
+	for id in ids:
+		if GameState.is_for_workshop(kind, id):
+			n += 1
+	return n
+
+
+## いまトラックに積める数（工房に回す板・丸太を除き、工房でできた品を含む）
+func _loadable_count() -> int:
+	var n := stock.size() - _count_for_workshop(stock, "plank") + log_stock.size() - _count_for_workshop(log_stock, "log")
+	if workshop:
+		n += workshop.goods.size()
+	return n
+
+
+## 山の上から見て、最初に見つかる工房に回さない品の位置（無ければ -1）
+static func _last_loadable(ids: Array[String], kind: String) -> int:
+	for i in range(ids.size() - 1, -1, -1):
+		if not GameState.is_for_workshop(kind, ids[i]):
+			return i
+	return -1
+
+
+## 工房のコンベアに1つ渡す（工房に回す板、無ければ丸太）。"plank:pine" の形。無ければ空文字
+func take_for_workshop() -> String:
+	for i in range(stock.size() - 1, -1, -1):
+		if GameState.is_for_workshop("plank", stock[i]):
+			var id: String = stock[i]
+			stock.remove_at(i)
+			_rebuild_stock()
+			return "plank:" + id
+	for i in range(log_stock.size() - 1, -1, -1):
+		if GameState.is_for_workshop("log", log_stock[i]):
+			var id: String = log_stock[i]
+			log_stock.remove_at(i)
+			_rebuild_logs()
+			return "log:" + id
+	return ""
+
+
+## 荷台から1個トラックに積む（積める数がいちばん多い山から。工房に回す板・丸太は積まない）
 func _load_one() -> void:
-	if log_stock.size() > stock.size():
-		var log_id: String = log_stock.pop_back()
+	var plank_at := _last_loadable(stock, "plank")
+	var log_at := _last_loadable(log_stock, "log")
+	var n_planks := stock.size() - _count_for_workshop(stock, "plank")
+	var n_logs := log_stock.size() - _count_for_workshop(log_stock, "log")
+	var n_goods := workshop.goods.size() if workshop else 0
+	if n_goods > 0 and n_goods >= n_planks and n_goods >= n_logs:
+		var from := workshop.goods_top()
+		var goods_id := workshop.take_goods()
+		Fx.fly_item(self, Workshop.goods_mesh(goods_id), from, truck.next_slot_position(), 0.4)
+		truck.add_cargo("goods", goods_id)
+	elif log_at >= 0 and n_logs > n_planks:
+		var log_id: String = log_stock[log_at]
+		log_stock.remove_at(log_at)
 		var from := _log_pile_top()
 		_rebuild_logs()
 		Fx.fly_item(self, LogDrop.make_log_mesh(log_id), from, truck.next_slot_position(), 0.3)
 		truck.add_cargo("log", log_id)
-	else:
-		var plank_id: String = stock.pop_back()
+	elif plank_at >= 0:
+		var plank_id: String = stock[plank_at]
+		stock.remove_at(plank_at)
 		var from := _pile_top()
 		_rebuild_stock()
 		Fx.fly_item(self, Sawmill._plank_mesh(plank_id), from, truck.next_slot_position(), 0.3)
 		truck.add_cargo("plank", plank_id)
+	else:
+		return
 	Audio.play("drop", -14.0, 1.25)
 
 
@@ -231,7 +292,12 @@ func _depart() -> void:
 		var price := cargo_price(item)
 		total += price
 		# 注文に合う品は数えられ、割増の代金が入る
-		bonus += Orders.record_sale(str(item.get("kind", "")), str(item.get("tree", "")), price)
+		var kind := str(item.get("kind", ""))
+		var tree_id := str(item.get("tree", ""))
+		if kind == "goods":
+			# 工房の品の注文は、品の材料の木で数える
+			tree_id = str(GameData.recipe_def(tree_id).get("tree", ""))
+		bonus += Orders.record_sale(kind, tree_id, price)
 	GameState.add_money(total + bonus)
 	var at := truck.global_position + Vector3(-0.8, 2.0, 0)
 	Fx.popup(self, at, "+¥%d" % (total + bonus), Color("#ffe14d"), 84)
@@ -246,6 +312,8 @@ func _depart() -> void:
 
 
 static func cargo_price(item: Dictionary) -> int:
+	if item.get("kind", "") == "goods":
+		return GameData.goods_price(str(item.get("tree", "")))
 	if item.get("kind", "") == "log":
 		return GameData.log_price(str(item.get("tree", "")))
 	return GameData.plank_price(str(item.get("tree", "")))

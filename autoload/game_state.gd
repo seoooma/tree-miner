@@ -10,6 +10,8 @@ signal machine_changed(kind: String, rank: int)
 signal lumberjack_role_changed(index: int, role: String)
 ## 伐採員が狙う木のグレードが変わった（"" = すべて）
 signal lumberjack_target_changed(tree_id: String)
+## 工房で作る品を切り替えた
+signal recipe_toggled(id: String, on: bool)
 ## 評判が変わった（注文の達成で上がる）
 signal reputation_changed(reputation: int)
 ## セーブの直前。施設（集積所・製材所・出荷場）が在庫を stock に書き込む
@@ -46,6 +48,9 @@ var reputation: int = 0
 var orders: Array = []
 ## 次の注文が来るまでの秒数
 var order_cooldown := 0.0
+
+## 工房で作らない品（レシピの id）。既定はすべて作る
+var recipes_off: Array = []
 
 ## false にするとセーブしない（テスト用）
 var save_enabled := true
@@ -117,6 +122,28 @@ func buy_upgrade(id: String) -> bool:
 	upgrade_changed.emit(id, levels[id])
 	save_game()
 	return true
+
+
+# ---- 工房 ----
+
+func is_recipe_on(id: String) -> bool:
+	return not recipes_off.has(id)
+
+
+func set_recipe_on(id: String, on: bool) -> void:
+	recipes_off.erase(id)
+	if not on:
+		recipes_off.append(id)
+	recipe_toggled.emit(id, on)
+	save_game()
+
+
+## 材料（"plank" / "log" と木）が工房に回る（工房が開いていて、その品を作る設定）か
+func is_for_workshop(kind: String, tree_id: String) -> bool:
+	if level("workshop") <= 0:
+		return false
+	var r := GameData.recipe_for(kind, tree_id)
+	return not r.is_empty() and is_recipe_on(str(r["id"]))
 
 
 # ---- 評判 ----
@@ -297,6 +324,7 @@ func save_game(collect := true) -> void:
 		"reputation": reputation,
 		"orders": orders,
 		"order_cooldown": order_cooldown,
+		"recipes_off": recipes_off,
 	}))
 
 
@@ -338,12 +366,15 @@ func load_game() -> void:
 	var saved_stock: Variant = parsed.get("stock", {})
 	if typeof(saved_stock) == TYPE_DICTIONARY:
 		stock = saved_stock
+	var off: Variant = parsed.get("recipes_off", [])
+	if typeof(off) == TYPE_ARRAY:
+		recipes_off = off
 	reputation = maxi(0, int(parsed.get("reputation", 0)))
 	order_cooldown = float(parsed.get("order_cooldown", order_cooldown))
 	var saved_orders: Variant = parsed.get("orders", [])
 	if typeof(saved_orders) == TYPE_ARRAY:
 		for o in saved_orders:
-			if typeof(o) == TYPE_DICTIONARY and not GameData.tree_def(str(o.get("tree", ""))).is_empty() and str(o.get("kind", "")) in ["log", "plank"]:
+			if typeof(o) == TYPE_DICTIONARY and not GameData.tree_def(str(o.get("tree", ""))).is_empty() and str(o.get("kind", "")) in ["log", "plank", "goods"]:
 				orders.append(o)
 
 
@@ -360,6 +391,7 @@ func reset_state() -> void:
 	lumberjack_target = ""
 	stock = {}
 	reputation = 0
+	recipes_off = []
 	orders = []
 	order_cooldown = float(GameData.orders.get("first_delay_sec", 5.0))
 

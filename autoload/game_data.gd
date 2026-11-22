@@ -15,6 +15,9 @@ var drops: Dictionary = {}
 var fuel: Dictionary = {}
 var machines: Dictionary = {}
 var orders: Dictionary = {}
+var workshop: Dictionary = {}
+## 工房で作る品（balance.json の workshop.recipes）
+var recipes: Array = []
 var trees: Array = []
 var areas: Array = []
 var upgrades: Array = []
@@ -50,6 +53,8 @@ func load_balance() -> void:
 	fuel = data.get("fuel", {})
 	machines = data.get("machines", {})
 	orders = data.get("orders", {})
+	workshop = data.get("workshop", {})
+	recipes = workshop.get("recipes", [])
 	trees = data.get("trees", [])
 	areas = data.get("areas", [])
 	upgrades = data.get("upgrades", [])
@@ -98,6 +103,33 @@ func log_price(id: String) -> int:
 ## 板の売値。丸太の売値 x plank_multiplier。
 func plank_price(id: String) -> int:
 	return maxi(1, roundi(log_price(id) * float(economy.get("plank_multiplier", 2.0))))
+
+
+# ---- 工房 ----
+
+func recipe_def(id: String) -> Dictionary:
+	for r in recipes:
+		if str(r["id"]) == id:
+			return r
+	return {}
+
+
+## 材料（"plank" / "log" と木の ID）から作る品。無ければ空
+func recipe_for(kind: String, tree_id: String) -> Dictionary:
+	for r in recipes:
+		if str(r["input"]) == kind and str(r["tree"]) == tree_id:
+			return r
+	return {}
+
+
+## 品の売値 = 材料の数 x 材料の売値 x price_mult
+func goods_price(recipe_id: String) -> int:
+	var r := recipe_def(recipe_id)
+	if r.is_empty():
+		return 1
+	var tree_id := str(r["tree"])
+	var unit := log_price(tree_id) if str(r["input"]) == "log" else plank_price(tree_id)
+	return maxi(1, roundi(int(r.get("count", 1)) * unit * float(r.get("price_mult", 1.5))))
 
 
 ## エリアの開放に要る評判

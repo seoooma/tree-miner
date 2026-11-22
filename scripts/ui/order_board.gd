@@ -91,7 +91,7 @@ func _make_row(o: Dictionary) -> Dictionary:
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(top)
 	var icon := TextureRect.new()
-	icon.texture = UiKit.icon("icon_log" if o["kind"] == "log" else "icon_tree")
+	icon.texture = UiKit.icon({"log": "icon_log", "plank": "icon_tree", "goods": "icon_home"}.get(str(o["kind"]), "icon_tree"))
 	icon.custom_minimum_size = Vector2(30, 30)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED

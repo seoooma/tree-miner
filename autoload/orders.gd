@@ -85,6 +85,10 @@ func make_order(tree_id := "", kind := "") -> Dictionary:
 			for k in kinds:
 				if not _has_order(t, k):
 					options.append([t, k])
+			# 工房の品（作る設定にしている品だけ）
+			var r := _recipe_of_tree(t)
+			if GameState.level("workshop") > 0 and not r.is_empty() and GameState.is_recipe_on(str(r["id"])) and not _has_order(t, "goods"):
+				options.append([t, "goods"])
 		if options.is_empty():
 			return {}
 		var pick: Array = options[_rng.randi() % options.size()]
@@ -98,7 +102,11 @@ func make_order(tree_id := "", kind := "") -> Dictionary:
 	var rep_scale := minf(1.0 + GameState.reputation * float(c.get("qty_per_rep", 0.0)), float(c.get("max_qty_scale", 3.0)))
 	var need := maxi(3, roundi(base * g_scale * rep_scale))
 	var secs := need * float(c.get("sec_per_item", {}).get(kind, 15)) * (1.0 + grade * float(c.get("time_per_grade", 0.25))) + float(c.get("min_time_sec", 120))
-	var rep := int(c.get("rep_base", 1)) + grade * int(c.get("rep_per_grade", 1)) + (int(c.get("rep_plank_bonus", 1)) if kind == "plank" else 0)
+	var rep := int(c.get("rep_base", 1)) + grade * int(c.get("rep_per_grade", 1))
+	if kind == "plank":
+		rep += int(c.get("rep_plank_bonus", 1))
+	elif kind == "goods":
+		rep += int(c.get("rep_goods_bonus", 2))
 	return {
 		"tree": tree_id,
 		"kind": kind,
@@ -109,6 +117,14 @@ func make_order(tree_id := "", kind := "") -> Dictionary:
 		"mult": float(c.get("mult", {}).get(kind, 1.5)),
 		"rep": rep,
 	}
+
+
+## その木を材料にする工房の品（無ければ空）
+static func _recipe_of_tree(tree_id: String) -> Dictionary:
+	for r in GameData.recipes:
+		if str(r["tree"]) == tree_id:
+			return r
+	return {}
 
 
 func _has_order(tree_id: String, kind: String) -> bool:
@@ -136,6 +152,8 @@ func record_sale(kind: String, tree_id: String, price: int) -> int:
 	return 0
 
 
-## 品物の名前（例「マツの板」「マツの丸太」）
+## 品物の名前（例「マツの板」「マツの丸太」「マツの棚」）
 static func item_name(kind: String, tree_id: String) -> String:
+	if kind == "goods":
+		return str(_recipe_of_tree(tree_id).get("name", GameData.tree_name(tree_id)))
 	return GameData.tree_name(tree_id) + ("の板" if kind == "plank" else "の丸太")
