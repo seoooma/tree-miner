@@ -90,7 +90,7 @@ func _run() -> void:
 	_check(player.stack.count("plank") > 0, "出口で板を受け取れる (%d枚)" % player.stack.count("plank"))
 	var money_before := GameState.money
 	var planks_held := player.stack.count("plank")
-	await _walk_to(main.DOCK_POS, 0.5)
+	await _walk_to(main.dock.pad_position(), 0.5)
 	await _wait(1.0)
 	_check(player.stack.count("plank") == 0 and main.dock.stock.size() > 0, "出荷場に板を置ける (%d枚)" % main.dock.stock.size())
 	_check(main.dock.stock.size() < planks_held or GameState.money == money_before, "板はその場では全部売れず、荷台に残る")
@@ -389,7 +389,7 @@ func _run() -> void:
 	while main.dock.stock.size() < MANY:
 		main.dock.stock.append("pine")
 	player.stack.add({"kind": "plank", "tree": "pine"})
-	player.global_position = main.DOCK_POS
+	player.global_position = main.dock.pad_position()
 	await _wait(0.3)
 	_check(player.stack.count("plank") == 0, "出荷場に%d枚あっても板を置ける" % MANY)
 	_empty_hands()
