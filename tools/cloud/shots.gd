@@ -81,7 +81,7 @@ func _shot_orders() -> void:
 	GameState.orders.append(a)
 	GameState.orders.append(b)
 	Orders.orders_changed.emit()
-	_place(Vector3(0, 0, main._area_ranges[2].x + AreaGate.PAD_OFFSET.z + 2.0))
+	_place(Vector3(3, 0, main._area_ranges[1].x - 8.0))
 	await _wait(1.0)
 
 

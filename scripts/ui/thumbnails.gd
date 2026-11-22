@@ -47,7 +47,41 @@ func _render(id: String) -> Texture2D:
 	vp.add_child(subject)
 	var look := Vector3.ZERO
 	var dist := 3.0
-	match id:
+	match ("_order" if id.begins_with("order:") else id):
+		"_order":
+			# 注文の絵: 切る木と、売る品（丸太・板・工房の品）を並べる。id は "order:<kind>:<木のID>"
+			var parts := id.split(":")
+			var kind := parts[1]
+			var tree_id := parts[2]
+			var def := GameData.tree_def(tree_id)
+			var tree := MeshInstance3D.new()
+			tree.mesh = ChoppableTree._build_mesh(def, 0)
+			tree.material_override = Mats.tree(false)
+			tree.scale = Vector3.ONE * (2.5 / (ChoppableTree.TREE_HEIGHT * float(def.get("scale", 1.0)) * 0.9))
+			tree.position = Vector3(-0.55, 0, -0.3)
+			subject.add_child(tree)
+			var item: Node3D
+			if kind == "log":
+				item = LogDrop.make_log_mesh(tree_id, 70.0)
+				item.scale = Vector3.ONE * 1.8
+				item.position = Vector3(0.75, 0.2, 0.55)
+			elif kind == "plank":
+				item = Sawmill._plank_mesh(tree_id)
+				item.scale = Vector3.ONE * 1.4
+				item.rotation_degrees.y = 60.0
+				item.position = Vector3(0.75, 0.15, 0.55)
+			else:
+				var recipe := ""
+				for r in GameData.recipes:
+					if str(r["tree"]) == tree_id:
+						recipe = str(r["id"])
+				item = Workshop.goods_mesh(recipe)
+				item.scale = Vector3.ONE * 1.8
+				item.rotation_degrees.y = -20.0
+				item.position = Vector3(0.75, 0.0, 0.55)
+			subject.add_child(item)
+			look = Vector3(0.05, 1.0, 0)
+			dist = 5.4
 		"axe_power":
 			var axe := CharacterRig.make_axe()
 			axe.rotation_degrees = Vector3(-60, 90, 0)
