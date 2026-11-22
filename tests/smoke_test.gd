@@ -598,6 +598,55 @@ func _run() -> void:
 	GameState.add_money(100000)
 	_check(not GameState.buy_upgrade("conveyor") and not GameState.buy_upgrade("plank_belt"), "川流し・製材ラインの前にはコンベアを買えない")
 
+	# 24. 別の山へ移る（周回）と親方の腕前
+	GameState.reset_game()
+	_check(main.hud.master_page != null and main.hud._pages.has("master"), "強化画面に親方タブがある")
+	_check(not GameState.can_move_mountain() and main.hud.master_page._move_button.disabled, "エリアをすべて開放するまでは別の山へ移れない")
+	GameState.unlocked_area_count = GameData.areas.size()
+	GameState.reputation = 40
+	GameState.money = 123456
+	GameState.levels["sawmill"] = 5
+	var points := GameState.move_points()
+	_check(points == int(GameData.prestige["points_base"]) + 4, "移るともらえる腕前は評判が高いほど多い (%d点)" % points)
+	var ebony0 := GameData.log_price("ebony")
+	_check(GameState.move_mountain(), "エリアをすべて開放すると別の山へ移れる")
+	_check(GameState.mountain == 1 and GameState.skill_points == points and GameState.money == 0 and GameState.level("sawmill") == 0 and GameState.reputation == 0 and GameState.unlocked_area_count == 1, "移るとお金・強化・エリア・評判は最初からで、腕前は残る")
+	_check(GameData.tree_name("maple") == "モミジ" and str(GameData.areas[2]["name"]) == "モミジの谷", "新しい山では木とエリアの名前が変わる (%s)" % GameData.mountain_name(1))
+	_check(GameData.log_price("ebony") > ebony0, "新しい山は売値が高い (¥%d → ¥%d)" % [ebony0, GameData.log_price("ebony")])
+	_check(GameData.recipe_name("chair") == "モミジの椅子", "工房の品の名前も木に合わせて変わる")
+	var p0 := GameData.log_price("ebony")
+	_check(GameState.buy_perk("appraise") and GameData.log_price("ebony") > p0, "腕前で「目利き」を覚えると売値が上がる (¥%d → ¥%d)" % [p0, GameData.log_price("ebony")])
+	GameState.buy_perk("capital")
+	GameState.buy_perk("apprentice")
+	_check(GameState.perk_level("capital") == 1 and GameState.perk_level("apprentice") == 1 and GameState.skill_points == points - 1 - 1 - 2, "腕前の点で強化を覚える (残り %d点)" % GameState.skill_points)
+	var kept_points := GameState.skill_points
+	GameState.skill_points = 0
+	_check(not GameState.buy_perk("fame") and GameState.perk_level("fame") == 0, "腕前が足りないと覚えられない")
+	GameState.skill_points = kept_points
+	var saw_plain := GameData.upgrade_value("sawmill", 1)
+	GameState.perks["blade"] = 2
+	GameState.levels["sawmill"] = 1
+	_check(GameState.value("sawmill") > saw_plain, "「刃の手入れ」で製材が速くなる (%.2f → %.2f)" % [saw_plain, GameState.value("sawmill")])
+	GameState.perks.erase("blade")
+	GameState.unlocked_area_count = GameData.areas.size()
+	GameState.move_mountain()
+	_check(GameState.mountain == 2 and GameData.tree_name("pine") == "マダケ", "次は %s" % GameData.mountain_name(2))
+	_check(GameState.money == roundi(GameData.perk_value("capital", 1)) and GameState.level("lumberjack") == 1, "「元手」「弟子」で所持金と伐採員を持って始まる (¥%d, %d人)" % [GameState.money, GameState.level("lumberjack")])
+	_check(GameData.mountain_def_index(3) == 1 and GameData.mountain_name(3).contains("2度目") and GameData.mountain_price(3) > GameData.mountain_price(1), "最後の山のあとは2つ目の山から繰り返し、売値がさらに上がる (%s)" % GameData.mountain_name(3))
+	# 新しい山の場面を作り直せる
+	main.queue_free()
+	await get_tree().process_frame
+	main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await _wait(0.5)
+	var bamboo_named := false
+	for t in get_tree().get_nodes_in_group("trees"):
+		if (t as ChoppableTree).tree_id == "pine":
+			bamboo_named = true
+			break
+	_check(bamboo_named and main.hud.master_page._mountain_label.text.contains("竹の谷"), "新しい山の場面ができる (%s)" % main.hud.master_page._mountain_label.text)
+	GameState.reset_game()
+
 
 
 

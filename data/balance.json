@@ -78,17 +78,58 @@
 
 	"workshop": {
 		"_comment": "工房（出荷場の右隣）。強化『工房』Lv1で開放。出荷場に置かれた板（炭は若木の丸太）のうち、作る品に使う木を工房のコンベアで受け取り、count 個で1つの品を作る。できた品は販売のトラックで売れる",
+		"_name_note": "name の {tree} は木の名前に置き換わる（山によって木の名前が変わるため）",
 		"_price_note": "品の売値 = count x 材料の売値 x price_mult。作る時間 = time / 強化『工房』の個/秒。input_cap = 工房に溜めておく材料の上限（超えた分は出荷場で待つ）",
 		"input_cap": 12,
 		"feed_rate": 2.0,
 		"recipes": [
 			{ "id": "charcoal", "name": "炭",               "tree": "sapling", "input": "log",   "count": 2, "price_mult": 2.4, "time": 0.6 },
-			{ "id": "shelf",    "name": "マツの棚",         "tree": "pine",    "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.0 },
-			{ "id": "chair",    "name": "カエデの椅子",     "tree": "maple",   "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.2 },
-			{ "id": "table",    "name": "カシのテーブル",   "tree": "oak",     "input": "plank", "count": 3, "price_mult": 1.8, "time": 1.6 },
-			{ "id": "chest",    "name": "コクタンのたんす", "tree": "ebony",   "input": "plank", "count": 3, "price_mult": 1.8, "time": 2.0 }
+			{ "id": "shelf",    "name": "{tree}の棚",       "tree": "pine",    "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.0 },
+			{ "id": "chair",    "name": "{tree}の椅子",     "tree": "maple",   "input": "plank", "count": 2, "price_mult": 1.8, "time": 1.2 },
+			{ "id": "table",    "name": "{tree}のテーブル", "tree": "oak",     "input": "plank", "count": 3, "price_mult": 1.8, "time": 1.6 },
+			{ "id": "chest",    "name": "{tree}のたんす",   "tree": "ebony",   "input": "plank", "count": 3, "price_mult": 1.8, "time": 2.0 }
 		]
 	},
+
+	"prestige": {
+		"_comment": "別の山へ移る（周回）。いまの山のエリアをすべて開放すると、親方タブから新しい山へ移れる。お金・強化・機械・エリア・評判・注文・在庫は最初からになり、親方の腕前（点）をもらう",
+		"_points_note": "もらえる腕前 = points_base + 評判 x points_per_rep（切り捨て）。腕前は perks（ずっと残る強化）に使う。次のレベルの値段 = cost + レベル x cost_step 点",
+		"_perk_note": "perks の値 = base + per_level x レベル。appraise = 売値の倍率、capital = 新しい山の最初の所持金、apprentice = 最初からいる伐採員、blade = 製材と工房の速さの倍率、regulars = 注文の割増に足す値、fame = 注文で上がる評判の倍率",
+		"points_base": 3,
+		"points_per_rep": 0.1,
+		"repeat_price_growth": 1.25,
+		"perks": [
+			{ "id": "appraise",   "name": "目利き",     "desc": "すべての売値が上がる",               "base": 1.0, "per_level": 0.1,  "unit": "倍", "decimals": 1, "max_level": 10, "cost": 1, "cost_step": 1 },
+			{ "id": "capital",    "name": "元手",       "desc": "新しい山を、この所持金から始める",     "base": 0,   "per_level": 1000, "unit": "円", "decimals": 0, "max_level": 10, "cost": 1, "cost_step": 1 },
+			{ "id": "apprentice", "name": "弟子",       "desc": "新しい山に伐採員を連れていく",         "base": 0,   "per_level": 1,    "unit": "人", "decimals": 0, "max_level": 3,  "cost": 2, "cost_step": 2 },
+			{ "id": "blade",      "name": "刃の手入れ", "desc": "製材所と工房が速くなる",               "base": 1.0, "per_level": 0.15, "unit": "倍", "decimals": 2, "max_level": 10, "cost": 1, "cost_step": 1 },
+			{ "id": "regulars",   "name": "顔なじみ",   "desc": "注文の代金の割増が増える",             "base": 0,   "per_level": 0.1,  "unit": "",   "decimals": 1, "max_level": 5,  "cost": 1, "cost_step": 1 },
+			{ "id": "fame",       "name": "名声",       "desc": "注文で上がる評判が増える",             "base": 1.0, "per_level": 0.25, "unit": "倍", "decimals": 2, "max_level": 4,  "cost": 2, "cost_step": 1 }
+		]
+	},
+
+	"_mountains_note": "山ごとの違い。最初は0番。移るたびに次の山へ進み、最後まで行ったら1番から繰り返す（繰り返すたびに売値が prestige.repeat_price_growth 倍）。trees は木の ID ごとに名前・色・モデル（models）を上書き、areas はエリアの順に名前を上書き。price_mult = 売値の倍率、respawn_mult = 生え直すまでの時間の倍率、ground_tint = 地面の色に掛ける色",
+	"mountains": [
+		{ "id": "start", "name": "はじまりの山" },
+		{ "id": "autumn", "name": "紅葉の山", "price_mult": 1.5, "respawn_mult": 1.2, "ground_tint": "#f4e2bc",
+		  "areas": [ { "name": "ドウダンの林" }, { "name": "アカマツの丘" }, { "name": "モミジの谷" }, { "name": "ケヤキの森" }, { "name": "シタンの奥地" } ],
+		  "trees": {
+			"sapling": { "name": "ドウダン", "leaf_color": "#f0663e" },
+			"pine":    { "name": "アカマツ", "leaf_color": "#4f8a3c", "trunk_color": "#a0522d" },
+			"maple":   { "name": "モミジ",   "leaf_color": "#e23a2a" },
+			"oak":     { "name": "ケヤキ",   "leaf_color": "#e2a632", "trunk_color": "#6a4a30" },
+			"ebony":   { "name": "シタン",   "leaf_color": "#a8402e", "trunk_color": "#4a2018" }
+		  } },
+		{ "id": "bamboo", "name": "竹の谷", "price_mult": 2.2, "respawn_mult": 0.7, "ground_tint": "#e8f2cc",
+		  "areas": [ { "name": "ササの原" }, { "name": "マダケの林" }, { "name": "モウソウの谷" }, { "name": "クロチクの森" }, { "name": "キンメイの奥地" } ],
+		  "trees": {
+			"sapling": { "name": "ササ",         "leaf_color": "#a2d24e", "models": ["tree_small", "tree_thin"] },
+			"pine":    { "name": "マダケ",       "leaf_color": "#6cbf3a", "trunk_color": "#7fae4a", "models": ["tree_thin"] },
+			"maple":   { "name": "モウソウチク", "leaf_color": "#5aa832", "trunk_color": "#8fbf50", "models": ["tree_thin", "tree_pineTallA_detailed"] },
+			"oak":     { "name": "クロチク",     "leaf_color": "#4a8a30", "trunk_color": "#3a3a2a", "models": ["tree_thin"] },
+			"ebony":   { "name": "キンメイチク", "leaf_color": "#7ac040", "trunk_color": "#e0c040", "models": ["tree_thin", "tree_pineTallB_detailed"] }
+		  } }
+	],
 
 	"orders": {
 		"_comment": "客からの注文。開放済みエリアで重みが min_weight 以上の木から、丸太か板（製材ラインのあと）の注文が出る。普段どおり売ると合う品が数えられ、代金が mult 倍になる。そろうと評判が上がる",
@@ -156,7 +197,8 @@
 		{ "id": "self",     "name": "自分",   "icon": "icon_axe",    "items": ["axe_power", "capacity", "move_speed"] },
 		{ "id": "crew",     "name": "仲間",   "icon": "icon_worker", "items": ["lumberjack", "lumberjack_axe", "lumberjack_capacity"] },
 		{ "id": "vehicle",  "name": "乗り物", "icon": "icon_truck",  "items": ["harvester", "hauler", "truck_capacity"] },
-		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock", "workshop"] }
+		{ "id": "facility", "name": "設備",   "icon": "icon_home",   "items": ["river", "conveyor", "sawmill", "plank_belt", "dock", "workshop"] },
+		{ "id": "master",   "name": "親方",   "icon": "icon_upgrade", "items": [] }
 	],
 
 	"upgrades": [

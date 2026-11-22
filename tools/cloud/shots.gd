@@ -1,6 +1,6 @@
 extends Node
 ## 見た目の確認用に、決まった場面のスクリーンショットを撮る（クラウドのセッション向け）。
-## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。orders / workshop / travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
+## 実行: tools/cloud/screenshots.sh <出力フォルダ> [幅x高さ] [撮る場面（カンマ区切り）]。orders / workshop / master / autumn / bamboo / travel_menu / travel / fuel / upgrades / upgrades_chop / overview / gate / grades / piles / dockpiles / yard などは名前を指定したときだけ撮る
 ## セーブデータは書き換えない。
 
 const SHOTS := ["home", "chop", "felled", "saw", "sell", "river"]
@@ -98,6 +98,41 @@ func _shot_workshop() -> void:
 	main.dock._rebuild_logs()
 	_place(main.DOCK_POS + Workshop.FROM_DOCK + Vector3(0.5, 0, 2.2))
 	await _wait(3.0)
+
+
+## 強化画面の親方タブ（エリアをすべて開放して移れる状態。名前を指定したときだけ撮る: master）
+func _shot_master() -> void:
+	GameState.unlocked_area_count = GameData.areas.size()
+	GameState.reputation = 52
+	GameState.skill_points = 6
+	GameState.perks["appraise"] = 2
+	GameState.perks_changed.emit()
+	main.hud._set_sheet(true)
+	main.hud._select_tab("master")
+	await _wait(0.8)
+
+
+## 別の山（紅葉の山・竹の谷）の森。場面を作り直して撮る（名前を指定したときだけ撮る: autumn / bamboo）
+func _shot_autumn() -> void:
+	await _rebuild_on_mountain(1)
+
+
+func _shot_bamboo() -> void:
+	await _rebuild_on_mountain(2)
+
+
+func _rebuild_on_mountain(n: int) -> void:
+	GameState.mountain = n
+	GameData.apply_mountain(n)
+	GameState._sync_prices()
+	GameState.unlock_area(1)
+	main.queue_free()
+	await _frames(2)
+	main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await _frames(10)
+	_place(Vector3(2, 0, -2))
+	await _wait(1.0)
 
 
 func _shot_home() -> void:

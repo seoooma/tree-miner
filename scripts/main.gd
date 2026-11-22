@@ -199,12 +199,13 @@ func _build_ground() -> void:
 	var base_depth := float(GameData.world.get("base_depth", 18))
 	# 拠点は草地の中に、施設のまわりと通り道だけ土を敷く（何もない土の広場にしない）
 	Mats.sand_rects = SAND_RECTS
-	_add_ground_tile(width, base_depth, base_depth * 0.5, "grass", Color.WHITE)
+	# 山ごとに地面の色味を変える（紅葉の山は黄みがかった土、竹の谷は明るい緑）
+	_add_ground_tile(width, base_depth, base_depth * 0.5, "grass", GameData.ground_tint)
 	for i in GameData.areas.size():
 		var r := _area_ranges[i]
 		# 奥のエリアほどわずかに深い緑（どこまで来たかが色でわかる程度）
 		var tint := Color.WHITE.lerp(Color("#d6e6cf"), minf(1.0, i * 0.25))
-		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, "grass", tint)
+		_add_ground_tile(width, r.x - r.y, (r.x + r.y) * 0.5, "grass", tint * GameData.ground_tint)
 
 
 func _add_ground_tile(width: float, depth: float, center_z: float, kind: String, tint: Color) -> void:

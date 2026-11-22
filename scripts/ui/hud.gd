@@ -69,6 +69,7 @@ var _travel_menu: PanelContainer
 var _travel_grid: GridContainer
 var _travel_banner: Button
 var order_board: OrderBoard
+var master_page: MasterPage
 var _gear: TextureButton
 var _settings: Control
 var _music_button: Button
@@ -658,6 +659,15 @@ func _build_sheet() -> void:
 	_recipe_box.add_theme_constant_override("h_separation", 12)
 	_recipe_box.add_theme_constant_override("v_separation", 12)
 	workshop_page.add_child(_recipe_box)
+	# 親方タブ: いまの山・別の山へ移る・腕前で覚える強化
+	if _pages.has("master"):
+		master_page = MasterPage.new()
+		master_page.tap_suppressed = _tap_suppressed
+		master_page.on_moved = func() -> void:
+			_set_sheet(false)
+			# 新しい山の木・エリアで作り直す
+			get_tree().reload_current_scene.call_deferred()
+		(_pages["master"] as Control).add_child(master_page)
 	for g in _groups:
 		var bottom_pad := Control.new()
 		bottom_pad.custom_minimum_size = Vector2(0, 30)
@@ -1125,7 +1135,7 @@ func _rebuild_recipes() -> void:
 		var chip := Button.new()
 		chip.custom_minimum_size = Vector2(150, 84)
 		chip.focus_mode = Control.FOCUS_NONE
-		chip.text = ("● " if on else "") + str(r["name"])
+		chip.text = ("● " if on else "") + GameData.recipe_name(id)
 		var normal := UiKit.flat_box(color, 42, 3, Color("#ffe27a") if on else color.lightened(0.35))
 		normal.border_width_bottom = 7
 		normal.border_color = color.darkened(0.35)

@@ -18,6 +18,20 @@ var orders: Dictionary = {}
 var workshop: Dictionary = {}
 ## 工房で作る品（balance.json の workshop.recipes）
 var recipes: Array = []
+var prestige: Dictionary = {}
+## 山（周回ごとの舞台）。apply_mountain で trees / areas を上書きする
+var mountains: Array = []
+## いまの山の番号（0 = 最初の山。移るたびに 1 ずつ増える）
+var mountain := 0
+## 売値に掛ける倍率（山の倍率 x 親方の腕前「目利き」。GameState が設定する）
+var price_mult := 1.0
+## 山の売値の倍率（apply_mountain で決まる）
+var mountain_price_mult := 1.0
+## 地面の色に掛ける色
+var ground_tint := Color.WHITE
+## 上書き前の trees / areas（山を切り替えるたびにここから作り直す）
+var _base_trees: Array = []
+var _base_areas: Array = []
 var trees: Array = []
 var areas: Array = []
 var upgrades: Array = []
@@ -55,20 +69,85 @@ func load_balance() -> void:
 	orders = data.get("orders", {})
 	workshop = data.get("workshop", {})
 	recipes = workshop.get("recipes", [])
-	trees = data.get("trees", [])
-	areas = data.get("areas", [])
+	_base_trees = data.get("trees", [])
+	_base_areas = data.get("areas", [])
+	prestige = data.get("prestige", {})
+	mountains = data.get("mountains", [])
 	upgrades = data.get("upgrades", [])
 	upgrade_groups = []
 	for g in data.get("upgrade_groups", []):
 		if g is Dictionary and g.has("id"):
 			upgrade_groups.append(g)
 
-	_tree_index.clear()
-	for t in trees:
-		_tree_index[t["id"]] = t
+	apply_mountain(mountain)
 	_upgrade_index.clear()
 	for u in upgrades:
 		_upgrade_index[u["id"]] = u
+
+
+# ---- 山 ----
+
+## 山の番号から mountains の何番目を使うか（最後まで行ったら1番から繰り返す）
+func mountain_def_index(n: int) -> int:
+	if mountains.is_empty():
+		return -1
+	if n < mountains.size():
+		return n
+	var loop := maxi(1, mountains.size() - 1)
+	return 1 + (n - 1) % loop if mountains.size() > 1 else 0
+
+
+func mountain_def(n: int) -> Dictionary:
+	var i := mountain_def_index(n)
+	return mountains[i] if i >= 0 else {}
+
+
+## 山の名前。2周目以降は「紅葉の山（2度目）」のように何度目かを付ける
+func mountain_name(n: int) -> String:
+	var name := str(mountain_def(n).get("name", "山"))
+	var times := _visit_count(n)
+	return name if times <= 1 else "%s（%d度目）" % [name, times]
+
+
+func _visit_count(n: int) -> int:
+	if mountains.size() <= 1 or n < mountains.size():
+		return 1
+	return 1 + floori(float(n - 1) / float(mountains.size() - 1))
+
+
+## 山の売値の倍率（繰り返すたびに repeat_price_growth 倍）
+func mountain_price(n: int) -> float:
+	return float(mountain_def(n).get("price_mult", 1.0)) * pow(float(prestige.get("repeat_price_growth", 1.25)), _visit_count(n) - 1)
+
+
+## 山 n の木・エリアにする（名前・色・モデル・生え直す時間を上書き）。見た目のキャッシュも捨てる
+func apply_mountain(n: int) -> void:
+	mountain = maxi(0, n)
+	var m := mountain_def(mountain)
+	var tree_over: Dictionary = m.get("trees", {})
+	var respawn := float(m.get("respawn_mult", 1.0))
+	trees = []
+	for t in _base_trees:
+		var copy: Dictionary = (t as Dictionary).duplicate(true)
+		var over: Dictionary = tree_over.get(str(copy["id"]), {})
+		for key in over:
+			copy[key] = over[key]
+		copy["respawn_sec"] = float(copy.get("respawn_sec", 8.0)) * respawn
+		trees.append(copy)
+	var area_over: Array = m.get("areas", [])
+	areas = []
+	for i in _base_areas.size():
+		var copy: Dictionary = (_base_areas[i] as Dictionary).duplicate(true)
+		if i < area_over.size():
+			for key in area_over[i]:
+				copy[key] = area_over[i][key]
+		areas.append(copy)
+	ground_tint = Color(str(m.get("ground_tint", "#ffffff")))
+	mountain_price_mult = mountain_price(mountain)
+	_tree_index.clear()
+	for t in trees:
+		_tree_index[t["id"]] = t
+	Fx._meshes.clear()
 
 
 # ---- 木 ----
@@ -97,15 +176,22 @@ func saw_time(id: String) -> float:
 ## 丸太の売値。硬さに比例する。
 func log_price(id: String) -> int:
 	var hardness := float(tree_def(id).get("hardness", 1))
-	return maxi(1, roundi(hardness * float(economy.get("price_per_hardness", 1.0))))
+	return maxi(1, roundi(hardness * float(economy.get("price_per_hardness", 1.0)) * price_mult))
 
 
 ## 板の売値。丸太の売値 x plank_multiplier。
 func plank_price(id: String) -> int:
-	return maxi(1, roundi(log_price(id) * float(economy.get("plank_multiplier", 2.0))))
+	var hardness := float(tree_def(id).get("hardness", 1))
+	return maxi(1, roundi(hardness * float(economy.get("price_per_hardness", 1.0)) * price_mult * float(economy.get("plank_multiplier", 2.0))))
 
 
 # ---- 工房 ----
+
+## 品の名前（{tree} を材料の木の名前にする）
+func recipe_name(id: String) -> String:
+	var r := recipe_def(id)
+	return str(r.get("name", id)).replace("{tree}", tree_name(str(r.get("tree", ""))))
+
 
 func recipe_def(id: String) -> Dictionary:
 	for r in recipes:
@@ -128,8 +214,42 @@ func goods_price(recipe_id: String) -> int:
 	if r.is_empty():
 		return 1
 	var tree_id := str(r["tree"])
-	var unit := log_price(tree_id) if str(r["input"]) == "log" else plank_price(tree_id)
-	return maxi(1, roundi(int(r.get("count", 1)) * unit * float(r.get("price_mult", 1.5))))
+	var hardness := float(tree_def(tree_id).get("hardness", 1)) * float(economy.get("price_per_hardness", 1.0))
+	var unit := hardness if str(r["input"]) == "log" else hardness * float(economy.get("plank_multiplier", 2.0))
+	return maxi(1, roundi(int(r.get("count", 1)) * unit * float(r.get("price_mult", 1.5)) * price_mult))
+
+
+# ---- 親方の腕前（周回をまたいで残る強化） ----
+
+func perk_def(id: String) -> Dictionary:
+	for p in prestige.get("perks", []):
+		if str(p["id"]) == id:
+			return p
+	return {}
+
+
+func perk_value(id: String, level: int) -> float:
+	var p := perk_def(id)
+	return float(p.get("base", 0.0)) + float(p.get("per_level", 0.0)) * level
+
+
+## 次のレベルの値段（腕前の点）
+func perk_cost(id: String, level: int) -> int:
+	var p := perk_def(id)
+	return int(p.get("cost", 1)) + level * int(p.get("cost_step", 1))
+
+
+func format_perk_value(id: String, level: int) -> String:
+	var p := perk_def(id)
+	var decimals := int(p.get("decimals", 0))
+	var v := perk_value(id, level)
+	var text := ("%d" % roundi(v)) if decimals == 0 else (("%." + str(decimals) + "f") % v)
+	var unit := str(p.get("unit", ""))
+	if unit == "円":
+		return "¥" + text
+	if id == "regulars":
+		return "+" + text
+	return text + unit
 
 
 ## エリアの開放に要る評判
