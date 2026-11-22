@@ -1,19 +1,18 @@
 class_name ShipDock
 extends Station
-## 出荷場。製材ライン開放後、板をここに運ぶと荷台に積まれ、販売のトラックに積み込まれていく。
-## - 隣の「丸太を売る」枠に置いた丸太も同じトラックで売れる（板より安い。製材所が追いつかないときの逃がし先）
+## 出荷場。製材ライン開放後、板や丸太をここに運ぶと荷台に積まれ、販売のトラックに積み込まれていく。
+## - 板も丸太も同じ1つの枠に置ける。板は荷台の左の山、丸太は右の山に積まれる（丸太は板より安い。製材所が追いつかないときの逃がし先）
 ## - 積み込む速さは強化『出荷のペース』（個/秒）。荷台に置ける数に上限はない
 ## - トラックの積める数と走る速さは、乗り物タブの強化『販売のトラック』
 ## - トラックが満載になるか、積む物がしばらく無くなると、積み荷の代金が入ってトラックが拠点の外へ走り去る。
 ##   すぐに空のトラックが戻ってくる。戻ってきたトラックにも最初から1個ずつ積む
 ## - 強化『板のコンベア』を開放すると、製材所の出口の板がコンベアで荷台へ自動で運ばれる
 
-const PAD_RADIUS := 1.8
+## 板も丸太も置ける1つの枠（荷台の前に横長に敷く）。中心は出荷場の原点からのずれ、大きさは幅×奥行き
+const PAD_OFFSET := Vector3(1.6, 0, 0.1)
+const PAD_SIZE := Vector2(6.6, 3.4)
 const SELL_ID := "dock"
 const BELT_ID := "plank_belt"
-## 丸太を売る枠（出荷場の右隣）
-const LOG_PAD_OFFSET := Vector3(3.7, 0, 0.2)
-const LOG_PAD_RADIUS := 1.35
 ## 荷台（板敷きの床と板・丸太の山）の奥行き。製材所の作業列と同じにして、板のコンベアをまっすぐ平行に通す
 const DECK_Z := Sawmill.ROW_Z
 const LOG_PILE_OFFSET := Vector3(3.75, 0.26, DECK_Z)
@@ -34,7 +33,6 @@ var belt: Conveyor
 var truck: SaleTruck
 
 var _zone: Zone
-var _log_zone: Zone
 ## 荷台の板の山。数は stock と同じで、トラックに積んだ分だけ消える
 var _stock_pile: ItemPile
 var _log_pile: ItemPile
@@ -45,11 +43,9 @@ var _idle_time := 0.0
 
 
 func _ready() -> void:
-	_zone = Zone.new(Vector2.ONE * PAD_RADIUS * 2.0, Color(0.5, 0.85, 0.55, 0.16))
+	_zone = Zone.new(PAD_SIZE, Color(0.5, 0.85, 0.55, 0.16))
+	_zone.position = PAD_OFFSET
 	add_child(_zone)
-	_log_zone = Zone.new(Vector2.ONE * LOG_PAD_RADIUS * 2.0, Color(0.92, 0.55, 0.3, 0.16))
-	_log_zone.position = LOG_PAD_OFFSET
-	add_child(_log_zone)
 	# 木の桟橋風の床（左に板、右に丸太を積む）と、出荷待ちの荷物
 	add_child(Fx.box(Vector3(6.6, 0.14, 1.6), Color("#c99a5e"), Vector3(1.65, 0.07, DECK_Z), "wood"))
 	for i in 14:
@@ -145,7 +141,6 @@ func _build_belt() -> void:
 func _refresh() -> void:
 	var unlocked := GameState.level("sawmill") > 0
 	_zone.set_fill(Color(0.5, 0.85, 0.55, 0.16) if unlocked else Color(0.3, 0.3, 0.3, 0.2))
-	_log_zone.visible = unlocked
 	if belt:
 		belt.set_active(unlocked and GameState.level(BELT_ID) > 0)
 	_update_label()
@@ -155,33 +150,51 @@ func _update_label() -> void:
 	if GameState.level("sawmill") <= 0:
 		_zone.set_text("出荷場", "（製材ラインで開放）")
 		return
-	var title := "板を置く"
-	if not stock.is_empty():
+	var title := "板・丸太を置く"
+	if not stock.is_empty() or not log_stock.is_empty():
 		title = "出荷中"
 	var for_workshop := _count_for_workshop(stock, "plank") + _count_for_workshop(log_stock, "log")
-	_zone.set_text(title, "板: %d" % stock.size() + ("（工房へ %d）" % for_workshop if for_workshop > 0 else ""))
-	_log_zone.set_text("丸太を売る", "板の半値")
+	_zone.set_text(title, "板: %d　丸太: %d" % [stock.size(), log_stock.size()] + ("（工房へ %d）" % for_workshop if for_workshop > 0 else ""))
 
 
 func _process(delta: float) -> void:
 	if GameState.level("sawmill") <= 0:
 		return
-	# 運んできた板を荷台に置く
-	for carrier in carriers_near(global_position, PAD_RADIUS, "plank_carriers"):
+	# 運んできた板と丸太を、同じ枠から荷台に置く（板は左の山、丸太は右の山。1回に1個ずつ交互に）
+	for carrier in carriers_on_pad():
 		var stack: CarryStack = carrier.stack
-		if stack.count("plank") > 0 and tick(carrier, "sell", delta):
+		var from := (carrier as Node3D).global_position + Vector3(0, 1.0, 0)
+		var has_plank := stack.count("plank") > 0 and carrier.is_in_group("plank_carriers")
+		var has_log := stack.count("log") > 0
+		if not (has_plank or has_log) or not tick(carrier, "sell", delta):
+			continue
+		if has_plank and (not has_log or stack.count("plank") >= stack.count("log")):
 			var item := stack.take("plank")
-			Fx.fly_item(self, Sawmill._plank_mesh(item["tree"]), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), _pile_top(), 0.25)
+			Fx.fly_item(self, Sawmill._plank_mesh(item["tree"]), from, _pile_top(), 0.25)
 			_add_stock(item["tree"])
-	# 運んできた丸太を、丸太を売る枠の横に置く
-	for carrier in carriers_near(global_position + LOG_PAD_OFFSET, LOG_PAD_RADIUS):
-		var stack: CarryStack = carrier.stack
-		if stack.count("log") > 0 and tick(carrier, "sell_log", delta):
+		else:
 			var item := stack.take("log")
-			Fx.fly_item(self, LogDrop.make_log_mesh(item["tree"]), (carrier as Node3D).global_position + Vector3(0, 1.0, 0), _log_pile_top(), 0.25)
+			Fx.fly_item(self, LogDrop.make_log_mesh(item["tree"]), from, _log_pile_top(), 0.25)
 			add_log(item["tree"])
 	_process_truck(delta)
 	_update_label()
+
+
+## 出荷の枠（横長の角丸の四角）に乗っている運搬者
+func carriers_on_pad() -> Array[Node]:
+	var result: Array[Node] = []
+	var center := pad_position()
+	for node in get_tree().get_nodes_in_group("carriers"):
+		var reach := float(node.get_meta("pad_reach", 0.0))
+		var d := (node as Node3D).global_position - center
+		if absf(d.x) <= PAD_SIZE.x * 0.5 + reach and absf(d.z) <= PAD_SIZE.y * 0.5 + reach:
+			result.append(node)
+	return result
+
+
+## 出荷の枠の中心（自動移動や案内の矢印の行き先）
+func pad_position() -> Vector3:
+	return global_position + PAD_OFFSET
 
 
 ## 荷台の板・丸太を、出荷のペースでトラックに積む。満載か、積む物がしばらく無ければ出発

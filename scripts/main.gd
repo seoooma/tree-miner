@@ -367,12 +367,9 @@ func travel_destinations() -> Array[Dictionary]:
 	if sawmill.is_line_unlocked() and GameState.level("plank_belt") == 0:
 		list.append({"id": "planks", "name": "板置き場", "icon": "icon_home",
 			"target": func() -> Vector3: return sawmill.output_position(), "arrive": pad})
-	# 板を持っていれば板の出荷枠、それ以外は丸太を売る枠
+	# 板も丸太も同じ出荷の枠に置く
 	list.append({"id": "dock", "name": "出荷場", "icon": "icon_money",
-		"target": func() -> Vector3:
-			if player.stack.count("plank") > 0 and sawmill.is_line_unlocked():
-				return dock.global_position
-			return dock.global_position + ShipDock.LOG_PAD_OFFSET, "arrive": pad})
+		"target": func() -> Vector3: return dock.pad_position(), "arrive": pad})
 	var river: LogLine = lines.get("river")
 	if river and _nearest_river_point(player.global_position) != Vector3.INF:
 		list.append({"id": "river_point", "name": "川の積み場", "icon": "icon_arrow",

@@ -77,7 +77,7 @@ func _pick_goal() -> void:
 	var stack := player.stack
 	_tree_goal = null
 	if stack.count("plank") > 0 and dock and GameState.level("sawmill") > 0:
-		goal = dock.global_position
+		goal = (dock as ShipDock).pad_position()
 		goal_kind = "home"
 	elif stack.is_full() and sawmill:
 		goal = LoadingPoint.nearest_dropoff(self, player.global_position, sawmill)
